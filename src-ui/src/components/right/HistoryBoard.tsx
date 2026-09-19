@@ -545,7 +545,6 @@ export function HistoryBoard() {
                       type="button"
                       className="history-card-delete-btn"
                       aria-label={t('menu.delete')}
-                      title={t('menu.delete')}
                       onClick={(e) => {
                         e.stopPropagation();
                         hideSession(session.tool ?? '', session.id);
