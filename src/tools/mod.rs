@@ -51,8 +51,8 @@ pub enum HistoryShape {
         depth: u8,
     },
 
-    /// OpenCode: SQLite DB (`storage/db.sqlite`) plus legacy
-    /// JSONL files. Walked by `find_opencode_sessions`, cannot be
+    /// OpenCode: SQLite DB (`opencode.db`, V1/V2) plus legacy
+    /// JSON files. Walked by `find_opencode_sessions`, cannot be
     /// processed by the generic mtime-then-parse pipeline.
     OpenCodeMixed { root_under_home: &'static str },
 

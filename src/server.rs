@@ -2254,14 +2254,14 @@ fn validated_native_session_path(file_path: &str) -> Result<std::path::PathBuf, 
 
 // ─── OpenCode Session Reader ─────────────────────────────────────────────────
 //
-// OpenCode stores chat history in two layouts depending on version:
-//   • SQLite (current):  `~/.local/share/opencode/opencode.db`
-//                         tables `message` (role + metadata) + `part`
-//                         (text/tool blocks), joined by message_id.
+// OpenCode stores chat history in these layouts depending on version:
+//   • SQLite V2:         `~/.local/share/opencode/opencode.db`
+//                         `session_v2` + `session_message` (inline content).
+//   • SQLite V1:         same DB, `session` + `message` + `part` tables.
 //   • JSON  (legacy):    `~/.local/share/opencode/storage/message/<sid>/*.json`
 //                         one file per message, content blocks inline.
 //
-// Both are normalized to the same JSONL shape ConversationView understands
+// All are normalized to the same JSONL shape ConversationView understands
 // (Claude Code shape with `{message:{role, content[]}}`):
 //
 //   {"message": {"role": "user", "content": [{"type":"text","text":"..."}]}}
@@ -2278,6 +2278,109 @@ struct DatabaseChatPage {
     has_older: bool,
 }
 
+fn sqlite_table_exists(conn: &rusqlite::Connection, table: &str) -> bool {
+    conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1)",
+        [table],
+        |row| row.get(0),
+    ).unwrap_or(false)
+}
+
+fn opencode_v2_session(conn: &rusqlite::Connection, session_id: &str) -> bool {
+    if !sqlite_table_exists(conn, "session_message") {
+        return false;
+    }
+    // The beta importer retains V1 rows. Prefer the V2 session even when
+    // empty, and also support earlier builds that kept the `session` table.
+    for table in ["session_v2", "session_message"] {
+        let column = if table == "session_v2" { "id" } else { "session_id" };
+        if sqlite_table_exists(conn, table) && conn.query_row(
+            &format!("SELECT EXISTS(SELECT 1 FROM {table} WHERE {column} = ?1)"),
+            [session_id],
+            |row| row.get::<_, bool>(0),
+        ).unwrap_or(false) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Shared session/count source for history and heatmap. A migrated V2 row
+/// replaces its V1 row, including its archived state, so neither scan doubles it.
+fn opencode_sessions_sql(conn: &rusqlite::Connection) -> String {
+    let has_v2_sessions = sqlite_table_exists(conn, "session_v2");
+    let has_v2_messages = sqlite_table_exists(conn, "session_message");
+    let v2_count = "(SELECT COUNT(*) FROM session_message WHERE session_id = s.id \
+                    AND type IN ('user', 'assistant'))";
+    let v1_count = "(SELECT COUNT(*) FROM message WHERE session_id = s.id)";
+    let mut queries = Vec::new();
+    for table in ["session_v2", "session"] {
+        if !sqlite_table_exists(conn, table) { continue; }
+        let count = if table == "session_v2" {
+            v2_count.to_string()
+        } else if has_v2_messages {
+            format!("CASE WHEN EXISTS(SELECT 1 FROM session_message WHERE session_id = s.id) \
+                     THEN {v2_count} ELSE {v1_count} END")
+        } else {
+            v1_count.to_string()
+        };
+        let filter = if table == "session" && has_v2_sessions {
+            "WHERE NOT EXISTS(SELECT 1 FROM session_v2 WHERE id = s.id)"
+        } else { "" };
+        // V2 splits the working directory into a root + relative subpath.
+        // Older V1 databases predate the optional `path` column.
+        let subpath = if conn.prepare(&format!("SELECT path FROM {table} LIMIT 0")).is_ok() {
+            "s.path"
+        } else { "NULL" };
+        queries.push(format!(
+            "SELECT s.id, s.title, s.directory, s.time_created, s.time_updated, \
+             s.time_archived, s.parent_id, {count} AS msg_count, {subpath} AS subpath \
+             FROM {table} s {filter}"
+        ));
+    }
+    queries.join(" UNION ALL ")
+}
+
+fn read_opencode_v2_session_page(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+    before: Option<u64>,
+) -> Result<DatabaseChatPage, String> {
+    let total: u64 = conn.query_row(
+        "SELECT COUNT(*) FROM session_message WHERE session_id = ?1 AND type IN ('user', 'assistant')",
+        [session_id],
+        |row| row.get(0),
+    ).map_err(|e| format!("count V2 messages: {e}"))?;
+    let end = before.unwrap_or(total).min(total);
+    let start = end.saturating_sub(CHAT_WINDOW_ROWS as u64);
+    let mut stmt = conn.prepare(
+        "SELECT id, type, data FROM session_message WHERE session_id = ?1 \
+         AND type IN ('user', 'assistant') ORDER BY seq ASC LIMIT ?2 OFFSET ?3",
+    ).map_err(|e| format!("prepare V2 message query: {e}"))?;
+    let rows = stmt.query_map(rusqlite::params![session_id, end - start, start], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+    }).map_err(|e| format!("query V2 messages: {e}"))?;
+    let mut out = String::new();
+    for row in rows.flatten() {
+        let (id, role, data) = row;
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&data) else { continue; };
+        let texts: Vec<&str> = if role == "user" {
+            parsed.get("text").and_then(|v| v.as_str()).into_iter().collect()
+        } else {
+            parsed.get("content").and_then(|v| v.as_array()).into_iter().flatten()
+                .filter(|block| block.get("type").and_then(|v| v.as_str()) == Some("text"))
+                .filter_map(|block| block.get("text").and_then(|v| v.as_str()))
+                .collect()
+        };
+        let content: Vec<serde_json::Value> = texts.into_iter().filter(|text| !text.is_empty())
+            .map(|text| serde_json::json!({"type": "text", "text": text})).collect();
+        if content.is_empty() { continue; }
+        out.push_str(&serde_json::json!({"id": id, "message": {"role": role, "content": content}}).to_string());
+        out.push('\n');
+    }
+    Ok(DatabaseChatPage { data: out, history_cursor: start, has_older: start > 0 })
+}
+
 fn read_opencode_sqlite_session_page(
     db_path: &std::path::Path,
     session_id: &str,
@@ -2289,6 +2392,10 @@ fn read_opencode_sqlite_session_page(
         rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
     )
     .map_err(|e| format!("open opencode.db: {e}"))?;
+
+    if opencode_v2_session(&conn, session_id) {
+        return read_opencode_v2_session_page(&conn, session_id, before);
+    }
 
     let total: u64 = conn
         .query_row(
@@ -2829,6 +2936,15 @@ fn drizzle_session_revision(
         rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
     )
     .map_err(|error| error.to_string())?;
+    if opencode_v2_session(&conn, session_token) {
+        let (count, updated, seq): (i64, i64, i64) = conn.query_row(
+            "SELECT COUNT(*), COALESCE(MAX(time_updated), 0), COALESCE(MAX(seq), 0) \
+             FROM session_message WHERE session_id = ?1 AND type IN ('user', 'assistant')",
+            [session_token],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        ).map_err(|error| error.to_string())?;
+        return Ok(format!("opencode-v2:{count}:{updated}:{seq}"));
+    }
     let (message_count, message_updated, part_count, part_updated): (i64, i64, i64, i64) = conn
         .query_row(
             "SELECT \
@@ -3617,9 +3733,8 @@ fn find_opencode_sessions(base_dir: std::path::PathBuf, result: &mut Vec<SavedSe
     }
 }
 
-/// Read sessions from a Drizzle-schema SQLite db (`session` + `message`
-/// tables). Shared by OpenCode and its forks — MiMo Code uses the identical
-/// schema, so it passes its own `tool_id` / `default_title` and db path.
+/// Read V1/V2 SQLite sessions. Shared by OpenCode and its forks, which pass
+/// their own `tool_id` / `default_title` and db path.
 fn find_drizzle_sessions_sqlite(
     db_path: &std::path::Path,
     tool_id: &str,
@@ -3640,17 +3755,15 @@ fn find_drizzle_sessions_sqlite(
     // on-demand from the parent's timeline. Surfacing them here flat-clutters
     // the Sessions board with un-resumable child conversations. MiMo Code
     // shares this Drizzle schema/scanner, so the same filter applies.
-    let query = "SELECT s.id, s.title, s.directory, s.time_created, s.time_updated, \
-                 COUNT(m.id) as msg_count \
-                 FROM session s \
-                 LEFT JOIN message m ON m.session_id = s.id \
+    let query = format!("WITH sessions AS ({}) \
+                 SELECT s.id, s.title, s.directory, s.time_created, s.time_updated, s.msg_count, s.subpath \
+                 FROM sessions s \
                  WHERE s.time_archived IS NULL \
                    AND s.parent_id IS NULL \
-                 GROUP BY s.id \
                  ORDER BY s.time_updated DESC \
-                 LIMIT 30";
+                 LIMIT 30", opencode_sessions_sql(&conn));
 
-    let mut stmt = match conn.prepare(query) {
+    let mut stmt = match conn.prepare(&query) {
         Ok(s) => s,
         Err(_) => return,
     };
@@ -3664,6 +3777,11 @@ fn find_drizzle_sessions_sqlite(
         let directory: String = row.get::<_, Option<String>>(2)
             .unwrap_or(None)
             .unwrap_or_default();
+        let directory = match row.get::<_, Option<String>>(6).unwrap_or(None) {
+            Some(path) if !path.is_empty() && path != "." =>
+                std::path::Path::new(&directory).join(path).to_string_lossy().into_owned(),
+            _ => directory,
+        };
         let time_created: i64 = row.get(3).unwrap_or(0);
         let time_updated: i64 = row.get(4).unwrap_or(0);
         let msg_count: i64 = row.get(5).unwrap_or(0);
@@ -4591,12 +4709,11 @@ fn collect_opencode_heatmap_entries(
     // `new Date(ts * 1000)` in ContributionHeatmap.tsx). So compare and emit
     // in millis at the SQL boundary, then divide by 1000 once.
     let cutoff_ms: i64 = cutoff_secs.saturating_mul(1000);
-    let query = "SELECT s.time_updated, COUNT(m.id) AS msg_count \
-                 FROM session s \
-                 LEFT JOIN message m ON m.session_id = s.id \
-                 WHERE s.time_archived IS NULL AND s.time_updated >= ?1 \
-                 GROUP BY s.id";
-    let mut stmt = match conn.prepare(query) {
+    let query = format!("WITH sessions AS ({}) \
+                 SELECT s.time_updated, s.msg_count FROM sessions s \
+                 WHERE s.time_archived IS NULL AND s.time_updated >= ?1",
+                 opencode_sessions_sql(&conn));
+    let mut stmt = match conn.prepare(&query) {
         Ok(s) => s,
         Err(_) => return,
     };
@@ -6012,6 +6129,10 @@ mod tests {
 #[cfg(test)]
 #[path = "server/history_cache_tests.rs"]
 mod history_cache_tests;
+
+#[cfg(test)]
+#[path = "server/opencode_tests.rs"]
+mod opencode_tests;
 
 #[cfg(test)]
 #[path = "server/pty_resize_tests.rs"]
