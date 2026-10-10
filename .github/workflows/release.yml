@@ -173,7 +173,8 @@ jobs:
         run: cargo test --locked --no-fail-fast ${{ matrix.args }}
 
       - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2.0" --locked
+        # Keep utils.nsh and our custom NSIS template on the same interface.
+        run: cargo install tauri-cli --version "2.12.2" --locked
 
       # ── macOS: build .app, re-sign without hardened runtime, then bundle DMG ──
       # tauri-bundler's default codesign for adhoc identities adds
