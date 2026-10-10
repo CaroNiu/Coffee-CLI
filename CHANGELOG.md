@@ -28,6 +28,42 @@ and `git tag --list "v*"`.
   hidden only for verified TUIs that draw their own caret; unknown and future
   tools default to a visible static cursor. (#145)
 
+## [3.5.7] — 2026-10-11
+
+### Added
+- **Coffee Agent with WeChat and Telegram message channels.** Send instructions
+  through familiar chat apps while the built-in Agent reads the actual text
+  displayed in managed CLI terminals, coordinates tools, and reports progress.
+  Launched tools open as ordinary visible tabs in the directory you choose, so
+  you can continue the work at your computer.
+- **Persistent Coffee Agent conversations and preferences.** Local history
+  appears in the session list and can be continued on the desktop, including
+  conversations started through a message channel. Long conversations use
+  automatic summaries; explicit preferences can be remembered across new chats.
+- **Message settings and optional English task delegation.** Configure the
+  Agent model and message channels in one page. When English delegation is on,
+  Coffee Agent sends English task instructions to CLI agents while chatting and
+  reporting in your language; when off, task instructions follow your language.
+- **OpenCode V2 history and heatmap support.** Read current OpenCode sessions
+  alongside the legacy format.
+
+### Fixed
+- **Consistent visible terminal control.** Agent-launched Windows terminals use
+  shell-compatible working directories, and session readiness checks no longer
+  mistake a newly created tab for a closed one.
+- **More reliable channel and conversation recovery.** Reconnecting the same
+  verified channel identity preserves its conversation route; cancellation and
+  message deduplication remain scoped to the active connection. Telegram can
+  recover polling after a long idle period, and WeChat can reconnect after a
+  stored credential is missing.
+- **Safer file edits and history pagination.** Agent file replacements are
+  atomic, and loading older chat messages keeps the active reply in the correct
+  row. Session history restores its local cache before refreshing, and terminal
+  output scheduling waits for parser completion.
+
+Message-channel support is still being refined. Please share problems and
+suggestions through [GitHub Issues](https://github.com/edison7009/Coffee-CLI/issues).
+
 ## [3.2.9] — 2026-07-31
 
 ### Fixed
