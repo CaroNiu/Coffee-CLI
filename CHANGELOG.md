@@ -60,6 +60,8 @@ and `git tag --list "v*"`.
   atomic, and loading older chat messages keeps the active reply in the correct
   row. Session history restores its local cache before refreshing, and terminal
   output scheduling waits for parser completion.
+- **Windows installer compatibility.** Align the custom NSIS template and
+  running-process checks with the pinned Tauri bundler version.
 
 Message-channel support is still being refined. Please share problems and
 suggestions through [GitHub Issues](https://github.com/edison7009/Coffee-CLI/issues).
