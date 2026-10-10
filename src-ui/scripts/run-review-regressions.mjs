@@ -26,6 +26,85 @@ const evaluate = (code, context = {}) => vm.runInNewContext(ts.transpileModule(c
 }).outputText, context);
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+// Agent reuses Gambit, but only while its tab is visible. The shared composer
+// must preserve drafts on rejection and never send a second request while busy.
+{
+  const state = { agentPageActive: 'agent', leftPanelHidden: false, rightPanelHidden: false };
+  let running = false, rejectSend = false;
+  const sent = [], cancelled = [];
+  const render = vm.runInNewContext(ts.transpileModule(
+    `${declaration('components/agent/AgentPages.tsx', 'AgentChatPage')}; AgentChatPage`,
+    { compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React } },
+  ).outputText, {
+    useAppState: () => ({ state }),
+    useAgentClient: () => ({ messages: [], running, activity: '', error: '' }),
+    useState: initial => [initial, () => {}], useRef: initial => ({ current: initial }), useEffect() {},
+    React: { createElement: (type, props, ...children) => ({ type, props, children }) },
+    PageFrame: 'page', Gambit: 'gambit', MarkdownContent: 'markdown',
+    sendAgentMessage: async text => { if (rejectSend) throw new Error('model unavailable'); sent.push(text); },
+    invoke: async (command, args) => { cancelled.push({ command, ...args }); },
+  });
+  const composer = page => page.children.find(child => child?.type === 'gambit');
+  let props = composer(render()).props;
+  assert.equal(props.workspaceName, 'Coffee Agent');
+  assert.equal(await props.onSend('  inspect terminal 2  '), true);
+  assert.deepEqual(sent, ['inspect terminal 2']);
+  rejectSend = true;
+  assert.equal(await props.onSend('retry later'), false, 'IPC failure rejects the send without clearing its draft');
+  running = true;
+  props = composer(render()).props;
+  assert.equal(props.running, true);
+  assert.equal(await props.onSend('do not overlap'), false);
+  await props.onCancel();
+  assert.deepEqual(cancelled, [{ command: 'agent_cancel', conversationId: 'desktop' }]);
+  for (const page of ['config', null]) {
+    state.agentPageActive = page;
+    assert.equal(composer(render()), undefined, 'hidden Agent must release the dock and its body effects');
+  }
+
+  const tree = source('components/center/Gambit.tsx');
+  let callback;
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === 'handleSend') callback = node.initializer.getText(tree);
+    ts.forEachChild(node, visit);
+  }
+  visit(tree); assert.ok(callback);
+  const history = [], cleared = [], failed = [];
+  const context = {
+    useCallback: fn => fn, draft: 'original prompt', running: false,
+    sendingRef: { current: false }, latestDraftRef: { current: 'original prompt' }, historyCursorRef: { current: null },
+    onSend: async () => true, onDraftChange: text => cleared.push(text),
+    pushGambitHistory: text => history.push(text), setSendFailed: value => failed.push(value), setSendEmpty() {},
+  };
+  const send = () => evaluate(`${declaration('components/center/Gambit.tsx', 'wrapImagePathsForSend')}; ${callback}`, {
+    ...context, IMAGE_PATH_RE: /(?:[A-Za-z]:[\\/]|\/)[^\s<>"'`]+?\.(?:png|jpe?g|gif|webp|bmp)/gi,
+  });
+  context.running = true;
+  await send()();
+  assert.equal(history.length, 0);
+  assert.equal(cleared.length, 0, 'Enter during an Agent request cannot clear or send the pending draft');
+  context.running = false;
+  context.onSend = async () => false;
+  await send()();
+  assert.equal(failed.length, 1);
+  assert.equal(cleared.length, 0, 'a rejected send preserves the draft');
+  const pending = deferred(); let calls = 0;
+  context.onSend = () => { calls++; return pending.promise; };
+  const submit = send();
+  const first = submit();
+  await submit();
+  assert.equal(calls, 1, 'a double click cannot submit two requests');
+  context.latestDraftRef.current = 'next prompt typed while submitting';
+  pending.resolve(true); await first;
+  assert.equal(cleared.length, 0, 'accepting an earlier prompt preserves a newer draft');
+  assert.deepEqual(history, ['original prompt']);
+  context.latestDraftRef.current = context.draft;
+  context.onSend = async () => true;
+  await send()();
+  assert.deepEqual(cleared, [''], 'an accepted unchanged draft still clears normally');
+  console.log('OK: Agent Gambit visibility, routing, cancellation, busy guard, and draft preservation');
+}
+
 // A mode switch must hide the conversation, not remove its React subtree.
 // Otherwise both the reading position and measured virtual row heights reset.
 {
@@ -81,13 +160,15 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   }
   findActivity(surface);
   tab.id = 'test';
-  const active = () => evaluate(activity.getText(tree), { t: tab, activeTerminalId: 'test', diffTabActive: false });
+  const active = (agentPageActive = null) => evaluate(activity.getText(tree), { t: tab, activeTerminalId: 'test', diffTabActive: false, agentPageActive });
   assert.equal(active(), false, 'hidden idle chat does not poll');
   tab.chatPending = { text: 'test' };
   assert.equal(active(), true, 'pending chat can still resolve while hidden');
   tab.chatPending = null;
   tab.viewMode = 'chat';
   assert.equal(active(), true);
+  assert.equal(active('agent'), false, 'Agent page pauses the hidden CLI conversation poll');
+  assert.equal(active('config'), false, 'configuration page pauses the hidden CLI conversation poll');
   console.log('OK: conversation mode retention, lazy mount, session reset, and hidden polling');
 
   const fillViewport = effect('components/center/ConversationView.tsx', 'element.scrollHeight <= element.clientHeight + 80');
@@ -284,3 +365,78 @@ assert.equal(pins.length, 0, 'Cline can be switched off again');
 for (const key of catalogPins.slice(0, 7)) togglePin(`agent:${key}`);
 assert.equal(pins.length, 6, 'all six slots must be usable while the cap remains enforced');
 console.log('OK: Cline selection and toggling, retired pins, catalog consistency, persisted zero count, migration, and six-slot limit');
+
+// Exercise the actual tool-card handler: manual and Agent launch share one action.
+const manualLaunches = [];
+const selectTool = evaluate(pinDeclarations.get('selectTool').initializer.getText(centerTree), {
+  activeTerminalId: 'launchpad', dispatch: action => manualLaunches.push(action),
+  setLastCwdByTool() {}, pushRecentFolder() {},
+});
+selectTool('claude', undefined, 'E:\\tmp');
+assert.equal(manualLaunches.length, 1);
+assert.equal(manualLaunches[0].type, 'LAUNCH_TERMINAL_TOOL');
+assert.equal(manualLaunches[0].id, 'launchpad');
+assert.equal(manualLaunches[0].tool, 'claude');
+assert.equal(manualLaunches[0].cwd, 'E:\\tmp');
+console.log('OK: actual tool-card folder selection uses the same launch action as Coffee Agent');
+
+// Exercise the actual history-card click: a directoryless Coffee conversation
+// must open its Agent page, while native history still resumes a real CLI tab.
+{
+  const tree = source('components/right/HistoryBoard.tsx');
+  let handler, filter, merge;
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === 'handleViewHistory') handler = node.initializer.getText(tree);
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === 'matchedSessions') filter = node.initializer.getText(tree);
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === 'baseSessions') merge = node.initializer.getText(tree);
+    ts.forEachChild(node, visit);
+  }
+  visit(tree);
+  assert.ok(handler); assert.ok(filter); assert.ok(merge);
+  const newest = Date.UTC(2026, 9, 10, 13, 15);
+  const nativeSessions = Array.from({ length: 35 }, (_, index) => ({
+    id: `native-${index}`, name: `CLI history ${index}`, tool: 'claude', cwd: 'E:\\tmp',
+    session_token: `resume-${index}`, saved_at: String(newest - (index + 1) * 60_000),
+  }));
+  nativeSessions.push(
+    { ...nativeSessions[0], id: 'native-seconds', saved_at: String((newest - 36 * 60_000) / 1000) },
+    { ...nativeSessions[0], id: 'native-iso', saved_at: new Date(newest - 37 * 60_000).toISOString() },
+  );
+  const agentConversations = [{
+    id: 'coffee-history', route: 'weixin-bound', source: '微信', title: 'hello', updatedAt: newest, messageCount: 2,
+  }];
+  const sortByMtime = evaluate(`${declaration('lib/history-cache.ts', 'sortByMtime').replace(/^export\s+/, '')}; sortByMtime`);
+  const merged = evaluate(merge, { useMemo: callback => callback(), nativeSessions, agentConversations, sortByMtime });
+  assert.equal(merged[0].id, 'coffee-history', 'the newest Agent conversation must lead mixed timestamp histories');
+  assert.equal(merged.slice(0, 30).some(session => session.id === 'coffee-history'), true, 'Agent history must appear on the first visible page');
+  assert.deepEqual(Array.from(merged.slice(-2), session => session.id), ['native-seconds', 'native-iso']);
+  const coffee = merged[0];
+  assert.equal(coffee.turn_count, 2);
+  assert.equal(coffee.cwd, '');
+  assert.equal(coffee.session_token, null);
+  const allHistories = evaluate(filter, {
+    useMemo: callback => callback(), baseSessions: merged, hidden: new Set(), pinned: new Set(),
+    activeProject: null, debouncedQuery: '', renamed: {}, agentConversations,
+    projectName: () => '', getToolName: tool => tool,
+  });
+  assert.equal(allHistories.length, 38);
+  assert.equal(allHistories.slice(0, 30).some(session => session.id === coffee.id), true, 'All projects must include the directoryless Agent conversation on its first page');
+  const actions = [], opened = [];
+  const click = evaluate(`const click = ${handler}; click`, {
+    dispatch: action => actions.push(action), setAgentError() {},
+    openAgentConversation: async id => opened.push(id), crypto: { randomUUID: () => 'native-tab' },
+  });
+  click(coffee);
+  assert.deepEqual(opened, ['coffee-history']);
+  assert.deepEqual(actions.map(action => action.type), ['OPEN_AGENT_PAGE']);
+  click({ id: 'claude-history', tool: 'claude', cwd: 'E:\\tmp', session_token: 'native-resume' });
+  assert.deepEqual(actions.slice(1).map(action => action.type), ['ADD_TERMINAL', 'SET_ACTIVE_TERMINAL']);
+  const filtered = evaluate(filter, {
+    useMemo: callback => callback(), baseSessions: [coffee], hidden: new Set(), pinned: new Set(),
+    activeProject: 'coffee-agent', debouncedQuery: 'Coffee Agent', renamed: {},
+    agentConversations: [{ id: coffee.id, source: '微信' }],
+    projectName: () => '', getToolName: tool => tool,
+  });
+  assert.equal(filtered.length, 1);
+  console.log('OK: mixed timestamps show Coffee history on the first page, reopen the Agent, and preserve native CLI resume');
+}

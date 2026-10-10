@@ -170,6 +170,7 @@ export interface TerminalSession {
   /// which spawns the tool with its `--resume <token>` flag instead of a
   /// fresh launch. Cleared on any subsequent SET_TERMINAL_TOOL.
   resumeToken?: string;
+  strictCwd?: boolean;
   isHidden?: boolean;
   agentStatus?: AgentStatus;
   gambitDraft?: string;    // Unsent textarea content, preserved across tab switches
@@ -187,6 +188,8 @@ export interface TerminalSession {
 }
 
 // ─── State Shape ─────────────────────────────────────────────────────────────
+
+export type AgentPage = 'agent' | 'config';
 
 export interface AppState {
   // UI
@@ -218,6 +221,8 @@ export interface AppState {
   // Terminals
   terminals: TerminalSession[];
   activeTerminalId: string | null;
+  agentPages: AgentPage[];
+  agentPageActive: AgentPage | null;
 
   // Gambit (global floating compose window). Visibility is app-wide so the
   // panel doesn't appear/disappear when switching tabs; only the draft is
@@ -343,6 +348,7 @@ type Action =
   | { type: 'SET_ICON_THEME'; theme: IconTheme }
   | { type: 'SET_LANG'; lang: string }
   | { type: 'ADD_TERMINAL'; session: TerminalSession }
+  | { type: 'LAUNCH_TERMINAL_TOOL'; id: string; tool: ToolType; cwd?: string; toolData?: string; resumeToken?: string; strictCwd?: boolean }
   | { type: 'REMOVE_TERMINAL'; id: string }
   | { type: 'REORDER_TERMINAL'; sessionId: string; beforeId: string | null }
   | { type: 'SET_ACTIVE_TERMINAL'; id: string | null }
@@ -379,7 +385,9 @@ type Action =
   | { type: 'SET_DIFF_SELECTION'; selection: DiffSelection }
   | { type: 'CLEAR_DIFF' }
   | { type: 'SET_DIFF_MODE'; mode: 'overlay' | 'tab' }
-  | { type: 'SET_DIFF_TAB_ACTIVE'; active: boolean };
+  | { type: 'SET_DIFF_TAB_ACTIVE'; active: boolean }
+  | { type: 'OPEN_AGENT_PAGE'; page: AgentPage }
+  | { type: 'CLOSE_AGENT_PAGE'; page: AgentPage };
 
 // ─── Reducer ─────────────────────────────────────────────────────────────────
 
@@ -448,7 +456,26 @@ function reducer(state: AppState, action: Action): AppState {
       return { 
         ...state, 
         terminals: [...state.terminals, session],
-        activeTerminalId: session.id
+        activeTerminalId: session.id,
+        agentPageActive: null,
+        diffTabActive: false,
+      };
+    }
+    case 'LAUNCH_TERMINAL_TOOL': {
+      const previous = state.terminals.find(tab => tab.id === action.id);
+      const session: TerminalSession = {
+        ...previous, id: action.id, tool: action.tool,
+        folderPath: action.cwd ?? previous?.folderPath ?? null,
+        toolData: action.toolData, resumeToken: action.resumeToken, strictCwd: action.strictCwd,
+        toolTitle: undefined, agentStatus: undefined, viewMode: 'terminal', chatPending: undefined, startedAt: Date.now(),
+      };
+      if (action.cwd) {
+        try { localStorage.setItem('cc-folder', action.cwd); } catch { /* Best-effort operation; failure is non-fatal. */ }
+      }
+      return {
+        ...state,
+        terminals: previous ? state.terminals.map(tab => tab.id === action.id ? session : tab) : [...state.terminals, session],
+        activeTerminalId: action.id, agentPageActive: null, diffTabActive: false,
       };
     }
     case 'REMOVE_TERMINAL': {
@@ -491,7 +518,7 @@ function reducer(state: AppState, action: Action): AppState {
       // Activating a terminal tab blurs the diff tab (they're peer tabs in
       // the strip; only one is focused at a time). diffMode is untouched —
       // the diff still renders in its chosen surface, just not focused.
-      return { ...state, activeTerminalId: action.id, diffTabActive: false };
+      return { ...state, activeTerminalId: action.id, diffTabActive: false, agentPageActive: null };
     case 'SET_TERMINAL_TOOL':
       return {
         ...state,
@@ -662,6 +689,7 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         diffSelection: action.selection,
+        agentPageActive: state.diffMode === 'tab' ? null : state.agentPageActive,
         diffTabActive: state.diffMode === 'tab' ? true : state.diffTabActive,
       };
     case 'CLEAR_DIFF':
@@ -673,10 +701,16 @@ function reducer(state: AppState, action: Action): AppState {
       try { localStorage.setItem('cc-diff-mode', action.mode); } catch { /* Best-effort operation; failure is non-fatal. */ }
       // Entering tab mode focuses the diff tab; leaving blurs it. Keeps the
       // active-surface tracking in lockstep with the surface the diff is on.
-      return { ...state, diffMode: action.mode, diffTabActive: action.mode === 'tab' };
+      return { ...state, diffMode: action.mode, diffTabActive: action.mode === 'tab', agentPageActive: action.mode === 'tab' ? null : state.agentPageActive };
     }
     case 'SET_DIFF_TAB_ACTIVE':
-      return { ...state, diffTabActive: action.active };
+      return { ...state, diffTabActive: action.active, agentPageActive: action.active ? null : state.agentPageActive };
+    case 'OPEN_AGENT_PAGE':
+      return { ...state, agentPages: state.agentPages.includes(action.page) ? state.agentPages : [...state.agentPages, action.page], agentPageActive: action.page, diffTabActive: false };
+    case 'CLOSE_AGENT_PAGE': {
+      const agentPages = state.agentPages.filter(page => page !== action.page);
+      return { ...state, agentPages, agentPageActive: state.agentPageActive === action.page ? agentPages.at(-1) ?? null : state.agentPageActive };
+    }
     default:
       return state;
   }
@@ -909,6 +943,8 @@ function getInitialState(): AppState {
     diffSelection: null,
     diffMode,
     diffTabActive: false,
+    agentPages: [],
+    agentPageActive: null,
   };
 }
 

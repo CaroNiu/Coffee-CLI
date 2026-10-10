@@ -2,6 +2,10 @@
 
 mod terminal;
 mod server;
+mod agent;
+mod agent_memory;
+mod agent_workspace;
+mod channels;
 mod hook_installer;
 mod fonts;
 mod fs_watcher;

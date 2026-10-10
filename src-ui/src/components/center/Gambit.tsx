@@ -34,7 +34,10 @@ interface GambitProps {
    *  in multi-agent mode, xterm not yet mounted, etc.). Gambit uses this
    *  signal to decide whether to clear the draft — failed sends preserve
    *  the text so the user never loses what they typed. */
-  onSend: (text: string) => boolean;
+  onSend: (text: string) => boolean | Promise<boolean>;
+  running?: boolean;
+  onCancel?: () => void;
+  sendFailedHint?: string;
   /** Whether the left/right side panels are currently hidden. When Gambit
    *  is docked at the bottom it spans the center panel only, so we need
    *  to know which sides are absent to compute the inset offsets. */
@@ -99,6 +102,9 @@ function GambitImpl({
   onDraftChange,
   onClose,
   onSend,
+  running = false,
+  onCancel,
+  sendFailedHint,
   leftPanelHidden,
   rightPanelHidden,
   workspaceName,
@@ -110,6 +116,9 @@ function GambitImpl({
   const t = useT();
   const rootRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const sendingRef = useRef(false);
+  const latestDraftRef = useRef(draft);
+  latestDraftRef.current = draft;
   // The scroll container that owns the vertical scrollbar (the textarea itself
   // is overflow:hidden and auto-grows to its full content height). We need a
   // handle to it so the auto-grow effect can preserve / follow its scrollTop.
@@ -542,7 +551,8 @@ function GambitImpl({
     return true;
   }, [history, draft, onDraftChange]);
 
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
+    if (running) return;
     // CRITICAL: the draft text is the ONLY thing that gets sent.
     // Thumbnails rendered from pastedImagePaths are a pure derived view
     // with zero data-side responsibility. DO NOT re-append paths or
@@ -555,7 +565,10 @@ function GambitImpl({
       return;
     }
     const body = wrapImagePathsForSend(text);
-    const ok = onSend(body);
+    if (sendingRef.current) return;
+    sendingRef.current = true;
+    let ok = false;
+    try { ok = await onSend(body); } finally { sendingRef.current = false; }
     if (!ok) {
       // Preserve draft so the user does not lose what they typed. They
       // likely just need to click the target pane first, then Send again.
@@ -567,8 +580,8 @@ function GambitImpl({
     // Sent -> leave history navigation mode so the next recall starts from
     // the newest entry (which is the one we just pushed).
     historyCursorRef.current = null;
-    onDraftChange('');
-  }, [draft, onSend, onDraftChange]);
+    if (latestDraftRef.current === draft) onDraftChange('');
+  }, [draft, onSend, onDraftChange, running]);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // IME composition in progress — let the IME keep Enter for confirming
@@ -762,7 +775,7 @@ function GambitImpl({
         </div>
         {sendFailed && (
           <span className="gambit-send-hint" role="status">
-            {t('gambit.send_failed_hint')}
+            {sendFailedHint ?? t('gambit.send_failed_hint')}
           </span>
         )}
         {sendEmpty && (
@@ -801,12 +814,14 @@ function GambitImpl({
           </div>
         )}
         <button
-          className={`gambit-send${sendFailed ? ' gambit-send--failed' : ''}${!draft.trim() ? ' gambit-send--empty' : ''}`}
-          onClick={handleSend}
+          className={`gambit-send${sendFailed ? ' gambit-send--failed' : ''}${!running && !draft.trim() ? ' gambit-send--empty' : ''}`}
+          aria-label={t(running ? 'gambit.stop' : 'gambit.send')}
+          disabled={running && !onCancel}
+          onClick={running ? onCancel : handleSend}
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          {running ? <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1" /></svg> : <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M8 14 V3 M3 8 L8 3 L13 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          </svg>}
         </button>
       </div>
 

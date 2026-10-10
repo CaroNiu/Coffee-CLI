@@ -27,6 +27,26 @@ interface SessionQueue {
   dropped: boolean;
   isActive: boolean;
   failed: boolean;
+  receivedSequence: number;
+  enqueuedChars: number;
+  parsedChars: number;
+  parsedRevision: number;
+  lastReceivedAt: number | null;
+  lastParsedAt: number | null;
+  waiters: Set<{ target: number; finish: (state: TerminalFlushState) => void }>;
+}
+
+export type TerminalFlushState = 'flushed' | 'timeout' | 'unavailable';
+
+export interface TerminalOutputMetrics {
+  pendingChars: number;
+  inFlightChars: number;
+  receivedSequence: number;
+  parsedRevision: number;
+  lastReceivedAt: number | null;
+  lastParsedAt: number | null;
+  gap: boolean;
+  failed: boolean;
 }
 
 // Reinsert a served session at the end for round-robin within each priority.
@@ -36,14 +56,20 @@ let drainAt = 0;
 let nextBackgroundAt = performance.now() + BG_DRAIN_INTERVAL_MS;
 
 export function registerSession(id: string, term: Terminal): void {
+  const previous = sessions.get(id);
+  if (previous) finishWaiters(previous, 'unavailable');
   sessions.set(id, {
     id, term, chunks: [], head: 0, offset: 0, queuedChars: 0,
     inFlight: null, dropped: false, isActive: true, failed: false,
+    receivedSequence: 0, enqueuedChars: 0, parsedChars: 0, parsedRevision: 0,
+    lastReceivedAt: null, lastParsedAt: null, waiters: new Set(),
   });
   scheduleDrain();
 }
 
 export function unregisterSession(id: string): void {
+  const q = sessions.get(id);
+  if (q) finishWaiters(q, 'unavailable');
   sessions.delete(id);
   scheduleDrain();
 }
@@ -51,11 +77,14 @@ export function unregisterSession(id: string): void {
 export function enqueue(id: string, data: string): void {
   const q = sessions.get(id);
   if (!q || q.failed || data.length === 0) return;
+  q.receivedSequence += 1;
+  q.lastReceivedAt = Date.now();
   if (!q.isActive && q.queuedChars + (q.inFlight?.chars ?? 0) + data.length > MAX_BG_QUEUE) {
     if (!q.dropped) {
       q.dropped = true;
       q.chunks.push(DROP_WARNING);
       q.queuedChars += DROP_WARNING.length;
+      q.enqueuedChars += DROP_WARNING.length;
     }
     scheduleDrain();
     return;
@@ -63,6 +92,7 @@ export function enqueue(id: string, data: string): void {
   const idle = q.queuedChars === 0 && q.inFlight === null;
   q.chunks.push(data);
   q.queuedChars += data.length;
+  q.enqueuedChars += data.length;
   // Preserve immediate echo on an idle visible terminal, including split panes.
   // Remaining slices yield even when xterm invokes the callback synchronously.
   if (q.isActive && idle) writeNext(q);
@@ -75,6 +105,47 @@ export function setActive(id: string, active: boolean): void {
   q.isActive = active;
   // Activation changes priority, not FIFO or the in-flight allowance.
   scheduleDrain();
+}
+
+export function getSessionMetrics(id: string, term: Terminal): TerminalOutputMetrics | null {
+  const q = sessions.get(id);
+  if (!q || q.term !== term) return null;
+  return {
+    pendingChars: q.queuedChars + (q.inFlight?.chars ?? 0),
+    inFlightChars: q.inFlight?.chars ?? 0,
+    receivedSequence: q.receivedSequence,
+    parsedRevision: q.parsedRevision,
+    lastReceivedAt: q.lastReceivedAt,
+    lastParsedAt: q.lastParsedAt,
+    gap: q.dropped,
+    failed: q.failed,
+  };
+}
+
+/** Wait only for output accepted before this call, not a continuously growing queue. */
+export function flushSession(id: string, term: Terminal, timeoutMs = 250): Promise<TerminalFlushState> {
+  const q = sessions.get(id);
+  if (!q || q.term !== term || q.failed) return Promise.resolve('unavailable');
+  const target = q.enqueuedChars;
+  if (q.parsedChars >= target) return Promise.resolve('flushed');
+  return new Promise(resolve => {
+    const waiter = {
+      target,
+      finish: (state: TerminalFlushState) => {
+        clearTimeout(timer);
+        q.waiters.delete(waiter);
+        resolve(state);
+      },
+    };
+    const timer = setTimeout(() => waiter.finish('timeout'), timeoutMs);
+    q.waiters.add(waiter);
+  });
+}
+
+function finishWaiters(q: SessionQueue, state?: TerminalFlushState): void {
+  for (const waiter of q.waiters) {
+    if (state || q.parsedChars >= waiter.target) waiter.finish(state ?? 'flushed');
+  }
 }
 
 function nextReady(active: boolean): SessionQueue | undefined {
@@ -169,13 +240,19 @@ function writeNext(q: SessionQueue): void {
       // isolates a replacement with the same id and duplicate callbacks.
       if (sessions.get(q.id) !== q || q.inFlight !== pending) return;
       q.inFlight = null;
+      q.parsedChars += pending.chars;
+      q.parsedRevision += 1;
+      q.lastParsedAt = Date.now();
+      finishWaiters(q);
       scheduleDrain(); // Never recurse into xterm from its own parse callback.
     });
   } catch {
     // A rejected write cannot be replayed safely. Isolate it until remount.
     q.failed = true;
+    q.dropped = true;
     q.inFlight = null;
     q.chunks = [];
     q.head = q.offset = q.queuedChars = 0;
+    finishWaiters(q, 'unavailable');
   }
 }

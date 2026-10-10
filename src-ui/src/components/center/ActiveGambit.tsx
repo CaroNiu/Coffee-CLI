@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect } from 'react';
 import { useAppState, isSplitTool, paneSessionId, matchHotkeyScheme } from '../../store/app-state';
-import { getTabActions } from '../../lib/tab-actions';
+import { submitTerminalPrompt } from '../../lib/terminal-control';
 import { getFocusedPane } from '../../lib/pane-focus';
 import { supportsConversationTool } from '../../lib/chat-tools';
 import { getToolIcon } from './CenterPanel';
@@ -101,7 +101,7 @@ export function ActiveGambit() {
   //
   // If no pane has been focused yet, return false so Gambit preserves
   // the draft rather than dropping text into the void.
-  const handleSend = useCallback((text: string): boolean => {
+  const handleSend = useCallback(async (text: string): Promise<boolean> => {
     if (!activeId) return false;
     const tool = activeSession?.tool ?? null;
     let targetId = activeId;
@@ -110,9 +110,8 @@ export function ActiveGambit() {
       if (!paneIdx) return false;
       targetId = paneSessionId(activeId, paneIdx, 'split');
     }
-    const actions = getTabActions(targetId);
-    if (!actions) return false;
-    const sent = actions.paste(text);
+    let sent = false;
+    try { await submitTerminalPrompt(targetId, text); sent = true; } catch { return false; }
     if (sent && !isSplitTool(tool) && canUseChat) {
       dispatch({ type: 'SET_CHAT_PENDING', id: activeId, pending: { text, sentAt: Date.now() } });
     }
@@ -168,7 +167,7 @@ export function ActiveGambit() {
     try { localStorage.setItem('cc-gambit-open', state.gambitOpen ? '1' : '0'); } catch { /* optional preference */ }
   }, [state.gambitOpen]);
 
-  if (!gambitOpen || !activeId) return null;
+  if (!gambitOpen || !activeId || state.agentPageActive || state.diffTabActive) return null;
 
   return (
     <Gambit

@@ -181,6 +181,8 @@ export const ru = {
   'theme.color.glacier': 'Ледник',
   'theme.color.slate': 'Роза',
   'gambit.title': 'Гамбит',
+  'gambit.send': 'Отправить',
+  'gambit.stop': 'Остановить',
   'gambit.placeholder': 'Продумайте ход... ({send} — отправить, {newline} — новая строка, можно вставлять изображения, Alt+↑↓ — история)',
   'gambit.send_failed_hint': 'Сначала откройте активную сессию',
   'gambit.send_empty_hint': 'Сначала введите сообщение или вставьте изображение (Ctrl+V)',

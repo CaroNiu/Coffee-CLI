@@ -49,6 +49,10 @@ jobs:
           node scripts/run-conversation-virtualizer-test.mjs
           node scripts/run-review-regressions.mjs
           node scripts/run-history-cache-test.mjs
+          node scripts/run-terminal-observer-test.mjs
+          node scripts/run-terminal-control-test.mjs
+          node scripts/run-agent-tools-test.mjs
+          node scripts/run-agent-client-test.mjs
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable

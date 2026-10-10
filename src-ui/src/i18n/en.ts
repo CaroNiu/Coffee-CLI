@@ -186,6 +186,8 @@ Delete this note whenever you're ready, and start your first task.`,
 
   // Gambit — floating compose window. Chess term for a calculated opening move.
   'gambit.title': 'Gambit',
+  'gambit.send': 'Send',
+  'gambit.stop': 'Stop',
   'gambit.placeholder': 'Compose your move... ({send} to send, {newline} for newline, paste images, Alt+↑↓ for history)',
   'gambit.send_failed_hint': 'Open an active session first',
   'gambit.send_empty_hint': 'Type a message or paste an image first (Ctrl+V)',

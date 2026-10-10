@@ -39,6 +39,8 @@ import { usesSelfRenderedCaret } from '../../lib/chat-tools';
 import { onWindowForeground } from '../../lib/window-focus-filter';
 import { createTerminalSizeSync, DEFAULT_TERMINAL_GRID } from '../../lib/terminal-size-sync';
 import { commands } from '../../tauri';
+import { registerTerminalObserver } from '../../lib/terminal-observer';
+import { forwardTerminalInput, registerTerminalControl, setTerminalControlReady, submitTerminalPrompt, terminalControlStatus } from '../../lib/terminal-control';
 import { supportsAgentStatus, useAppDispatch, useAppStateRef, type AgentStatus, type ToolType, type ThemeColor } from '../../store/app-state';
 import { useT } from '../../i18n/useT';
 import { getToolDisplayName } from '../../lib/tool-info';
@@ -346,6 +348,7 @@ interface TierTerminalProps {
    *  effect passes it to tierTerminalStart, which spawns the tool with
    *  `--resume <token>` instead of a fresh launch. */
   resumeToken?: string;
+  strictCwd?: boolean;
   hasBg?: boolean;
   bgUrl?: string;
   bgType?: 'image' | 'video' | 'none';
@@ -369,7 +372,7 @@ interface RemoteTerminalConfig {
 
 function TierTerminalImpl({
   sessionId, tool, toolName, theme, lang, isActive, conversationActive = false,
-  toolData, folderPath, resumeToken, hasBg, bgUrl, bgType, termColorScheme, termFont,
+  toolData, folderPath, resumeToken, strictCwd, hasBg, bgUrl, bgType, termColorScheme, termFont,
 }: TierTerminalProps) {
   const selfRenderedCaret = usesSelfRenderedCaret(tool);
   // Which half of the colour family is on screen (App.tsx owns the attribute;
@@ -466,6 +469,7 @@ function TierTerminalImpl({
     if (!termRef.current || xtermRef.current) return;
 
     let mounted = true;
+    let ptyEnded = false;
     const unlisteners: (() => void)[] = [];
 
     const fontFamily = buildFontFamily(termFont);
@@ -967,7 +971,7 @@ function TierTerminalImpl({
         markNotifySoundPromptSubmitted(sessionId, tool);
         markAgentSubmission();
       }
-      commands.tierTerminalInput(sessionId, data).catch(() => {});
+      forwardTerminalInput(sessionId, data).catch(() => {});
     };
     term.onData(forwardInput);
 
@@ -1108,7 +1112,7 @@ function TierTerminalImpl({
         const seq = appCursor
           ? (down ? '\x1bOB' : '\x1bOA')
           : (down ? '\x1b[B' : '\x1b[A');
-        commands.tierTerminalInput(sessionId, seq.repeat(lines)).catch(() => {});
+        forwardTerminalInput(sessionId, seq.repeat(lines)).catch(() => {});
         e.preventDefault(); // we own this wheel event — no default browser scroll
         return false; // handled — suppress xterm's no-op scrollback attempt
       } catch {
@@ -1179,6 +1183,11 @@ function TierTerminalImpl({
     // outputScheduler.enqueue instead of term.write directly, so the session
     // must exist first to avoid a dropped-first-chunk race.
     outputScheduler.registerSession(sessionId, term);
+    unlisteners.push(registerTerminalObserver(sessionId, term));
+    unlisteners.push(registerTerminalControl(sessionId, term, () => {
+      markNotifySoundPromptSubmitted(sessionId, tool);
+      markAgentSubmission();
+    }));
     // Latency rig OUTPUT STOP: term.onRender is xterm's real render-done
     // signal (better than rAF approximation). Always-on (see latency-rig.ts
     // header); near-zero cost — one performance.now() + bounded ring-buffer
@@ -1465,6 +1474,8 @@ function TierTerminalImpl({
         },
         onStatus: (running) => {
           if (!mounted || running) return;
+          ptyEnded = true;
+          setTerminalControlReady(sessionId, false);
           sizeSync.markPtyStopped();
           setProcessExited(true);
           if (usesAgentStatus) {
@@ -1482,6 +1493,8 @@ function TierTerminalImpl({
           // upstream tool's own output). The CLI's own exit text, if any,
           // already speaks for itself.
           if (!mounted) return;
+          ptyEnded = true;
+          setTerminalControlReady(sessionId, false);
           sizeSync.markPtyStopped();
           setProcessExited(true);
           if (usesAgentStatus) {
@@ -1508,13 +1521,15 @@ function TierTerminalImpl({
       }
 
         try {
-          await commands.tierTerminalStart(sessionId, tool, initialGrid.size.cols, initialGrid.size.rows, theme, lang, toolData, folderPath ?? undefined, resumeToken, appStateRef.current.defaultShell);
+          await commands.tierTerminalStart(sessionId, tool, initialGrid.size.cols, initialGrid.size.rows, theme, lang, toolData, folderPath ?? undefined, resumeToken, appStateRef.current.defaultShell, strictCwd);
+          if (mounted && !ptyEnded) setTerminalControlReady(sessionId, true);
           sizeSync.markPtyStarted();
         } catch (err) {
           // Resume / launch validation failures (missing cwd, bad token
           // format, binary not on PATH) land here. The upstream CLI's own
           // startup errors come through the PTY stream, not this path.
           console.error('[TierTerminal] tierTerminalStart failed', err);
+          setTerminalControlReady(sessionId, false, String(err));
           if (mounted) {
             term.write(`\r\n\x1b[31m${String(err)}\x1b[0m\r\n`);
           }
@@ -1619,6 +1634,7 @@ function TierTerminalImpl({
 
     return () => {
       mounted = false;
+      setTerminalControlReady(sessionId, false);
       unregisterFocus();
       ro.disconnect();
       sizeSync.dispose();
@@ -1722,31 +1738,10 @@ function TierTerminalImpl({
   useEffect(() => {
     const unregister = registerTabActions(sessionId, {
       paste: (text: string): boolean => {
-        const term = xtermRef.current;
-        // If the xterm isn't mounted yet (tab still loading, PTY spawn in
-        // flight, etc.) report failure so the caller can preserve the
-        // source draft instead of silently losing it.
-        if (!term) return false;
-        // term.paste() goes through onData, which our handler forwards to the
-        // PTY with bracketed-paste framing when the TUI has enabled it.
-        // Newlines and IME composition round-trip correctly. Follow with CR
-        // to submit.
-        //
-        // Defer the CR so it arrives as a separate PTY read. Claude Code's
-        // Ink input handler enters a paste-end digestion state for ~100ms
-        // after the bracketed-paste close (`\x1b[201~`) — any CR that lands
-        // inside that window is absorbed as part of the paste buffer, so the
-        // text stays in the prompt without submitting. The original 30ms
-        // worked on older Claude versions; modern builds need ≥120ms (live
-        // measurement on 2026-04-26 was 152–164ms across two pane types).
-        // 150ms with the natural ~10ms timer slack puts us comfortably past
-        // the window. Windows ConPTY coalesces PTY writes differently but
-        // the delay is harmless there.
-        term.paste(normalizePasteNewlines(text));
-        setTimeout(() => {
-          markNotifySoundPromptSubmitted(sessionId, tool);
-          commands.tierTerminalInput(sessionId, '\r').catch(() => {});
-        }, 150);
+        if (!terminalControlStatus(sessionId).ready) return false;
+        submitTerminalPrompt(sessionId, text).catch(error => {
+          xtermRef.current?.writeln(`\r\n\x1b[31m${String(error)}\x1b[0m`);
+        });
         return true;
       },
       insertText: (text: string): boolean => {
@@ -1785,7 +1780,7 @@ function TierTerminalImpl({
             if (!liveTerm) return;
             liveTerm.paste(normalizePasteNewlines(customText));
             window.setTimeout(() => {
-              commands.tierTerminalInput(sessionId, '\r').catch(() => {});
+              forwardTerminalInput(sessionId, '\r').catch(() => {});
             }, 170);
           }, focusDelay);
         };
@@ -1798,7 +1793,7 @@ function TierTerminalImpl({
         if (activeInteraction.responseMode === 'digit' && option.number <= 9) {
           // Only tools whose source explicitly maps 1-9 to choices reach this
           // path (Claude, Codex, and Kimi).
-          commands.tierTerminalRawWrite(sessionId, String(option.number)).catch(() => {});
+          forwardTerminalInput(sessionId, String(option.number)).catch(() => {});
           submitCustomText();
           return true;
         }
@@ -1817,10 +1812,10 @@ function TierTerminalImpl({
             : up.repeat(focused - optionIndex);
         }
         if (customText) {
-          commands.tierTerminalRawWrite(sessionId, `${nav}\r`).catch(() => {});
+          forwardTerminalInput(sessionId, `${nav}\r`).catch(() => {});
           submitCustomText();
         } else {
-          commands.tierTerminalRawWrite(sessionId, `${nav}\r`).catch(() => {});
+          forwardTerminalInput(sessionId, `${nav}\r`).catch(() => {});
         }
         return true;
       },
@@ -1963,7 +1958,7 @@ function TierTerminalImpl({
       setCanvasHidden(true);
       let revealed = false;
       let renderSub: { dispose: () => void } | null = null;
-      let f1 = 0, fallback = 0;
+      let f1 = 0;
       const reveal = () => {
         if (revealed) return;
         revealed = true;
@@ -1979,7 +1974,7 @@ function TierTerminalImpl({
       });
       // Same safety-net rationale as the activation effect: never strand the
       // canvas masked if onRender doesn't fire (idle terminal, no dirty rows).
-      fallback = setTimeout(reveal, 180);
+      const fallback = setTimeout(reveal, 180);
     });
     return unsubscribe;
   }, []);

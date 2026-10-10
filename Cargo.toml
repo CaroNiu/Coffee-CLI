@@ -19,9 +19,10 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 # Tier Terminal — PTY (portable-pty, WezTerm's cross-platform PTY library)
 portable-pty = "0.9"
-# Only `task::spawn_blocking` is used by the system-font scanner. The old
-# loopback hook server and its network/runtime features have been removed.
-tokio = { version = "1", features = ["rt"] }
+# Local Agent and message-channel tasks run on Tauri's async runtime.
+tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "system-proxy"] }
+uuid = { version = "1", features = ["v4"] }
 
 # Regex (used by terminal.rs for ANSI strip)
 regex = "1"
@@ -44,6 +45,8 @@ serde_json = "1"
 # Preserve comments and formatting in Devin's JSONC hook configuration.
 jsonc-parser = { version = "0.33.1", features = ["cst", "serde", "serde_json"] }
 anyhow = "1"
+# Windows paths passed to CMD must use the compatible drive-letter form.
+dunce = "1"
 
 log = "0.4"
 dirs = "5"
@@ -101,6 +104,7 @@ tauri-plugin-single-instance = "2"
 #     installer etc. — replaces the old 5-dir hardcoded PATH repair
 #     (src/windows_path.rs).
 [target.'cfg(windows)'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
 windows = { version = "0.58", features = [
     "Win32_Foundation",
     "Win32_Graphics_Dwm",
@@ -111,6 +115,7 @@ windows = { version = "0.58", features = [
     "Win32_System_JobObjects",
     "Win32_System_Registry",
     "Win32_System_Threading",
+    "Win32_Storage_FileSystem",
 ] }
 
 # Native frosted backdrop for the Frost shape — real desktop blur via the OS
@@ -119,6 +124,9 @@ windows = { version = "0.58", features = [
 # NSVisualEffectView vibrancy. Both driven by set_frosted_backdrop.
 [target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
 window-vibrancy = "0.6"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
 
 # `libc::kill(pid, 0)` for process-liveness probe in cli::mcp_status.
 [target.'cfg(unix)'.dependencies]
@@ -132,6 +140,7 @@ libc = "0.2"
 # Other compositors keep the same genuinely transparent, theme-tinted window
 # without pretending that an in-page wallpaper is the desktop.
 [target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", features = ["sync-secret-service", "crypto-rust", "vendored"] }
 raw-window-handle = "0.6"
 wayland-backend = { version = "0.3", features = ["client_system", "dlopen"] }
 wayland-client = { version = "0.31", features = ["system", "dlopen"] }

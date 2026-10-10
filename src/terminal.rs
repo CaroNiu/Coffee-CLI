@@ -479,6 +479,16 @@ pub type SharedSession = Arc<Mutex<std::collections::HashMap<String, TerminalSes
 
 // ─── Spawn ────────────────────────────────────────────────
 
+pub(crate) fn shell_working_directory(path: &std::path::Path) -> anyhow::Result<std::path::PathBuf> {
+    let path = dunce::simplified(path);
+    #[cfg(windows)]
+    anyhow::ensure!(
+        !path.as_os_str().as_encoded_bytes().starts_with(b"\\\\"),
+        "Windows CMD cannot use this UNC or extended working directory; choose a local drive path"
+    );
+    Ok(path.to_path_buf())
+}
+
 fn initial_pty_size(cols: u16, rows: u16) -> anyhow::Result<portable_pty::PtySize> {
     anyhow::ensure!(cols > 0 && rows > 0, "PTY size must be non-zero");
     Ok(portable_pty::PtySize {
@@ -1162,6 +1172,19 @@ fn resolve_program(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn shell_directories_use_drive_paths_and_reject_cmd_fallback() {
+        for path in [r"E:\tmp", r"\\?\E:\tmp", r"\\?\E:\Coffee 中文项目"] {
+            let compatible = shell_working_directory(std::path::Path::new(path)).unwrap();
+            assert!(!compatible.as_os_str().as_encoded_bytes().starts_with(b"\\\\"));
+            assert!(compatible.is_absolute());
+        }
+        for path in [r"\\server\share\project", r"\\?\UNC\server\share\project", r"\\?\E:\project."] {
+            assert!(shell_working_directory(std::path::Path::new(path)).is_err());
+        }
+    }
 
     #[test]
     fn initial_pty_size_preserves_the_frontend_grid() {

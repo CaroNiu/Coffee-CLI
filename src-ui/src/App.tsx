@@ -15,6 +15,7 @@ import { SettingsModal } from './components/common/SettingsModal';
 import { Explorer } from './components/left/Explorer';
 import { CenterPanel } from './components/center/CenterPanel';
 import { ActiveGambit } from './components/center/ActiveGambit';
+import { AgentBridge } from './components/agent/AgentBridge';
 import { RightPanel } from './components/right/Compiler';
 import { GitStatusProvider } from './lib/git-status';
 import './styles/global.css';
@@ -475,6 +476,7 @@ export function App() {
     <>
       {/* Custom titlebar — drag region + minimize / maximize / close */}
       <TitleBar />
+      <AgentBridge />
 
       {/* 3-panel workspace. Titlebar toggles flip leftPanelHidden /
           rightPanelHidden. The OS window itself doesn't resize (same

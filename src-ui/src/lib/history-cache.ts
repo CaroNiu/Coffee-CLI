@@ -100,7 +100,7 @@ function emit() {
   for (const l of listeners) l();
 }
 
-function sortByMtime(list: SavedSession[]): SavedSession[] {
+export function sortByMtime(list: SavedSession[]): SavedSession[] {
   const copy = [...list];
   copy.sort((a, b) => {
     let ams = Date.parse(a.saved_at);
