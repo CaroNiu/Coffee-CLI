@@ -145,9 +145,8 @@ export function HistoryBoard() {
     return () => window.clearInterval(timer);
   }, []);
 
-  // History is prefetched at app startup (see App.tsx). We just subscribe
-  // to the shared cache so the panel renders instantly when data is ready.
-  // The prefetch call here is idempotent — it only fires if no load ran yet.
+  // The shared cache restores the previous list before this first render.
+  // Opening the panel starts one background scan without hiding cached rows.
   const { sessions: cachedSessions, status } = useSyncExternalStore(
     subscribeHistory,
     getHistorySnapshot,
