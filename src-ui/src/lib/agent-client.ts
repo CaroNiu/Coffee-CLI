@@ -1,5 +1,41 @@
 import { useSyncExternalStore } from 'react';
 import { invoke } from '../tauri';
+import type { I18nKey } from '../i18n/en';
+
+type AgentTranslator = (key: I18nKey, vars?: Record<string, string | number>) => string;
+
+export function formatAgentActivity(activity: string, t: AgentTranslator): string {
+  const toolPrefix = '正在操作：';
+  if (activity.startsWith(toolPrefix)) return t('agent.activity.operating', { tool: activity.slice(toolPrefix.length) });
+  switch (activity) {
+    case '正在思考…': return t('agent.activity.thinking');
+    case '正在连接模型…': return t('agent.activity.connecting');
+    case '正在整理前文…':
+    case '正在整理前文，完整历史仍保留…': return t('agent.activity.context');
+    default: return activity;
+  }
+}
+
+export function formatAgentError(error: string, t: AgentTranslator): string {
+  const message = error.startsWith('Error: ') ? error.slice(7) : error;
+  switch (message) {
+    case '请求失败': return t('agent.error.request_failed');
+    case '请先在 Agent 配置中填写服务地址': return t('agent.error.url_required');
+    case '请先在 Agent 配置中填写模型 ID': return t('agent.error.model_required');
+    case '请先在 Agent 配置中填写 API 密钥': return t('agent.error.api_key_required');
+    case 'Agent 正在处理上一条消息':
+    case '请先停止当前身份正在执行的 Agent 请求，再开始新对话':
+    case '这个身份的 Agent 正在处理上一条请求，请先等待完成或取消': return t('agent.error.busy');
+    default: return error;
+  }
+}
+
+export function formatAgentMessage(message: string, t: AgentTranslator): string {
+  if (message === 'Agent 请求已取消；已经提交的终端任务可能继续运行。') return t('agent.chat.cancelled');
+  const prefix = 'Agent 请求未完成：';
+  if (message.startsWith(prefix)) return t('agent.chat.incomplete', { error: formatAgentError(message.slice(prefix.length), t) });
+  return message;
+}
 
 export interface AgentMessage { id: number; role: 'user' | 'assistant'; text: string }
 export interface AgentConversation { id: string; route: string; source: string; title: string; updatedAt: number; messageCount: number }

@@ -17,7 +17,10 @@
 .agent-button:disabled { opacity: .45; cursor: default; }
 .agent-button:focus-visible, .agent-suggestions button:focus-visible, .agent-channel-summary-label:focus-visible, .agent-sidebar-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-.agent-chat-thread { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 26px 32px; }
+.agent-chat-surface { display: flex; }
+.agent-chat-thread { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 26px 32px; }
+.agent-chat-surface--has-navigation .agent-chat-thread { padding-left: 56px; padding-right: 56px; }
+body.gambit-docked .agent-chat-surface .conversation-navigation { bottom: 0; }
 body.gambit-docked .agent-page-agent { padding-bottom: calc(var(--gambit-dock-h, 200px) + 16px); }
 .agent-welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100%; max-width: 650px; margin: auto; padding: 28px 0 46px; text-align: center; }
 .agent-welcome h2 { margin: 0 0 10px; font-size: 20px; font-weight: 500; }
@@ -27,16 +30,6 @@ body.gambit-docked .agent-page-agent { padding-bottom: calc(var(--gambit-dock-h,
 .agent-suggestions button:hover { background: var(--bg-hover); }
 .agent-suggestions span { color: var(--accent); }
 .agent-message-list { width: min(100%, 820px); margin: auto; }
-.agent-message { padding: 19px 0 26px; }
-.agent-message + .agent-message { border-top: 1px solid var(--border); }
-.agent-message-author { margin-bottom: 11px; color: var(--accent); font-size: 11px; font-weight: 600; }
-.agent-message.user .agent-message-author { color: var(--text-3); }
-.agent-user-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.8; }
-.agent-message .md-body { color: var(--text-1); font-size: 14px; line-height: 1.8; overflow-wrap: anywhere; }
-.agent-message .md-body > :first-child { margin-top: 0; }
-.agent-message .md-body > :last-child { margin-bottom: 0; }
-.agent-message pre { overflow: auto; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-panel); font-size: 12px; }
-.agent-message table { display: block; overflow-x: auto; }
 .agent-activity { display: flex; align-items: center; gap: 9px; padding: 14px 0; color: var(--text-3); font-size: 12px; }
 .agent-working-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: agent-pulse 1.5s ease-in-out infinite; }
 @keyframes agent-pulse { 50% { opacity: .3; } }
@@ -115,8 +108,13 @@ body.gambit-docked .agent-page-agent { padding-bottom: calc(var(--gambit-dock-h,
 .agent-channel-summary-label:hover, .agent-sidebar-button:hover { background: var(--bg-hover); }
 .agent-sidebar-button svg { width: 20px; height: 20px; }
 
+@container (max-width: 760px) {
+  .agent-chat-surface--has-navigation .agent-chat-thread { padding-left: 32px; padding-right: 32px; }
+}
+
 @media (max-width: 760px) {
   .agent-chat-thread, .agent-settings-scroll { padding: 24px 20px; }
+  .agent-chat-surface--has-navigation .agent-chat-thread { padding-left: 20px; padding-right: 20px; }
   .agent-chat-feedback { width: calc(100% - 40px); }
 }
 @media (prefers-reduced-motion: reduce) { .agent-working-dot { animation: none; } }

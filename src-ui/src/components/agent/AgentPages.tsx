@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
 import { commands, invoke } from '../../tauri';
 import { useAppState, type AgentPage } from '../../store/app-state';
-import { loadOlderAgentMessages, refreshChannels, sendAgentMessage, useAgentClient } from '../../lib/agent-client';
+import { formatAgentActivity, formatAgentError, formatAgentMessage, loadOlderAgentMessages, refreshChannels, sendAgentMessage, useAgentClient } from '../../lib/agent-client';
+import { useT } from '../../i18n/useT';
+import type { I18nKey } from '../../i18n/en';
+import { clipboardWrite } from '../../lib/clipboard';
 import { MarkdownContent } from '../center/MarkdownContent';
 import { Gambit } from '../center/Gambit';
+import { ConversationNavigation, MessageCopyButton, type ConversationNavigationItem } from '../center/ConversationControls';
+import '../center/ConversationView.css';
 import '../common/SettingsModal.css';
 import './AgentPages.css';
 
@@ -69,12 +74,14 @@ function AgentSelect<Value extends string>({ value, options, onChange, label, cl
 }
 
 function PageFrame({ page, children }: { page: AgentPage; children: ReactNode }) {
-  return <section className={`agent-page agent-page-${page}`} aria-label={page === 'agent' ? 'Coffee Agent' : '消息设置'}>
+  const t = useT();
+  return <section className={`agent-page agent-page-${page}`} aria-label={page === 'agent' ? 'Coffee Agent' : t('agent.page.settings')}>
     {children}
   </section>;
 }
 
 function AgentChatPage() {
+  const t = useT();
   const { state } = useAppState();
   const { conversationId, messages, hasOlder, loadingOlder, running, activity, error } = useAgentClient();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -83,13 +90,83 @@ function AgentChatPage() {
   const setDraft = (text: string) => setDrafts(current => ({ ...current, [draftKey]: text }));
   const [localError, setLocalError] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [navigationItems, setNavigationItems] = useState<ConversationNavigationItem[]>([]);
   const threadRef = useRef<HTMLDivElement>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
+  const copyResetTimerRef = useRef<number | null>(null);
+  const prependAnchorRef = useRef<{ messageId: number; scrollTop: number; messageTop: number } | null>(null);
   const followOutput = useRef(true);
-  useEffect(() => { followOutput.current = true; }, [conversationId]);
+  useLayoutEffect(() => { followOutput.current = true; prependAnchorRef.current = null; }, [conversationId]);
+
+  useEffect(() => () => {
+    if (copyResetTimerRef.current !== null) window.clearTimeout(copyResetTimerRef.current);
+  }, []);
+
+  useLayoutEffect(() => {
+    const scroll = threadRef.current;
+    const anchor = prependAnchorRef.current;
+    if (!scroll || !anchor || messages[0]?.id === anchor.messageId) return;
+    prependAnchorRef.current = null;
+    const row = scroll.querySelector<HTMLElement>(`[data-conversation-navigation-id="${CSS.escape(String(anchor.messageId))}"]`);
+    if (row) scroll.scrollTop = anchor.scrollTop + row.getBoundingClientRect().top - scroll.getBoundingClientRect().top + scroll.scrollTop - anchor.messageTop;
+  }, [messages]);
+
+  useLayoutEffect(() => {
+    const scroll = threadRef.current;
+    if (!scroll) return;
+    const measure = () => {
+      if (scroll.clientHeight === 0) return;
+      const scrollTop = scroll.getBoundingClientRect().top;
+      const rows = new Map(Array.from(scroll.querySelectorAll<HTMLElement>('[data-conversation-navigation-id]')).map(row => [row.dataset.conversationNavigationId, row]));
+      const next = messages.flatMap((message, messageIndex) => {
+        if (message.role !== 'user') return [];
+        const id = String(message.id);
+        const row = rows.get(id);
+        return row ? [{ id, sourceMessageId: id, content: message.text, messageIndex, top: row.getBoundingClientRect().top - scrollTop + scroll.scrollTop, cursor: null }] : [];
+      });
+      setNavigationItems(current => current.length === next.length && current.every((item, index) => item.id === next[index].id && item.top === next[index].top && item.content === next[index].content && item.messageIndex === next[index].messageIndex) ? current : next);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroll);
+    if (messageListRef.current) observer.observe(messageListRef.current);
+    return () => observer.disconnect();
+  }, [messages, running, state.agentPageActive]);
 
   useEffect(() => {
     if (followOutput.current && threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight;
   }, [messages, running, activity]);
+
+  const jumpToMessage = useCallback((item: ConversationNavigationItem) => {
+    const scroll = threadRef.current;
+    const row = scroll?.querySelector<HTMLElement>(`[data-conversation-navigation-id="${CSS.escape(item.sourceMessageId)}"]`);
+    if (!scroll || !row) return;
+    followOutput.current = false;
+    scroll.scrollTo({ top: row.getBoundingClientRect().top - scroll.getBoundingClientRect().top + scroll.scrollTop, behavior: 'auto' });
+  }, []);
+
+  const copyMessage = (messageId: number, content: string) => {
+    const key = `${conversationId}:${messageId}`;
+    void clipboardWrite(content).then(() => {
+      if (copyResetTimerRef.current !== null) window.clearTimeout(copyResetTimerRef.current);
+      setCopiedMessageId(key);
+      copyResetTimerRef.current = window.setTimeout(() => {
+        setCopiedMessageId(current => current === key ? null : current);
+        copyResetTimerRef.current = null;
+      }, 1_500);
+    });
+  };
+
+  const loadOlder = async () => {
+    const scroll = threadRef.current;
+    const first = messages[0];
+    const row = first && scroll?.querySelector<HTMLElement>(`[data-conversation-navigation-id="${CSS.escape(String(first.id))}"]`);
+    followOutput.current = false;
+    prependAnchorRef.current = scroll && row ? { messageId: first.id, scrollTop: scroll.scrollTop, messageTop: row.getBoundingClientRect().top - scroll.getBoundingClientRect().top + scroll.scrollTop } : null;
+    try { await loadOlderAgentMessages(); }
+    catch (failure) { prependAnchorRef.current = null; setLocalError(String(failure)); }
+  };
 
   const send = async (prompt: string): Promise<boolean> => {
     const text = prompt.trim();
@@ -109,33 +186,33 @@ function AgentChatPage() {
   };
 
   return <PageFrame page="agent">
+    <div className={`conversation-view agent-chat-surface${navigationItems.length > 1 ? ' agent-chat-surface--has-navigation' : ''}`}>
+    {navigationItems.length > 1 && state.agentPageActive === 'agent' && <ConversationNavigation items={navigationItems} scrollRef={threadRef} onJump={jumpToMessage} />}
     <div className="agent-chat-thread" ref={threadRef} onScroll={() => {
       const node = threadRef.current;
       if (node) followOutput.current = node.scrollHeight - node.scrollTop - node.clientHeight < 120;
     }}>
-      {hasOlder && <button type="button" className="agent-button quiet" disabled={loadingOlder} onClick={() => {
-        followOutput.current = false;
-        loadOlderAgentMessages().catch(failure => setLocalError(String(failure)));
-      }}>{loadingOlder ? '正在加载…' : '查看更早的对话'}</button>}
+      {hasOlder && <button type="button" className="agent-button quiet" disabled={loadingOlder} onClick={() => void loadOlder()}>{loadingOlder ? t('agent.chat.loading') : t('agent.chat.older')}</button>}
       {messages.length === 0 ? <div className="agent-welcome">
         <h2>Coffee Agent</h2>
-        <p>你可以通过消息渠道让它帮你管理 Coffee CLI 工作</p>
-        <div className="agent-suggestions">{['看看现在打开了哪些终端', '读取终端画面，告诉我当前进度', '查看可以继续的历史会话'].map(text =>
+        <p>{t('agent.chat.welcome')}</p>
+        <div className="agent-suggestions">{[t('agent.chat.suggestion.terminals'), t('agent.chat.suggestion.progress'), t('agent.chat.suggestion.history')].map(text =>
           <button type="button" key={text} onClick={() => { setDraft(text); document.querySelector<HTMLTextAreaElement>('.gambit-textarea')?.focus(); }}>{text}<span aria-hidden="true">↗</span></button>)}</div>
-      </div> : <div className="agent-message-list">{messages.map((message, index) =>
-        <article className={`agent-message ${message.role}`} key={index}>
-          <div className="agent-message-author">{message.role === 'user' ? '你' : 'Coffee Agent'}</div>
-          {message.role === 'assistant' ? <MarkdownContent content={message.text} /> : <div className="agent-user-text">{message.text}</div>}
+      </div> : <div className="agent-message-list" ref={messageListRef}>{messages.map((message, index) =>
+        <article className={`conversation-message conversation-message--${message.role}`} data-conversation-navigation-id={String(message.id)} aria-label={message.role === 'user' ? t('agent.chat.user') : 'Coffee Agent'} key={message.id}>
+          <div className="conversation-bubble"><MarkdownContent content={message.role === 'assistant' ? formatAgentMessage(message.text, t) : message.text} /></div>
+          {(message.role === 'user' || !running || index < messages.length - 1) && <MessageCopyButton copied={copiedMessageId === `${conversationId}:${message.id}`} onCopy={() => copyMessage(message.id, message.role === 'assistant' ? formatAgentMessage(message.text, t) : message.text)} />}
         </article>)}
-        {running && <div className="agent-activity" role="status"><span className="agent-working-dot" />{activity || '正在思考…'}</div>}
+        {running && <div className="agent-activity" role="status"><span className="agent-working-dot" />{formatAgentActivity(activity, t) || t('agent.activity.thinking')}</div>}
       </div>}
     </div>
-    {(localError || error) && <p className="agent-chat-feedback agent-feedback error" role="alert">{localError || error}</p>}
+    </div>
+    {(localError || error) && <p className="agent-chat-feedback agent-feedback error" role="alert">{formatAgentError(localError || error, t)}</p>}
     {state.agentPageActive === 'agent' && <Gambit
       sessionId={`coffee-agent:${conversationId || 'desktop'}`} draft={draft} onDraftChange={setDraft}
       onClose={() => {}} onSend={send} running={running}
       onCancel={cancelling ? undefined : () => void cancel()}
-      sendFailedHint="发送失败，请查看错误信息"
+      sendFailedHint={t('agent.chat.send_failed')}
       workspaceName="Coffee Agent"
       leftPanelHidden={state.leftPanelHidden} rightPanelHidden={state.rightPanelHidden}
       canUseChat={false} viewMode="terminal" onViewModeChange={() => {}}
@@ -152,12 +229,13 @@ interface ModelSettings {
 const DEFAULT_URL = { openai: 'https://api.openai.com/v1', anthropic: 'https://api.anthropic.com' };
 
 function AgentModelSection() {
+  const t = useT();
   const [config, setConfig] = useState<ModelSettings>({ provider: 'openai', baseUrl: DEFAULT_URL.openai, model: '', hasApiKey: false });
   const [saved, setSaved] = useState<ModelSettings | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [feedback, setFeedback] = useState('');
+  const [feedback, setFeedback] = useState<I18nKey | ''>('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -175,29 +253,30 @@ function AgentModelSection() {
     try {
       await invoke('agent_save_model', { config: { provider: config.provider, baseUrl: config.baseUrl.trim(), model: config.model.trim(), ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}) } });
       const next = await invoke<ModelSettings>('agent_get_model');
-      setConfig(next); setSaved(next); setApiKey(''); setFeedback('模型配置已保存');
+      setConfig(next); setSaved(next); setApiKey(''); setFeedback('agent.model.saved');
     } catch (failure) { setError(String(failure)); }
     finally { setSaving(false); }
   };
 
   return <section className="agent-settings-section">
-      <h2>Coffee Agent 模型配置</h2>
+      <h2>{t('agent.model.title')}</h2>
       <form className="agent-model-form" onSubmit={save}>
         <fieldset disabled={loading || saving}>
-          <label className="agent-field">服务类型<AgentSelect label="服务类型" value={config.provider} options={[{ value: 'openai', label: 'OpenAI / 兼容服务' }, { value: 'anthropic', label: 'Anthropic / 兼容服务' }]} onChange={provider => {
+          <label className="agent-field">{t('agent.model.provider')}<AgentSelect label={t('agent.model.provider')} value={config.provider} options={[{ value: 'openai', label: t('agent.model.provider_openai') }, { value: 'anthropic', label: t('agent.model.provider_anthropic') }]} onChange={provider => {
             setConfig({ ...config, provider, baseUrl: DEFAULT_URL[provider] }); setFeedback('');
           }} /></label>
-          <label className="agent-field">服务地址<input type="url" value={config.baseUrl} spellCheck={false} placeholder={DEFAULT_URL[config.provider]} onChange={event => { setConfig({ ...config, baseUrl: event.target.value }); setFeedback(''); }} /></label>
-          <label className="agent-field">模型 ID<input value={config.model} maxLength={200} spellCheck={false} placeholder="输入模型 ID" onChange={event => { setConfig({ ...config, model: event.target.value }); setFeedback(''); }} /></label>
-          <label className="agent-field">API 密钥<input type="password" autoComplete="new-password" value={apiKey} spellCheck={false} placeholder={config.hasApiKey && !endpointChanged ? '已保存，留空保留密钥' : '输入 API 密钥'} onChange={event => { setApiKey(event.target.value); setFeedback(''); }} /></label>
-          <div className="agent-form-footer"><button type="submit" className="agent-button primary">{saving ? '正在保存…' : '保存'}</button><span className="agent-feedback" role="status">{loading ? '正在读取配置…' : feedback}</span></div>
+          <label className="agent-field">{t('agent.model.url')}<input type="url" value={config.baseUrl} spellCheck={false} placeholder={DEFAULT_URL[config.provider]} onChange={event => { setConfig({ ...config, baseUrl: event.target.value }); setFeedback(''); }} /></label>
+          <label className="agent-field">{t('agent.model.id')}<input value={config.model} maxLength={200} spellCheck={false} placeholder={t('agent.model.id_placeholder')} onChange={event => { setConfig({ ...config, model: event.target.value }); setFeedback(''); }} /></label>
+          <label className="agent-field">{t('agent.model.api_key')}<input type="password" autoComplete="new-password" value={apiKey} spellCheck={false} placeholder={t(config.hasApiKey && !endpointChanged ? 'agent.model.api_key_saved' : 'agent.model.api_key_placeholder')} onChange={event => { setApiKey(event.target.value); setFeedback(''); }} /></label>
+          <div className="agent-form-footer"><button type="submit" className="agent-button primary">{saving ? t('agent.model.saving') : t('agent.model.save')}</button><span className="agent-feedback" role="status">{loading ? t('agent.model.loading') : feedback && t(feedback)}</span></div>
         </fieldset>
-        {error && <p className="agent-feedback error" role="alert">{error}</p>}
+        {error && <p className="agent-feedback error" role="alert">{formatAgentError(error, t)}</p>}
       </form>
   </section>;
 }
 
 function AgentDelegationSection() {
+  const t = useT();
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -220,18 +299,24 @@ function AgentDelegationSection() {
   };
 
   return <section className="agent-settings-section">
-    <div className="agent-delegation-heading"><h2 id="agent-delegation-label">用英文派发任务</h2><button type="button" className={`library-toggle agent-delegation-switch${enabled ? ' on' : ''}`} role="switch" aria-checked={enabled === true} aria-labelledby="agent-delegation-label" disabled={enabled === null || saving} onClick={() => void toggle()}><span className="library-toggle-knob" aria-hidden="true" /></button></div>
-    <p className="agent-field-hint">建议开启。你用自己的语言与 Coffee Agent 沟通，它默认用英文向其他 CLI Agent 派发任务，再用你的语言汇报结果；关闭后，派发任务也默认使用你的语言。<span role="status">{saving ? '正在保存…' : enabled === null && !error ? '正在读取设置…' : '统一任务语言，便于多个 Agent 协作。切换后自动保存，从下一条任务生效。'}</span></p>
-    {error && <p className="agent-feedback error" role="alert">{error}</p>}
+    <div className="agent-delegation-heading"><h2 id="agent-delegation-label">{t('agent.delegation.title')}</h2><button type="button" className={`library-toggle agent-delegation-switch${enabled ? ' on' : ''}`} role="switch" aria-checked={enabled === true} aria-labelledby="agent-delegation-label" disabled={enabled === null || saving} onClick={() => void toggle()}><span className="library-toggle-knob" aria-hidden="true" /></button></div>
+    <p className="agent-field-hint">{t('agent.delegation.description')}{' '}{t('agent.delegation.status')}</p>
+    {error && <p className="agent-feedback error" role="alert">{formatAgentError(error, t)}</p>}
   </section>;
 }
 
 interface TelegramPairing { botName: string; pairingCode: string }
 interface WeixinLogin { sessionId: string; qrDataUrl: string }
 interface WeixinPoll { status: string; connected: boolean; message?: string }
-const CHANNEL_STATUS: Record<string, string> = { disconnected: '未连接', connecting: '连接中', waiting_pairing: '等待配对', waiting_scan: '等待扫码', connected: '已连接', error: '连接异常' };
+const CHANNEL_STATUS: Record<string, I18nKey> = { disconnected: 'agent.channels.status.disconnected', connecting: 'agent.channels.status.connecting', waiting_pairing: 'agent.channels.status.waiting_pairing', waiting_scan: 'agent.channels.status.waiting_scan', connected: 'agent.channels.status.connected', error: 'agent.channels.status.error' };
+const WEIXIN_LOGIN_STATUS: Record<string, I18nKey> = {
+  start: 'agent.channels.login.start', wait: 'agent.channels.login.waiting_scan', waiting_scan: 'agent.channels.login.waiting_scan', scaned_but_redirect: 'agent.channels.login.waiting_scan',
+  scaned: 'agent.channels.login.scaned', need_verifycode: 'agent.channels.login.need_verifycode', verify_code_blocked: 'agent.channels.login.verify_code_blocked',
+  expired: 'agent.channels.login.expired', binded_redirect: 'agent.channels.login.binded_redirect', connected: 'agent.channels.feedback.weixin_connected',
+};
 
 function AgentChannelsSection() {
+  const t = useT();
   const { state } = useAppState();
   const { channels } = useAgentClient();
   const [selectedChannel, setSelectedChannel] = useState<'weixin' | 'telegram'>('weixin');
@@ -240,19 +325,21 @@ function AgentChannelsSection() {
   const [login, setLogin] = useState<WeixinLogin | null>(null);
   const [verifyCode, setVerifyCode] = useState('');
   const [needsVerify, setNeedsVerify] = useState(false);
-  const [loginMessage, setLoginMessage] = useState('');
+  const [loginStatus, setLoginStatus] = useState<Pick<WeixinPoll, 'status' | 'message'> | null>(null);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
-  const [feedback, setFeedback] = useState('');
+  const [feedback, setFeedback] = useState<I18nKey | ''>('');
+  const loginMessageKey = loginStatus && WEIXIN_LOGIN_STATUS[loginStatus.status];
+  const loginMessage = loginMessageKey ? t(loginMessageKey) : loginStatus?.message || (loginStatus ? t('agent.channels.login.waiting_scan') : '');
 
   useEffect(() => {
     if (state.agentPageActive === 'config') refreshChannels().catch(failure => setError(String(failure)));
   }, [state.agentPageActive]);
 
   const acceptPoll = useCallback((result: WeixinPoll) => {
-    setLoginMessage(result.message || '等待微信扫码。');
+    setLoginStatus({ status: result.status, message: result.message });
     if (result.connected) {
-      setLogin(null); setNeedsVerify(false); setVerifyCode(''); setFeedback('微信已连接');
+      setLogin(null); setNeedsVerify(false); setVerifyCode(''); setFeedback('agent.channels.feedback.weixin_connected');
       refreshChannels().catch(failure => setError(String(failure)));
     } else if (result.status === 'need_verifycode') setNeedsVerify(true);
     else if (['expired', 'verify_code_blocked', 'binded_redirect'].includes(result.status)) { setLogin(null); setNeedsVerify(false); }
@@ -284,11 +371,11 @@ function AgentChannelsSection() {
     finally { setBusy(''); }
   };
   const connectWeixin = async () => {
-    setBusy('weixin'); setError(''); setFeedback(''); setLogin(null); setNeedsVerify(false); setVerifyCode(''); setLoginMessage('');
+    setBusy('weixin'); setError(''); setFeedback(''); setLogin(null); setNeedsVerify(false); setVerifyCode(''); setLoginStatus(null);
     try {
       const result = await invoke<{ sessionId: string; qrCodeUrl: string }>('channel_weixin_start');
       const qrDataUrl = await QRCode.toDataURL(result.qrCodeUrl, { width: 240, margin: 3, errorCorrectionLevel: 'M' });
-      setLogin({ sessionId: result.sessionId, qrDataUrl }); setLoginMessage('使用手机微信扫码，并确认连接。'); await refreshChannels();
+      setLogin({ sessionId: result.sessionId, qrDataUrl }); setLoginStatus({ status: 'start' }); await refreshChannels();
     } catch (failure) { setError(String(failure)); }
     finally { setBusy(''); }
   };
@@ -304,47 +391,49 @@ function AgentChannelsSection() {
     try {
       await invoke('channel_disconnect', { channel });
       if (channel === 'telegram') setPairing(null);
-      else { setLogin(null); setNeedsVerify(false); setLoginMessage(''); }
-      await refreshChannels(); setFeedback(`${channel === 'weixin' ? '微信' : 'Telegram'} 已断开`);
+      else { setLogin(null); setNeedsVerify(false); setLoginStatus(null); }
+      await refreshChannels(); setFeedback(channel === 'weixin' ? 'agent.channels.feedback.weixin_disconnected' : 'agent.channels.feedback.telegram_disconnected');
     } catch (failure) { setError(String(failure)); }
     finally { setBusy(''); }
   };
 
   return <section className="agent-settings-section">
-    <div className="agent-section-heading"><h2>消息渠道</h2><AgentSelect className="agent-channel-select" label="选择消息渠道" value={selectedChannel} options={[{ value: 'weixin', label: '微信' }, { value: 'telegram', label: 'Telegram' }]} onChange={setSelectedChannel} /></div>
+    <div className="agent-section-heading"><h2>{t('agent.channels.title')}</h2><AgentSelect className="agent-channel-select" label={t('agent.channels.select')} value={selectedChannel} options={[{ value: 'weixin', label: t('agent.channels.weixin') }, { value: 'telegram', label: 'Telegram' }]} onChange={setSelectedChannel} /></div>
     <div className={`agent-channel-layout ${selectedChannel === 'weixin' && login ? '' : 'agent-channel-layout-single'}`}>
       <div className="agent-channel-list">
         {selectedChannel === 'weixin' ? <section className="agent-channel-row">
           <span className="agent-channel-mark weixin" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 3C5.6 3 2 5.7 2 9c0 1.8 1.1 3.5 2.8 4.6L4 16l3-1.4c.6.2 1.2.3 1.9.4-.5-.8-.8-1.7-.8-2.6 0-3.2 3.2-5.8 7.1-5.8h1.7C15.7 4.5 13.1 3 10 3Zm-3 4a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm6 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z" /><path d="M22 13c0-2.8-2.8-5-6.3-5s-6.3 2.2-6.3 5 2.8 5 6.3 5c.7 0 1.4-.1 2.1-.3L20 19l-.5-2.1C21 16 22 14.6 22 13Zm-8.5-2a.8.8 0 1 1 0 1.6.8.8 0 0 1 0-1.6Zm4.5 0a.8.8 0 1 1 0 1.6.8.8 0 0 1 0-1.6Z" /></svg></span>
           <div className="agent-channel-content">
-            <div className="agent-channel-heading"><h3>微信</h3><span className={`agent-status ${channels?.status.weixin === 'connected' ? 'connected' : ''}`}>{CHANNEL_STATUS[channels?.status.weixin ?? 'disconnected'] ?? '未连接'}</span></div>
-            <p className="agent-channel-description">扫码连接，在手机上查看终端并发送指令。</p>
+            <div className="agent-channel-heading"><h3>{t('agent.channels.weixin')}</h3><span className={`agent-status ${channels?.status.weixin === 'connected' ? 'connected' : ''}`}>{t(CHANNEL_STATUS[channels?.status.weixin ?? 'disconnected'] ?? 'agent.channels.status.disconnected')}</span></div>
+            <p className="agent-channel-description">{t('agent.channels.weixin_description')}</p>
             {channels?.status.weixin === 'connected' && <p className="agent-channel-account">{channels.weixin.accountId}</p>}
             {!login && loginMessage && <p className="agent-field-hint" role="status">{loginMessage}</p>}
-            <div className="agent-channel-controls"><button type="button" className="agent-button" disabled={!!busy} onClick={() => void connectWeixin()}>{busy === 'weixin' ? '正在连接…' : login ? '刷新二维码' : channels?.weixin.enabled ? '重新连接' : '连接微信'}</button>{(channels?.weixin.enabled || login) && <button type="button" className="agent-button quiet" disabled={!!busy} onClick={() => void disconnect('weixin')}>断开</button>}</div>
-            {needsVerify && <form className="agent-channel-controls" onSubmit={verify}><input className="agent-inline-input" aria-label="微信验证码" required autoComplete="one-time-code" placeholder="微信验证码" value={verifyCode} onChange={event => setVerifyCode(event.target.value)} /><button type="submit" className="agent-button" disabled={!!busy}>提交</button></form>}
-            {channels?.status.weixinError && <p className="agent-feedback error">{channels.status.weixinError}</p>}
+            <div className="agent-channel-controls"><button type="button" className="agent-button" disabled={!!busy} onClick={() => void connectWeixin()}>{t(busy === 'weixin' ? 'agent.channels.connecting' : login ? 'agent.channels.refresh_qr' : channels?.weixin.enabled ? 'agent.channels.reconnect' : 'agent.channels.connect_weixin')}</button>{(channels?.weixin.enabled || login) && <button type="button" className="agent-button quiet" disabled={!!busy} onClick={() => void disconnect('weixin')}>{t('agent.channels.disconnect')}</button>}</div>
+            {needsVerify && <form className="agent-channel-controls" onSubmit={verify}><input className="agent-inline-input" aria-label={t('agent.channels.verify_label')} required autoComplete="one-time-code" placeholder={t('agent.channels.verify_label')} value={verifyCode} onChange={event => setVerifyCode(event.target.value)} /><button type="submit" className="agent-button" disabled={!!busy}>{t('agent.channels.submit')}</button></form>}
+            {channels?.status.weixinError && <p className="agent-feedback error">{formatAgentError(channels.status.weixinError, t)}</p>}
           </div>
         </section> : <section className="agent-channel-row">
           <span className="agent-channel-mark telegram" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m20.7 4.2-3.2 15c-.2 1-1 1.2-1.8.7l-4.9-3.6-2.4 2.3c-.3.3-.5.5-1 .5l.4-5 9.1-8.2c.4-.4-.1-.6-.6-.3L5 12.7 1.2 11.5c-.9-.3-.9-.9.2-1.3L19 3.4c.8-.3 1.5.2 1.7.8Z" /></svg></span>
           <div className="agent-channel-content">
-            <div className="agent-channel-heading"><h3>Telegram</h3><span className={`agent-status ${channels?.status.telegram === 'connected' ? 'connected' : ''}`}>{CHANNEL_STATUS[channels?.status.telegram ?? 'disconnected'] ?? '未连接'}</span></div>
-            <p className="agent-channel-description">在 BotFather 创建 Bot，粘贴 Token 后配对。</p>
+            <div className="agent-channel-heading"><h3>Telegram</h3><span className={`agent-status ${channels?.status.telegram === 'connected' ? 'connected' : ''}`}>{t(CHANNEL_STATUS[channels?.status.telegram ?? 'disconnected'] ?? 'agent.channels.status.disconnected')}</span></div>
+            <p className="agent-channel-description">{t('agent.channels.telegram_description')}</p>
             {channels?.telegram.botName && <p className="agent-channel-account">@{channels.telegram.botName}</p>}
-            <form className="agent-channel-controls" onSubmit={connectTelegram}><input className="agent-inline-input" aria-label="Bot Token" type="password" autoComplete="new-password" value={token} spellCheck={false} placeholder={channels?.telegram.hasToken ? '输入 Token 重新连接' : '粘贴 BotFather 提供的 Token'} onChange={event => setToken(event.target.value)} /><button type="submit" className="agent-button" disabled={!!busy || !token.trim()}>{busy === 'telegram' ? '正在连接…' : '连接'}</button>{channels?.telegram.enabled && <button type="button" className="agent-button quiet" disabled={!!busy} onClick={() => void disconnect('telegram')}>断开</button>}</form>
-            {pairing && channels?.status.telegram !== 'connected' && <div className="agent-pairing"><p>向 @{pairing.botName} 发送（10 分钟内有效）：</p><code>/pair {pairing.pairingCode}</code></div>}
-            {channels?.status.telegram === 'waiting_pairing' && !pairing && <p className="agent-field-hint">重新连接可获取新的配对码。</p>}
-            {channels?.status.telegramError && <p className="agent-feedback error">{channels.status.telegramError}</p>}
+            <form className="agent-channel-controls" onSubmit={connectTelegram}><input className="agent-inline-input" aria-label={t('agent.channels.token_label')} type="password" autoComplete="new-password" value={token} spellCheck={false} placeholder={t(channels?.telegram.hasToken ? 'agent.channels.token_reconnect' : 'agent.channels.token_placeholder')} onChange={event => setToken(event.target.value)} /><button type="submit" className="agent-button" disabled={!!busy || !token.trim()}>{t(busy === 'telegram' ? 'agent.channels.connecting' : 'agent.channels.connect')}</button>{channels?.telegram.enabled && <button type="button" className="agent-button quiet" disabled={!!busy} onClick={() => void disconnect('telegram')}>{t('agent.channels.disconnect')}</button>}</form>
+            {pairing && channels?.status.telegram !== 'connected' && <div className="agent-pairing"><p>{t('agent.channels.pairing_prompt', { bot: pairing.botName })}</p><code>/pair {pairing.pairingCode}</code></div>}
+            {channels?.status.telegram === 'waiting_pairing' && !pairing && <p className="agent-field-hint">{t('agent.channels.pairing_refresh')}</p>}
+            {channels?.status.telegramError && <p className="agent-feedback error">{formatAgentError(channels.status.telegramError, t)}</p>}
           </div>
         </section>}
       </div>
-      {selectedChannel === 'weixin' && login && <aside className="agent-qr" aria-label="微信二维码区域"><img src={login.qrDataUrl} width="160" height="160" alt="使用微信扫描此二维码连接 Agent" /><p role="status">{loginMessage}</p></aside>}
+      {selectedChannel === 'weixin' && login && <aside className="agent-qr" aria-label={t('agent.channels.qr_label')}><img src={login.qrDataUrl} width="160" height="160" alt={t('agent.channels.qr_alt')} /><p role="status">{loginMessage}</p></aside>}
     </div>
-    {feedback && <p className="agent-feedback" role="status">{feedback}</p>}{error && <p className="agent-feedback error" role="alert">{error}</p>}
+    {feedback && <p className="agent-feedback" role="status">{t(feedback)}</p>}{error && <p className="agent-feedback error" role="alert">{formatAgentError(error, t)}</p>}
   </section>;
 }
 
 function AgentHelpModal({ onClose }: { onClose: () => void }) {
+  const t = useT();
+  const [feedbackBefore, feedbackAfter] = t('agent.help.feedback').split('{issues}');
   const dialogRef = useRef<HTMLDialogElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   useEffect(() => {
@@ -356,53 +445,53 @@ function AgentHelpModal({ onClose }: { onClose: () => void }) {
 
   return createPortal(<dialog ref={dialogRef} className="settings-modal agent-help-modal" aria-labelledby="agent-help-title" onClose={onClose} onMouseDown={event => { if (event.target === event.currentTarget) event.currentTarget.close(); }}>
     <div className="settings-content">
-    <div className="settings-header"><span className="settings-header-title" id="agent-help-title">使用说明与示例</span><button type="button" className="settings-close" aria-label="关闭使用说明" onClick={() => dialogRef.current?.close()}>×</button></div>
+    <div className="settings-header"><span className="settings-header-title" id="agent-help-title">{t('agent.help.title')}</span><button type="button" className="settings-close" aria-label={t('agent.help.close')} onClick={() => dialogRef.current?.close()}>×</button></div>
     <div className="settings-body agent-help-content">
-    <h3>工作方式</h3>
-    <p>市面上有很多终端工具推出了自己的移动端 App。我们认为，在手机上继续手动操作终端，体验仍不够流畅；因此，我们选择用消息网关打通聊天渠道，让 Coffee Agent 听取你的指令，通过 Coffee CLI 的接口操控主界面、协调各个 CLI Agent。这是我们对 AI 时代工作方式的探索，也为远程主机上的 Agent 协作提供了一种思路。</p>
-    <p>Coffee Agent 连接微信或 Telegram 后，会听取你的指令，读取 Coffee CLI 中各个终端的实际内容，在你指定的工具和目录中打开可见标签、派发任务并汇报进度；你也可以让它记住工作偏好，或开始新对话安排下一项工作。</p>
-    <p>Coffee Agent 的消息连接功能仍在完善，使用过程中可能遇到一些问题。如果你遇到问题，或有意见和建议，欢迎通过 <a className="agent-help-link" href="https://github.com/edison7009/Coffee-CLI/issues" onClick={event => { event.preventDefault(); void commands.openUrl(event.currentTarget.href).catch(() => {}); }}>GitHub Issues</a> 提交反馈。</p>
-    <h3>英文派发</h3>
-    <p>建议开启。你可以用自己熟悉的语言与 Coffee Agent 沟通，它会整理你的需求，保留任务目标与约束，再用英文向 Claude Code、Codex 等 CLI Agent 派发任务，并用你的语言向你汇报进度和结果。关闭后，Coffee Agent 与你的对话、向其他 CLI Agent 派发的任务，都默认使用你的语言。</p>
-    <p>统一任务语言，便于多个 Agent 理解和交接工作。你只需说明需求，由 Coffee Agent 协调各个工具，减少在不同终端之间反复输入、整理和转述指令的步骤，让多工具协作更顺畅。</p>
-    <p>代码、命令、路径、网址和需要保留的原文不会被翻译；你明确指定的任务语言与输出语言也会保留。手动 Gambit 输入保持原样。开关自动保存，从下一条任务生效，无需保存模型配置。</p>
-    <p>小技巧：在符合当地要求，以及模型商、工具商的地区与账号政策的前提下，你可以在美国地区的远程主机上安装 Coffee CLI 和 Claude Code，连接微信并开启英文派发，用中文安排工作、用英文派发任务。遵守服务商政策，有助于减少因违规带来的账号风险；远程主机所在地和任务语言不改变实际使用资格。Coffee CLI 需要保持运行。</p>
-    <h3>可以这样说</h3>
+    <h3>{t('agent.help.workflow_heading')}</h3>
+    <p>{t('agent.help.workflow_intro')}</p>
+    <p>{t('agent.help.workflow_usage')}</p>
+    <p>{feedbackBefore}<a className="agent-help-link" href="https://github.com/edison7009/Coffee-CLI/issues" onClick={event => { event.preventDefault(); void commands.openUrl(event.currentTarget.href).catch(() => {}); }}>GitHub Issues</a>{feedbackAfter}</p>
+    <h3>{t('agent.help.delegation_heading')}</h3>
+    <p>{t('agent.help.delegation_description')}</p>
+    <p>{t('agent.help.delegation_tip')}</p>
+    <h3>{t('agent.help.examples_heading')}</h3>
     <dl className="agent-command-examples">{[
-      ['打开终端', '在 E:\\我的项目 打开 Claude Code。'],
-      ['新建目录', '新建 E:\\新项目，并在这个目录打开 Codex。'],
-      ['查看进度', '读取所有终端，分别告诉我在做什么、是否完成。'],
-      ['安排工作', '让 1 号 Claude Code 终端运行测试，并汇报结果。'],
-      ['继续历史', '继续 E:\\我的项目 最新的 Codex 历史会话。'],
-      ['查看记录', '帮我查看最近十条的对话记录。'],
-      ['记住偏好', '记住：我希望你用中文汇报，先说明结果。'],
-      ['查看记忆', '你记住了哪些工作偏好？'],
-      ['忘记内容', '忘记我之前让你记住的这条偏好：……'],
-      ['开始新对话', '/new，或“新对话”。保留长期记忆和旧记录，不关闭终端。'],
-      ['取消请求', '手机发送 /cancel 或“取消当前请求”，客户端点击停止按钮；已发给 CLI 的任务可能继续运行。'],
+      [t('agent.help.example.open_label'), t('agent.help.example.open')],
+      [t('agent.help.example.directory_label'), t('agent.help.example.directory')],
+      [t('agent.help.example.progress_label'), t('agent.help.example.progress')],
+      [t('agent.help.example.task_label'), t('agent.help.example.task')],
+      [t('agent.help.example.resume_label'), t('agent.help.example.resume')],
+      [t('agent.help.example.history_label'), t('agent.help.example.history')],
+      [t('agent.help.example.remember_label'), t('agent.help.example.remember')],
+      [t('agent.help.example.memory_label'), t('agent.help.example.memory')],
+      [t('agent.help.example.forget_label'), t('agent.help.example.forget')],
+      [t('agent.help.example.new_label'), t('agent.help.example.new')],
+      [t('agent.help.example.cancel_label'), t('agent.help.example.cancel')],
     ].map(([label, command]) => <div key={label}><dt>{label}</dt><dd>{command}</dd></div>)}</dl>
-    <p className="agent-field-hint">你可以在手机渠道或 Coffee Agent 对话页安排工作。示例目录请替换成你的完整路径；未指定工具或目录时，Agent 会先询问。“查看记录”按最近活动时间列出 CLI 工作会话，不包含 Coffee Agent 自身聊天。新对话整理聊天上下文，打开终端会在主界面创建可见 tab。</p>
+    <p className="agent-field-hint">{t('agent.help.examples_hint')}</p>
     </div>
     </div>
   </dialog>, document.body);
 }
 
 export function AgentPages({ page }: { page: AgentPage }) {
+  const t = useT();
   const { state } = useAppState();
   const [helpOpen, setHelpOpen] = useState(false);
-  if (page === 'config') return <PageFrame page="config"><div className="agent-settings-scroll"><div className="agent-settings-content"><p className="agent-settings-intro">通过微信或 Telegram 与 Coffee Agent 对话，读取终端、安排任务，在电脑上继续接管工作。<button type="button" className="agent-help-link" onClick={() => setHelpOpen(true)}>（使用说明，首次使用必看）</button></p><AgentModelSection /><AgentDelegationSection /><AgentChannelsSection /></div></div>{helpOpen && state.agentPageActive === 'config' && <AgentHelpModal onClose={() => setHelpOpen(false)} />}</PageFrame>;
+  if (page === 'config') return <PageFrame page="config"><div className="agent-settings-scroll"><div className="agent-settings-content"><p className="agent-settings-intro">{t('agent.settings.intro')}{' '}<button type="button" className="agent-help-link" onClick={() => setHelpOpen(true)}>{t('agent.settings.help')}</button></p><AgentModelSection /><AgentDelegationSection /><AgentChannelsSection /></div></div>{helpOpen && state.agentPageActive === 'config' && <AgentHelpModal onClose={() => setHelpOpen(false)} />}</PageFrame>;
   return <AgentChatPage />;
 }
 
 export function ChannelConnectionSummary() {
+  const t = useT();
   const { state, dispatch } = useAppState();
   const { channels } = useAgentClient();
   const weixin = channels?.status.weixin === 'connected';
   const telegram = channels?.status.telegram === 'connected';
-  const label = weixin && telegram ? '微信 · Telegram 已连接' : weixin ? '微信已连接' : telegram ? 'Telegram 已连接' : '尚未连接消息渠道';
+  const label = t(weixin && telegram ? 'agent.sidebar.both_connected' : weixin ? 'agent.sidebar.weixin_connected' : telegram ? 'agent.sidebar.telegram_connected' : 'agent.sidebar.disconnected');
   return <div className="agent-channel-summary">
-    <button type="button" className="agent-channel-summary-label" aria-label={`${label}，打开消息设置`} onClick={() => dispatch({ type: 'OPEN_AGENT_PAGE', page: 'config' })}>{label}</button>
-    <button type="button" className="agent-sidebar-button" aria-label="打开 Coffee Agent" aria-pressed={state.agentPageActive === 'agent'} onClick={() => dispatch({ type: 'OPEN_AGENT_PAGE', page: 'agent' })}>
+    <button type="button" className="agent-channel-summary-label" aria-label={t('agent.sidebar.open_settings', { status: label })} onClick={() => dispatch({ type: 'OPEN_AGENT_PAGE', page: 'config' })}>{label}</button>
+    <button type="button" className="agent-sidebar-button" aria-label={t('agent.sidebar.open_agent')} aria-pressed={state.agentPageActive === 'agent'} onClick={() => dispatch({ type: 'OPEN_AGENT_PAGE', page: 'agent' })}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M8 14H6l-4 3V5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v3" /><path d="M10 8h10a2 2 0 0 1 2 2v12l-4-3h-8a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z" /></svg>
     </button>
   </div>;

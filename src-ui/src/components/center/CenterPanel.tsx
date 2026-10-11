@@ -1417,9 +1417,9 @@ export function CenterPanel() {
 
         {state.agentPages.map(page => (
           <div key={page} className={`chrome-tab ${agentPageActive === page ? 'active' : ''}`} onClick={() => dispatch({ type: 'OPEN_AGENT_PAGE', page })}>
-            <span className="tab-title">{page === 'agent' ? 'Coffee Agent' : '消息设置'}</span>
+            <span className="tab-title">{page === 'agent' ? 'Coffee Agent' : t('agent.page.settings')}</span>
             <div className="tab-actions tab-actions--close-only">
-              <button type="button" className="tab-close-btn" aria-label={page === 'agent' ? '关闭 Coffee Agent tab' : '关闭消息设置 tab'} onClick={event => { event.stopPropagation(); dispatch({ type: 'CLOSE_AGENT_PAGE', page }); }}>
+              <button type="button" className="tab-close-btn" aria-label={t(page === 'agent' ? 'agent.page.close_agent' : 'agent.page.close_settings')} onClick={event => { event.stopPropagation(); dispatch({ type: 'CLOSE_AGENT_PAGE', page }); }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m18 6-12 12M6 6l12 12" /></svg>
               </button>
             </div>

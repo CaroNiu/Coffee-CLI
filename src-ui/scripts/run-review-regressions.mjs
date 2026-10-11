@@ -38,9 +38,13 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   ).outputText, {
     useAppState: () => ({ state }),
     useAgentClient: () => ({ messages: [], running, activity: '', error: '' }),
-    useState: initial => [initial, () => {}], useRef: initial => ({ current: initial }), useEffect() {},
+    useT: () => key => key,
+    useState: initial => [initial, () => {}], useRef: initial => ({ current: initial }), useEffect() {}, useLayoutEffect() {},
+    useMemo: callback => callback(), useCallback: callback => callback,
     React: { createElement: (type, props, ...children) => ({ type, props, children }) },
     PageFrame: 'page', Gambit: 'gambit', MarkdownContent: 'markdown',
+    ConversationNavigation: 'navigation', MessageCopyButton: 'copy',
+    formatAgentActivity: text => text, formatAgentError: text => text, formatAgentMessage: text => text,
     sendAgentMessage: async text => { if (rejectSend) throw new Error('model unavailable'); sent.push(text); },
     invoke: async (command, args) => { cancelled.push({ command, ...args }); },
   });
@@ -103,6 +107,142 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   await send()();
   assert.deepEqual(cleared, [''], 'an accepted unchanged draft still clears normally');
   console.log('OK: Agent Gambit visibility, routing, cancellation, busy guard, and draft preservation');
+}
+
+// Render the actual Agent page with persistent hooks and measured transcript
+// rows. Navigation and copy handlers must act on messages, not their previews.
+{
+  const cells = [], effects = [], layouts = [], copied = [], timers = [];
+  const client = { conversationId: 'coffee-test', messages: [], hasOlder: true, loadingOlder: false, running: false, activity: '', error: '' };
+  let cursor = 0, rows = [], olderRequest;
+  const scrollCalls = [];
+  const scroll = {
+    scrollTop: 0, scrollHeight: 2000, clientHeight: 400,
+    getBoundingClientRect: () => ({ top: 100 }),
+    querySelectorAll: () => rows,
+    querySelector: selector => rows.find(row => selector.includes(`"${row.dataset.conversationNavigationId}"`)),
+    scrollTo(options) { scrollCalls.push(options); this.scrollTop = options.top; },
+  };
+  function cell(initial) { const index = cursor++; return cells[index] ??= { value: initial }; }
+  const sameDeps = (before, after) => before && after && before.length === after.length && before.every((value, index) => Object.is(value, after[index]));
+  function schedule(queue, callback, deps) {
+    const current = cell();
+    if (!sameDeps(current.deps, deps)) {
+      current.deps = deps;
+      queue.push(() => { current.cleanup?.(); current.cleanup = callback(); });
+    }
+  }
+  const component = vm.runInNewContext(ts.transpileModule(
+    `${declaration('components/agent/AgentPages.tsx', 'AgentChatPage')}; AgentChatPage`,
+    { compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React } },
+  ).outputText, {
+    useT: () => key => key,
+    useAppState: () => ({ state: { agentPageActive: 'agent', leftPanelHidden: false, rightPanelHidden: false } }),
+    useAgentClient: () => client,
+    useState(initial) {
+      const current = cell(typeof initial === 'function' ? initial() : initial);
+      return [current.value, update => { current.value = typeof update === 'function' ? update(current.value) : update; }];
+    },
+    useRef(initial) { return cell({ current: initial }).value; },
+    useMemo(callback, deps) {
+      const current = cell();
+      if (!sameDeps(current.deps, deps)) { current.value = callback(); current.deps = deps; }
+      return current.value;
+    },
+    useCallback: callback => callback,
+    useEffect: (callback, deps) => schedule(effects, callback, deps),
+    useLayoutEffect: (callback, deps) => schedule(layouts, callback, deps),
+    React: { createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }) },
+    PageFrame: 'page', Gambit: 'gambit', MarkdownContent: 'markdown',
+    ConversationNavigation: 'navigation', MessageCopyButton: 'copy',
+    formatAgentActivity: text => text, formatAgentError: text => text, formatAgentMessage: text => text,
+    clipboardWrite: async text => { copied.push(text); },
+    loadOlderAgentMessages: () => { olderRequest = deferred(); return olderRequest.promise; },
+    window: {
+      setTimeout: callback => { timers.push(callback); return timers.length; }, clearTimeout() {},
+      requestAnimationFrame: callback => { callback(); return 1; }, cancelAnimationFrame() {},
+      addEventListener() {}, removeEventListener() {},
+    },
+    ResizeObserver: class { observe() {} disconnect() {} },
+    CSS: { escape: text => String(text) },
+  });
+  function elements(node) {
+    if (Array.isArray(node)) return node.flatMap(elements);
+    return node && typeof node === 'object' ? [node, ...(node.children ?? []).flatMap(elements)] : [];
+  }
+  function render() {
+    cursor = 0;
+    const page = component();
+    const nodes = elements(page);
+    const thread = nodes.find(node => node.props.className === 'agent-chat-thread');
+    thread.props.ref.current = scroll;
+    const list = nodes.find(node => node.props.className === 'agent-message-list');
+    if (list) list.props.ref.current = {};
+    rows = nodes.filter(node => node.type === 'article').map((node, index) => ({
+      dataset: { conversationNavigationId: node.props['data-conversation-navigation-id'] },
+      offsetTop: client.messages[index].top,
+      getBoundingClientRect: () => ({ top: 100 + client.messages[index].top - scroll.scrollTop }),
+      getAttribute: name => node.props[name],
+    }));
+    for (const queue of [layouts, effects]) while (queue.length) queue.shift()();
+    return nodes;
+  }
+  const markdown = '**Completed**\n```powershell\ncd E:\\tmp; git status --short\n```\n保持原文';
+  client.messages = [
+    { id: 100, role: 'assistant', text: 'older page starts within a reply', top: 20 },
+    { id: 101, role: 'user', text: 'same prompt', top: 160 },
+    { id: 102, role: 'assistant', text: markdown, top: 400 },
+    { id: 103, role: 'user', text: 'same prompt', top: 860 },
+    { id: 104, role: 'assistant', text: 'current result', top: 1120 },
+  ];
+  render();
+  let nodes = render();
+  const navigation = nodes.find(node => node.type === 'navigation');
+  assert.ok(navigation, 'multiple prompts expose the shared conversation navigation');
+  assert.deepEqual(Array.from(navigation.props.items, item => item.sourceMessageId), ['101', '103']);
+  assert.deepEqual(Array.from(navigation.props.items, item => item.content), ['same prompt', 'same prompt']);
+  navigation.props.onJump(navigation.props.items[0]);
+  navigation.props.onJump(navigation.props.items[1]);
+  assert.deepEqual(scrollCalls.map(call => call.top), [160, 860], 'repeated prompt text must jump to the selected unique message, not the first text match');
+  assert.equal(scrollCalls.at(-1).behavior, 'auto');
+  client.running = true;
+  client.messages = client.messages.map(message => message.id === 104 ? { ...message, text: 'still streaming' } : message);
+  nodes = render();
+  assert.equal(scroll.scrollTop, 860, 'streaming output must not pull a navigation jump back to the bottom');
+  const articles = nodes.filter(node => node.type === 'article');
+  const copyOf = id => elements(articles.find(node => node.props['data-conversation-navigation-id'] === String(id))).find(node => node.type === 'copy');
+  assert.ok(copyOf(103), 'user prompts remain copyable while the Agent is working');
+  assert.ok(copyOf(102), 'a completed earlier Agent reply remains copyable');
+  assert.equal(copyOf(104), undefined, 'the unfinished streaming reply must not expose a copy button');
+  copyOf(102).props.onCopy();
+  await tick();
+  assert.deepEqual(copied, [markdown], 'copy must retain Markdown fences, commands, paths, line breaks, and non-English text');
+  nodes = render();
+  const copiedArticle = nodes.find(node => node.type === 'article' && node.props['data-conversation-navigation-id'] === '102');
+  assert.equal(elements(copiedArticle).find(node => node.type === 'copy').props.copied, true);
+  timers.at(-1)();
+  nodes = render();
+  assert.equal(elements(nodes.find(node => node.type === 'article' && node.props['data-conversation-navigation-id'] === '102')).find(node => node.type === 'copy').props.copied, false);
+
+  scroll.scrollTop = 700;
+  nodes.find(node => node.props.className === 'agent-chat-thread').props.onScroll();
+  nodes.find(node => node.type === 'button' && node.children.includes('agent.chat.older')).props.onClick();
+  assert.ok(olderRequest, 'the real older-history handler requested the archive');
+  // Older rows add 300 px above, while an active reply grows another 500 px
+  // below. Preserving by total scrollHeight would incorrectly add both.
+  scroll.scrollHeight += 800;
+  client.messages = [
+    { id: 98, role: 'user', text: 'archived prompt', top: 0 },
+    { id: 99, role: 'assistant', text: 'archived reply', top: 100 },
+    ...client.messages.map(message => ({ ...message, top: message.top + 300 })),
+  ];
+  render();
+  olderRequest.resolve(); await tick();
+  assert.equal(scroll.scrollTop, 1000, 'prepending retains the same visible message even when the trailing reply also grows');
+  client.running = false;
+  nodes = render();
+  assert.ok(elements(nodes.find(node => node.type === 'article' && node.props['data-conversation-navigation-id'] === '104')).some(node => node.type === 'copy'), 'the final reply becomes copyable when its request completes');
+  console.log('OK: Agent unique-id navigation, streaming reading position, Markdown copy feedback, and older-history anchors');
 }
 
 // A mode switch must hide the conversation, not remove its React subtree.
