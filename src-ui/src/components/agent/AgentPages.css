@@ -40,6 +40,7 @@ body.gambit-docked .agent-page-agent { padding-bottom: calc(var(--gambit-dock-h,
 .agent-settings-intro { margin: 0 0 24px; color: var(--text-2); line-height: 1.8; }
 .agent-settings-section h2 { margin: 0 0 18px; font-size: 14px; font-weight: 600; }
 .agent-settings-section + .agent-settings-section { margin-top: 26px; padding-top: 24px; border-top: 1px solid var(--border); }
+.agent-settings-section > .agent-model-form, .agent-settings-section > .agent-mode-list, .agent-settings-section > .agent-channel-layout, .agent-settings-section > .agent-feedback { margin-inline-start: 20px; }
 .agent-model-form fieldset { min-width: 0; margin: 0; padding: 0; border: none; }
 .agent-field { display: grid; grid-template-columns: 72px minmax(0, 1fr); align-items: center; gap: 10px; margin: 0 0 10px; color: var(--text-2); font-size: 13px; }
 .agent-field input, .agent-inline-input { width: 100%; min-width: 0; min-height: 34px; padding: 7px 10px; border: 1px solid var(--border-input); border-radius: var(--shape-radius-btn); outline: none; color: var(--text-1); background: var(--bg-input); font: inherit; font-size: 13px; }
@@ -49,11 +50,14 @@ body.gambit-docked .agent-page-agent { padding-bottom: calc(var(--gambit-dock-h,
 .agent-select-trigger:focus-visible { outline: none; border-color: var(--accent); }
 .agent-field-hint { margin: 8px 0 0; color: var(--text-3); font-size: 12px; line-height: 1.8; }
 .agent-form-footer { display: flex; align-items: center; gap: 12px; margin: 14px 0 0 82px; }
-.agent-delegation-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text-2); font-size: 13px; }
-.agent-delegation-heading h2 { margin: 0; }
-.agent-delegation-heading .agent-delegation-switch { margin-left: 0; padding: 0; border: 0; cursor: pointer; }
-.agent-delegation-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.agent-delegation-switch:disabled { opacity: .45; cursor: default; }
+.agent-mode-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 48px; }
+.agent-mode-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; color: var(--text-2); font-size: 13px; }
+.agent-mode-row .agent-mode-switch { margin-left: 0; padding: 0; border: 0; cursor: pointer; }
+.agent-mode-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.agent-mode-switch:disabled { cursor: default; }
+.agent-mode-description { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Same themed surface as the launchpad Tips; the portal avoids scroll clipping. */
+.agent-mode-tip { position: fixed; z-index: 1000; width: min(340px, calc(100vw - 16px)); max-height: calc(100vh - 16px); padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-1); background: var(--bg-panel); font-family: var(--font); font-size: 11px; font-weight: 500; line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; overflow-y: auto; pointer-events: none; box-shadow: 0 1px 2px rgba(0, 0, 0, .20), 0 6px 20px rgba(0, 0, 0, .22); }
 .agent-feedback { margin: 13px 0 0; color: var(--green); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
 .agent-feedback.error { color: var(--red); }
 .agent-chat-feedback.agent-feedback { margin: 0 auto 8px; }

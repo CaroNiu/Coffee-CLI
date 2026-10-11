@@ -223,6 +223,7 @@ export interface AppState {
   activeTerminalId: string | null;
   agentPages: AgentPage[];
   agentPageActive: AgentPage | null;
+  tabOrder: string[];
 
   // Gambit (global floating compose window). Visibility is app-wide so the
   // panel doesn't appear/disappear when switching tabs; only the draft is
@@ -350,7 +351,7 @@ type Action =
   | { type: 'ADD_TERMINAL'; session: TerminalSession }
   | { type: 'LAUNCH_TERMINAL_TOOL'; id: string; tool: ToolType; cwd?: string; toolData?: string; resumeToken?: string; strictCwd?: boolean }
   | { type: 'REMOVE_TERMINAL'; id: string }
-  | { type: 'REORDER_TERMINAL'; sessionId: string; beforeId: string | null }
+  | { type: 'REORDER_TAB'; tabId: string; beforeId: string | null }
   | { type: 'SET_ACTIVE_TERMINAL'; id: string | null }
   | { type: 'SET_TERMINAL_TOOL'; id: string; tool: ToolType; toolData?: string; resumeToken?: string }
   | { type: 'SET_TERMINAL_HIDDEN'; id: string; isHidden: boolean }
@@ -390,6 +391,12 @@ type Action =
   | { type: 'CLOSE_AGENT_PAGE'; page: AgentPage };
 
 // ─── Reducer ─────────────────────────────────────────────────────────────────
+
+export function getTabOrder(state: Pick<AppState, 'terminals' | 'agentPages' | 'tabOrder'>): string[] {
+  const ids = [...state.terminals.map(tab => tab.id), ...state.agentPages.map(page => `agent:${page}`)];
+  const saved = (state.tabOrder ?? []).filter(id => ids.includes(id));
+  return [...saved, ...ids.filter(id => !saved.includes(id))];
+}
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
@@ -456,6 +463,7 @@ function reducer(state: AppState, action: Action): AppState {
       return { 
         ...state, 
         terminals: [...state.terminals, session],
+        tabOrder: [...getTabOrder(state), session.id],
         activeTerminalId: session.id,
         agentPageActive: null,
         diffTabActive: false,
@@ -475,6 +483,7 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         terminals: previous ? state.terminals.map(tab => tab.id === action.id ? session : tab) : [...state.terminals, session],
+        tabOrder: previous ? state.tabOrder : [...getTabOrder(state), action.id],
         activeTerminalId: action.id, agentPageActive: null, diffTabActive: false,
       };
     }
@@ -490,29 +499,25 @@ function reducer(state: AppState, action: Action): AppState {
       } else if (state.activeTerminalId === action.id) {
          newActiveId = newTerminals[newTerminals.length - 1].id;
       }
-      return { ...state, terminals: newTerminals, activeTerminalId: newActiveId };
+      return { ...state, terminals: newTerminals, activeTerminalId: newActiveId, tabOrder: getTabOrder(state).filter(id => id !== action.id) };
     }
-    case 'REORDER_TERMINAL': {
-      // Move `sessionId`'s tab so that it sits immediately before
-      // `beforeId` in the array. `beforeId === null` means "drop at end".
-      // Used by browser-style tab reordering: pointer-down a tab, drag
-      // horizontally, drop wherever you want it. CenterPanel does the
-      // pixel-math; the reducer just handles the array surgery.
-      const t = state.terminals;
-      const fromIdx = t.findIndex(x => x.id === action.sessionId);
-      if (fromIdx < 0) return state;
-      const without = t.filter(x => x.id !== action.sessionId);
+    case 'REORDER_TAB': {
+      // Terminal and Agent pages share one strip. Keep terminal order in
+      // sync so Agent session numbers still follow the displayed tabs.
+      const order = getTabOrder(state);
+      if (!order.includes(action.tabId)) return state;
+      const without = order.filter(id => id !== action.tabId);
       const insertIdx = action.beforeId
-        ? without.findIndex(x => x.id === action.beforeId)
+        ? without.indexOf(action.beforeId)
         : without.length;
       if (insertIdx < 0) return state;
-      const moved = t[fromIdx];
-      const next = [...without.slice(0, insertIdx), moved, ...without.slice(insertIdx)];
-      // No-op detection: skip dispatch round-trip when the order didn't
-      // actually change (e.g., user dragged 1px and dropped, or dropped
-      // back into the same gap).
-      if (next.every((x, i) => x.id === t[i].id)) return state;
-      return { ...state, terminals: next };
+      const next = [...without.slice(0, insertIdx), action.tabId, ...without.slice(insertIdx)];
+      if (next.every((id, i) => id === order[i])) return state;
+      return {
+        ...state, tabOrder: next,
+        terminals: [...state.terminals].sort((a, b) => next.indexOf(a.id) - next.indexOf(b.id)),
+        agentPages: [...state.agentPages].sort((a, b) => next.indexOf(`agent:${a}`) - next.indexOf(`agent:${b}`)),
+      };
     }
     case 'SET_ACTIVE_TERMINAL':
       // Activating a terminal tab blurs the diff tab (they're peer tabs in
@@ -535,17 +540,28 @@ function reducer(state: AppState, action: Action): AppState {
         terminals: state.terminals.map(t =>
           t.id === action.id ? { ...t, id: action.newId, toolTitle: undefined, agentStatus: undefined, chatPending: undefined, startedAt: Date.now() } : t
         ),
+        tabOrder: getTabOrder(state).map(id => id === action.id ? action.newId : id),
         activeTerminalId: state.activeTerminalId === action.id ? action.newId : state.activeTerminalId
       };
-    case 'SET_AGENT_STATUS':
+    case 'SET_AGENT_STATUS': {
       // Native titles and rendered-screen spinners can both emit frequent
       // activity frames. Equal states must not re-render the app.
-      if (!state.terminals.some(t => t.id === action.id && supportsAgentStatus(t.tool))) return state;
-      if (state.terminals.some(t => t.id === action.id && t.agentStatus === action.status)) return state;
-      return {
-        ...state,
-        terminals: state.terminals.map(t => t.id === action.id ? { ...t, agentStatus: action.status } : t)
-      };
+      let changed = false;
+      const terminals = state.terminals.map(t => {
+        if (t.id === action.id && supportsAgentStatus(t.tool) && t.agentStatus !== action.status) {
+          changed = true; return { ...t, agentStatus: action.status };
+        }
+        const panes = t.multiAgent?.panes.map(p => {
+          if (supportsAgentStatus(p.tool) && p.agentStatus !== action.status
+              && [paneSessionId(t.id, p.paneIdx, 'split'), paneSessionId(t.id, p.paneIdx, 'pane')].includes(action.id)) {
+            changed = true; return { ...p, agentStatus: action.status };
+          }
+          return p;
+        });
+        return panes?.some((p, i) => p !== t.multiAgent?.panes[i]) ? { ...t, multiAgent: { ...t.multiAgent, panes } } : t;
+      });
+      return changed ? { ...state, terminals } : state;
+    }
     case 'SET_BG':
       return { ...state, bgPath: action.path, bgType: action.bgType };
     case 'CLEAR_BG':
@@ -608,6 +624,7 @@ function reducer(state: AppState, action: Action): AppState {
                   ...p,
                   tool: action.tool,
                   toolData: action.toolData,
+                  agentStatus: undefined,
                   // Only overwrite folderPath when the action explicitly
                   // carries one. Clearing a pane (tool=null without folderPath)
                   // wipes the pane back to empty state, so we also null out
@@ -706,10 +723,15 @@ function reducer(state: AppState, action: Action): AppState {
     case 'SET_DIFF_TAB_ACTIVE':
       return { ...state, diffTabActive: action.active, agentPageActive: action.active ? null : state.agentPageActive };
     case 'OPEN_AGENT_PAGE':
-      return { ...state, agentPages: state.agentPages.includes(action.page) ? state.agentPages : [...state.agentPages, action.page], agentPageActive: action.page, diffTabActive: false };
+      return {
+        ...state,
+        agentPages: state.agentPages.includes(action.page) ? state.agentPages : [...state.agentPages, action.page],
+        tabOrder: state.agentPages.includes(action.page) ? state.tabOrder : [...getTabOrder(state), `agent:${action.page}`],
+        agentPageActive: action.page, diffTabActive: false,
+      };
     case 'CLOSE_AGENT_PAGE': {
       const agentPages = state.agentPages.filter(page => page !== action.page);
-      return { ...state, agentPages, agentPageActive: state.agentPageActive === action.page ? agentPages.at(-1) ?? null : state.agentPageActive };
+      return { ...state, agentPages, tabOrder: getTabOrder(state).filter(id => id !== `agent:${action.page}`), agentPageActive: state.agentPageActive === action.page ? agentPages.at(-1) ?? null : state.agentPageActive };
     }
     default:
       return state;
@@ -945,6 +967,7 @@ function getInitialState(): AppState {
     diffTabActive: false,
     agentPages: [],
     agentPageActive: null,
+    tabOrder: [defaultTerminalId],
   };
 }
 

@@ -10,7 +10,7 @@ import { ToolConfigModal } from './ToolConfigModal';
 import { ContributionHeatmap } from './ContributionHeatmap';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { DiffPanel } from '../right/DiffPanel';
-import { supportsAgentStatus, useAppState, type ToolType } from '../../store/app-state';
+import { getTabOrder, supportsAgentStatus, useAppState, type ToolType } from '../../store/app-state';
 import { isFrostShape } from '../../lib/personalization';
 import { supportsConversationTool } from '../../lib/chat-tools';
 
@@ -990,13 +990,13 @@ export function CenterPanel() {
   // own file-drop capture is enabled (memory: reference_webview2_html5_drag).
   const tabsHeaderRef = useRef<HTMLDivElement | null>(null);
   // Active drag state. `fromIdx` / `targetIdx` are positions in the
-  // **visible tab strip** (filtered, in DOM order) — not the underlying
+  // **visible tab strip** (including Agent pages, in DOM order) — not the underlying
   // `state.terminals` array — because the slide-aside math operates on
   // what the user actually sees. `slotWidth` is the dragged tab's
   // visual footprint (own width + the flex `gap`); siblings translateX
   // by ±slotWidth to make room.
   const [tabDrag, setTabDrag] = useState<{
-    sessionId: string;
+    tabId: string;
     deltaX: number;
     fromIdx: number;
     targetIdx: number;
@@ -1016,7 +1016,7 @@ export function CenterPanel() {
   const [tabSlot, setTabSlot] = useState<HTMLElement | null>(null);
   useEffect(() => { setTabSlot(document.getElementById('titlebar-tab-slot')); }, []);
 
-  const onTabPointerDown = (e: React.PointerEvent<HTMLDivElement>, sessionId: string) => {
+  const onTabPointerDown = (e: React.PointerEvent<HTMLDivElement>, tabId: string) => {
     // Ignore non-primary buttons + clicks on close button / status indicator
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest('.tab-close-btn')) return;
@@ -1028,17 +1028,17 @@ export function CenterPanel() {
     // drop AND by the shift math during drag — DOM is animating
     // during drag, so re-measuring would feed back into itself.
     const tabEls = Array.from(
-      headerEl.querySelectorAll<HTMLElement>('.chrome-tab[data-session-id]'),
+      headerEl.querySelectorAll<HTMLElement>('.chrome-tab[data-tab-id]'),
     );
     const positions = tabEls.map(el => {
       const rect = el.getBoundingClientRect();
       return {
-        sessionId: el.dataset.sessionId!,
+        tabId: el.dataset.tabId!,
         center: rect.left + rect.width / 2,
         width: rect.width,
       };
     });
-    const fromIdx = positions.findIndex(p => p.sessionId === sessionId);
+    const fromIdx = positions.findIndex(p => p.tabId === tabId);
     if (fromIdx < 0) return;
     const ownPos = positions[fromIdx];
 
@@ -1080,7 +1080,7 @@ export function CenterPanel() {
       if (!started && Math.abs(dx) < THRESHOLD) return;
       started = true;
       setTabDrag({
-        sessionId,
+        tabId,
         deltaX: dx,
         fromIdx,
         targetIdx: computeTargetIdx(ev.clientX),
@@ -1099,8 +1099,8 @@ export function CenterPanel() {
         // beforeId = the tab at `targetIdx` in the without-dragged strip;
         // `null` when dropping past every other tab (insert at end).
         const others = positions.filter((_, i) => i !== fromIdx);
-        const beforeId = targetIdx < others.length ? others[targetIdx].sessionId : null;
-        dispatch({ type: 'REORDER_TERMINAL', sessionId, beforeId });
+        const beforeId = targetIdx < others.length ? others[targetIdx].tabId : null;
+        dispatch({ type: 'REORDER_TAB', tabId, beforeId });
       }
       setTabDrag(null);
     };
@@ -1109,12 +1109,26 @@ export function CenterPanel() {
     document.addEventListener('pointerup', onUp);
   };
 
-  const onTabClickGuarded = (sessionId: string) => {
+  const onTabClickGuarded = (tabId: string) => {
     if (tabDragSuppressClickRef.current) {
       tabDragSuppressClickRef.current = false;
       return;
     }
-    dispatch({ type: 'SET_ACTIVE_TERMINAL', id: sessionId });
+    if (tabId === 'agent:agent' || tabId === 'agent:config') {
+      dispatch({ type: 'OPEN_AGENT_PAGE', page: tabId === 'agent:agent' ? 'agent' : 'config' });
+    } else {
+      dispatch({ type: 'SET_ACTIVE_TERMINAL', id: tabId });
+    }
+  };
+
+  const getTabDragStyle = (tabId: string, visibleIndex: number): React.CSSProperties | undefined => {
+    if (!tabDrag) return undefined;
+    if (tabDrag.tabId === tabId) return { transform: `translateX(${tabDrag.deltaX}px)` };
+    const withoutIdx = visibleIndex < tabDrag.fromIdx ? visibleIndex : visibleIndex - 1;
+    const shift = visibleIndex < tabDrag.fromIdx && withoutIdx >= tabDrag.targetIdx
+      ? tabDrag.slotWidth
+      : visibleIndex > tabDrag.fromIdx && withoutIdx < tabDrag.targetIdx ? -tabDrag.slotWidth : 0;
+    return shift ? { transform: `translateX(${shift}px)` } : undefined;
   };
 
   const formatCwd = (cwd: string): string => {
@@ -1324,16 +1338,31 @@ export function CenterPanel() {
       {tabSlot && createPortal(
       <div ref={tabsHeaderRef} className="chrome-tabs-header" data-count={terminals.filter(s => !s.isHidden || s.id === activeTerminalId).length + state.agentPages.length}>
         {(() => {
-          // Pre-compute visible-strip index for each session so the inner
-          // map can do O(1) shift lookups without re-filtering.
-          const visibleIdxBySid = new Map<string, number>();
-          let v = 0;
-          for (const s of terminals) {
-            if (s.isHidden && s.id !== activeTerminalId) continue;
-            visibleIdxBySid.set(s.id, v++);
+          const sessions = new Map(terminals.map(session => [session.id, session]));
+          const visibleTabs = getTabOrder(state).filter(id => {
+            const session = sessions.get(id);
+            return !session || !session.isHidden || id === activeTerminalId;
+          });
+          return visibleTabs.map((tabId, visibleIndex) => {
+          const isDragging = tabDrag?.tabId === tabId;
+          const dragStyle = getTabDragStyle(tabId, visibleIndex);
+          if (tabId === 'agent:agent' || tabId === 'agent:config') {
+            const page = tabId === 'agent:agent' ? 'agent' : 'config';
+            return (
+              <div key={tabId} data-tab-id={tabId}
+                className={`chrome-tab ${agentPageActive === page ? 'active' : ''} ${isDragging ? 'dragging' : ''}`}
+                style={dragStyle} onClick={() => onTabClickGuarded(tabId)}
+                onPointerDown={event => onTabPointerDown(event, tabId)}>
+                <span className="tab-title">{page === 'agent' ? 'Coffee Agent' : t('agent.page.settings')}</span>
+                <div className="tab-actions tab-actions--close-only">
+                  <button type="button" className="tab-close-btn" aria-label={t(page === 'agent' ? 'agent.page.close_agent' : 'agent.page.close_settings')} onClick={event => { event.stopPropagation(); dispatch({ type: 'CLOSE_AGENT_PAGE', page }); }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m18 6-12 12M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              </div>
+            );
           }
-          return terminals.map(session => {
-          if (session.isHidden && session.id !== activeTerminalId) return null;
+          const session = sessions.get(tabId)!;
 
           // A terminal tab is "active" only when it's the focused surface —
           // when the diff tab is focused (diffTabActive), no terminal tab
@@ -1344,44 +1373,11 @@ export function CenterPanel() {
           // overrides the cwd basename when the tool has set a non-empty one.
           // Muse inherits its Windows launcher's title; keep the workspace name.
           const title = session.tool === 'muse' ? baseTitle : session.toolTitle?.trim() || baseTitle;
-          const isDragging = tabDrag?.sessionId === session.id;
-
-          // Sibling shift: while a different tab is being dragged, this
-          // tab translateX-es by ±slotWidth to make room for / fill in
-          // the dragged tab's vacated slot. Browser-tab "slide aside".
-          //
-          // Math: in the visible-strip's without-dragged array, the
-          // dragged tab will land at position `targetIdx`. Each sibling
-          // at original visible-index `j` (j !== fromIdx) maps to a
-          // without-dragged index of either `j` (if j < fromIdx) or
-          // `j - 1` (if j > fromIdx). Compare that to targetIdx:
-          //   - if j < fromIdx and its without-idx < targetIdx → no shift
-          //   - if j < fromIdx and its without-idx >= targetIdx → shift right (+slotWidth)
-          //   - if j > fromIdx and its without-idx < targetIdx → shift left (-slotWidth)
-          //   - if j > fromIdx and its without-idx >= targetIdx → no shift
-          let siblingShift = 0;
-          if (tabDrag && !isDragging) {
-            const j = visibleIdxBySid.get(session.id);
-            if (j !== undefined) {
-              const withoutIdx = j < tabDrag.fromIdx ? j : j - 1;
-              if (j < tabDrag.fromIdx && withoutIdx >= tabDrag.targetIdx) {
-                siblingShift = tabDrag.slotWidth;
-              } else if (j > tabDrag.fromIdx && withoutIdx < tabDrag.targetIdx) {
-                siblingShift = -tabDrag.slotWidth;
-              }
-            }
-          }
-
-          const dragStyle: React.CSSProperties | undefined = isDragging
-            ? { transform: `translateX(${tabDrag!.deltaX}px)` }
-            : siblingShift !== 0
-              ? { transform: `translateX(${siblingShift}px)` }
-              : undefined;
-
           return (
             <div
               key={session.id}
               data-session-id={session.id}
+              data-tab-id={session.id}
               className={`chrome-tab ${isActive ? 'active' : ''} ${isDragging ? 'dragging' : ''}`}
               style={dragStyle}
               onClick={() => onTabClickGuarded(session.id)}
@@ -1420,17 +1416,6 @@ export function CenterPanel() {
           );
         });
         })()}
-
-        {state.agentPages.map(page => (
-          <div key={page} className={`chrome-tab ${agentPageActive === page ? 'active' : ''}`} onClick={() => dispatch({ type: 'OPEN_AGENT_PAGE', page })}>
-            <span className="tab-title">{page === 'agent' ? 'Coffee Agent' : t('agent.page.settings')}</span>
-            <div className="tab-actions tab-actions--close-only">
-              <button type="button" className="tab-close-btn" aria-label={t(page === 'agent' ? 'agent.page.close_agent' : 'agent.page.close_settings')} onClick={event => { event.stopPropagation(); dispatch({ type: 'CLOSE_AGENT_PAGE', page }); }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m18 6-12 12M6 6l12 12" /></svg>
-              </button>
-            </div>
-          </div>
-        ))}
 
         {/* Diff tab — a peer of the terminal tabs in the strip, but not a
             PTY. Visible only in tab mode with a selection. Clicking it

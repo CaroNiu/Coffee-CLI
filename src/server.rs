@@ -933,9 +933,13 @@ fn tier_terminal_start_blocking(
     // --dangerously-skip-permissions" or "run codex through `docker exec mybox`".
     // `remote` is excluded by design: its argv is protocol-derived from
     // runtime tool_data, not configurable.
+    let launch_config = match tool.as_deref() {
+        Some(name) if name == "terminal" || crate::tools::find(name).is_some() => crate::tool_config::get(name),
+        _ => Default::default(),
+    };
     let (cmd, args) = match tool.as_deref() {
         Some(name) if name == "terminal" || crate::tools::find(name).is_some() => {
-            let entry = crate::tool_config::get(name);
+            let entry = &launch_config;
             let (cmd, mut args) = (cmd, args);
             let (cmd, args) = if let (Some(bin), prefix_args) =
                 crate::tool_config::parse_command(&entry.command)
@@ -1015,6 +1019,7 @@ fn tier_terminal_start_blocking(
         theme_mode,
         locale,
         extra_env,
+        launch_config,
     ).map_err(|e| format!("Failed to spawn PTY: {}", e))?;
 
     // Emit the initial CWD to the frontend so the left panel can map immediately.
@@ -5144,6 +5149,9 @@ pub fn start_ui(pending_launch: Option<crate::launch::LaunchRequest>) -> anyhow:
             crate::fonts::list_system_fonts,
             agent_bridge_ready,
             crate::agent::agent_get_model,
+            crate::agent_modes::agent_get_work_modes,
+            crate::agent_modes::agent_set_work_mode,
+            crate::agent_sentinel::agent_sentinel_report,
             crate::agent::agent_save_model,
             crate::agent::agent_get_english_delegation,
             crate::agent::agent_set_english_delegation,

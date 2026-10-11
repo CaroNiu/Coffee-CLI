@@ -1,16 +1,20 @@
 import { useEffect } from 'react';
-import { useAppDispatch, useAppStateRef } from '../../store/app-state';
+import { useAppDispatch, useAppState, useAppStateRef } from '../../store/app-state';
 import { invoke, isTauri } from '../../tauri';
 import { createAgentToolExecutor, type ToolRequest } from '../../lib/agent-tools';
 import { receiveAgentEvent, receiveConversationChanged, receiveChannelStatus, refreshChannels, refreshAgentConversation, refreshAgentConversations, type AgentEvent, type ChannelSettings } from '../../lib/agent-client';
+import { setSentinelEnabled, updateSentinelSessions } from '../../lib/agent-sentinel';
 
 /** Lives with the workspace, independently of Agent/configuration tabs and the sidebar. */
 export function AgentBridge() {
   const stateRef = useAppStateRef();
   const dispatch = useAppDispatch();
+  const { state } = useAppState();
+  useEffect(() => { updateSentinelSessions(state.terminals, state.currentLang); }, [state.terminals, state.currentLang]);
   useEffect(() => {
     if (!isTauri) return;
     let disposed = false;
+    let modesRevision = 0;
     const unlisteners: (() => void)[] = [];
     const cancelled = new Set<string>();
     const pending = async (id: string) => {
@@ -33,14 +37,18 @@ export function AgentBridge() {
         listen<AgentEvent>('agent-event', ({ payload }) => receiveAgentEvent(payload)),
         listen<string>('agent-conversations-changed', ({ payload }) => receiveConversationChanged(payload)),
         listen<ChannelSettings>('channel-status', ({ payload }) => receiveChannelStatus(payload)),
+        listen<{ sentinel: boolean }>('agent-work-modes', ({ payload }) => { modesRevision++; setSentinelEnabled(payload.sentinel); }),
       ])) { if (disposed) stop(); else unlisteners.push(stop); }
       if (!disposed) {
         await invoke('agent_bridge_ready');
+        const revision = modesRevision;
+        const modes = await invoke<{ sentinel: boolean }>('agent_get_work_modes');
+        if (!disposed && revision === modesRevision) setSentinelEnabled(modes.sentinel);
         await Promise.allSettled([refreshChannels(), refreshAgentConversation(), refreshAgentConversations()]);
       }
     };
     start().catch(error => console.error('[AgentBridge]', error));
-    return () => { disposed = true; unlisteners.forEach(stop => stop()); };
+    return () => { disposed = true; setSentinelEnabled(false); unlisteners.forEach(stop => stop()); };
   }, [dispatch, stateRef]);
   return null;
 }

@@ -3,7 +3,12 @@ import { build } from 'esbuild';
 import { runInNewContext } from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
-const compiled = await build({ entryPoints: [fileURLToPath(new URL('../src/lib/terminal-control.ts', import.meta.url))], bundle: true, platform: 'node', format: 'cjs', write: false });
+const compiled = await build({
+  entryPoints: [fileURLToPath(new URL('../src/lib/terminal-control.ts', import.meta.url))], bundle: true, platform: 'node', format: 'cjs', write: false,
+  plugins: [{ name: 'control-only-sentinel', setup(builder) {
+    builder.onLoad({ filter: /[/\\]agent-sentinel\.ts$/ }, () => ({ loader: 'js', contents: 'export function markSentinelSubmission() {} export function cancelSentinelSubmission() {} export function markSentinelInterrupt() {}' }));
+  } }],
+});
 let passed = 0;
 async function test(name, run) { await run(); passed++; console.log(`  ok  ${name}`); }
 function fixture() {

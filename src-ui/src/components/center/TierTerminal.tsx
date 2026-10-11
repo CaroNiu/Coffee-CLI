@@ -35,12 +35,13 @@ import { parseClaudeTerminalTitle } from '../../lib/claude-terminal-title';
 import { parseCodexTerminalTitle } from '../../lib/codex-terminal-title';
 import { parseOmpTerminalTitle } from '../../lib/omp-terminal-title';
 import { markNotifySoundPromptSubmitted } from '../../lib/notify-sound';
+import { markSentinelExit, markSentinelWorking } from '../../lib/agent-sentinel';
 import { usesSelfRenderedCaret } from '../../lib/chat-tools';
 import { onWindowForeground } from '../../lib/window-focus-filter';
 import { createTerminalSizeSync, DEFAULT_TERMINAL_GRID } from '../../lib/terminal-size-sync';
 import { commands } from '../../tauri';
 import { registerTerminalObserver } from '../../lib/terminal-observer';
-import { forwardTerminalInput, registerTerminalControl, setTerminalControlReady, submitTerminalPrompt, terminalControlStatus } from '../../lib/terminal-control';
+import { confirmTerminalAgentStatus, forwardTerminalInput, isTerminalSubmitInput, registerTerminalControl, setTerminalControlReady, submitTerminalPrompt, terminalControlStatus } from '../../lib/terminal-control';
 import { supportsAgentStatus, useAppDispatch, useAppStateRef, type AgentStatus, type ToolType, type ThemeColor } from '../../store/app-state';
 import { useT } from '../../i18n/useT';
 import { getToolDisplayName } from '../../lib/tool-info';
@@ -521,13 +522,17 @@ function TierTerminalImpl({
       screenIdleTimer = undefined;
     };
     const publishScreenStatus = (status: AgentStatus) => {
+      confirmTerminalAgentStatus(sessionId);
       clearScreenIdleTimer();
       screenStatus = status;
       screenStatusAt = Date.now();
+      if (status === 'working') markSentinelWorking(sessionId);
       dispatch({ type: 'SET_AGENT_STATUS', id: sessionId, status });
     };
     const publishNativeStatus = (status: AgentStatus) => {
+      confirmTerminalAgentStatus(sessionId);
       nativeStatus = status;
+      if (status === 'working') markSentinelWorking(sessionId);
       const screenIsFresh = Date.now() - screenStatusAt < 2_000;
       const interactionIsLive = hasTerminalInteraction(sessionId);
       // A rendered selector is stronger than a coarse native idle title, and
@@ -967,11 +972,11 @@ function TierTerminalImpl({
     const forwardInput = (rawData: string) => {
       const data = stripRightClickMouse(rawData);
       if (!data) return;
-      if (data.includes('\r') || data.includes('\n')) {
+      forwardTerminalInput(sessionId, data).catch(() => {});
+      if (isTerminalSubmitInput(sessionId, data)) {
         markNotifySoundPromptSubmitted(sessionId, tool);
         markAgentSubmission();
       }
-      forwardTerminalInput(sessionId, data).catch(() => {});
     };
     term.onData(forwardInput);
 
@@ -1184,9 +1189,9 @@ function TierTerminalImpl({
     // must exist first to avoid a dropped-first-chunk race.
     outputScheduler.registerSession(sessionId, term);
     unlisteners.push(registerTerminalObserver(sessionId, term));
-    unlisteners.push(registerTerminalControl(sessionId, term, () => {
+    unlisteners.push(registerTerminalControl(sessionId, term, statusConfirmed => {
       markNotifySoundPromptSubmitted(sessionId, tool);
-      markAgentSubmission();
+      if (!statusConfirmed) markAgentSubmission();
     }));
     // Latency rig OUTPUT STOP: term.onRender is xterm's real render-done
     // signal (better than rAF approximation). Always-on (see latency-rig.ts
@@ -1474,6 +1479,7 @@ function TierTerminalImpl({
         },
         onStatus: (running) => {
           if (!mounted || running) return;
+          markSentinelExit(sessionId);
           ptyEnded = true;
           setTerminalControlReady(sessionId, false);
           sizeSync.markPtyStopped();
@@ -1493,6 +1499,7 @@ function TierTerminalImpl({
           // upstream tool's own output). The CLI's own exit text, if any,
           // already speaks for itself.
           if (!mounted) return;
+          markSentinelExit(sessionId);
           ptyEnded = true;
           setTerminalControlReady(sessionId, false);
           sizeSync.markPtyStopped();

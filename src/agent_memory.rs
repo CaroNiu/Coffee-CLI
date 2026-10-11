@@ -275,6 +275,19 @@ impl Store {
         tx.commit().map_err(|e| e.to_string())
     }
 
+    /// Background receipts never activate a conversation or fabricate a user turn.
+    pub fn append_notification(&mut self, route: &str, text: &str) -> Result<String, String> {
+        let id = self.resolve(route)?;
+        self.append(&id, "assistant", text)?;
+        Ok(id)
+    }
+
+    pub fn recent_user_text(&self, route: &str) -> Result<Option<String>, String> {
+        self.db.query_row("SELECT m.text FROM messages m JOIN conversations c ON c.id=m.conversation_id
+            WHERE c.route=?1 AND m.role='user' ORDER BY m.id DESC LIMIT 1", [route], |row| row.get(0))
+            .optional().map_err(|e| e.to_string())
+    }
+
     pub fn activate(&mut self, id: &str) -> Result<(), String> {
         let route = self.route(id)?;
         let tx = self.db.transaction().map_err(|e| e.to_string())?;
@@ -517,6 +530,27 @@ fn message_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn notification_receipts_are_assistant_only_and_do_not_restore_an_archived_conversation() {
+        let directory = root();
+        let mut store = Store::open(&directory).unwrap();
+        let archived = store.resolve("weixin-owner").unwrap();
+        store.append(&archived, "user", "请使用中文").unwrap();
+        let active = store.new_conversation("weixin-owner").unwrap();
+        let desktop = store.resolve("desktop").unwrap();
+        store.append(&desktop, "user", "Continue desktop work").unwrap();
+        let receipt = store.append_notification("weixin-owner", "Claude Code 本轮结束；结果尚未核验。").unwrap();
+        assert_eq!(receipt, active);
+        assert_eq!(store.resolve("weixin-owner").unwrap(), active);
+        assert_eq!(store.resolve("desktop").unwrap(), desktop);
+        assert_eq!(store.page(&active, None).unwrap().messages.len(), 1);
+        assert_eq!(store.page(&active, None).unwrap().messages[0].role, "assistant");
+        assert_eq!(store.page(&archived, None).unwrap().messages.len(), 1);
+        assert_eq!(store.recent_user_text("weixin-owner").unwrap().as_deref(), Some("请使用中文"));
+        drop(store);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
     fn root() -> std::path::PathBuf {
         std::env::temp_dir().join(format!("coffee-memory-{}", uuid::Uuid::new_v4()))
     }

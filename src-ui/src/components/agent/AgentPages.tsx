@@ -275,32 +275,111 @@ function AgentModelSection() {
   </section>;
 }
 
-function AgentDelegationSection() {
+interface WorkModes { sentinel: boolean; projectManager: boolean; expertConfig: boolean }
+type WorkMode = keyof WorkModes;
+
+function AgentModeRow({ title, description, enabled, saving, onToggle }: {
+  title: string; description: string; enabled: boolean | null; saving: boolean; onToggle: () => void;
+}) {
+  const { state } = useAppState();
+  const id = useId();
+  const rowRef = useRef<HTMLDivElement>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const visible = (hovered || focused) && !dismissed && state.agentPageActive === 'config';
+  const reposition = useCallback(() => {
+    const row = rowRef.current?.getBoundingClientRect();
+    const node = tipRef.current;
+    if (!row || !node) return;
+    const tip = node.getBoundingClientRect();
+    const left = Math.max(8, Math.min(row.right - tip.width, window.innerWidth - tip.width - 8));
+    const below = row.bottom + 6;
+    const preferredTop = below + tip.height <= window.innerHeight - 8 ? below : row.top - tip.height - 6;
+    const top = Math.max(8, Math.min(preferredTop, window.innerHeight - tip.height - 8));
+    node.style.left = `${left}px`; node.style.top = `${top}px`; node.style.visibility = 'visible';
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!visible) return;
+    reposition();
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
+    return () => { window.removeEventListener('scroll', reposition, true); window.removeEventListener('resize', reposition); };
+  }, [visible, description, reposition]);
+
+  return <div ref={rowRef} className="agent-mode-row" onMouseEnter={() => { setHovered(true); setDismissed(false); }} onMouseLeave={() => setHovered(false)} onKeyDown={event => { if (event.key === 'Escape') setDismissed(true); }}>
+    <span id={`${id}-label`}>{title}</span>
+    <span id={`${id}-description`} className="agent-mode-description">{description}</span>
+    <button type="button" className={`library-toggle agent-mode-switch${enabled ? ' on' : ''}`} role="switch" aria-checked={enabled === true} aria-labelledby={`${id}-label`} aria-describedby={`${id}-description`} aria-busy={saving || undefined} aria-disabled={enabled === null || saving} disabled={enabled === null} onFocus={() => { setFocused(true); setDismissed(false); }} onBlur={() => setFocused(false)} onClick={onToggle}><span className="library-toggle-knob" aria-hidden="true" /></button>
+    {visible && createPortal(<div ref={tipRef} className="agent-mode-tip" role="tooltip" style={{ visibility: 'hidden' }}>{description}</div>, document.body)}
+  </div>;
+}
+
+function AgentWorkModesSection() {
   const t = useT();
-  const [enabled, setEnabled] = useState<boolean | null>(null);
-  const [saving, setSaving] = useState(false);
+  const { state } = useAppState();
+  const [english, setEnglish] = useState<boolean | null>(null);
+  const [modes, setModes] = useState<WorkModes | null>(null);
+  const [saving, setSaving] = useState<WorkMode | 'english' | null>(null);
+  const savingRef = useRef(false);
+  const modesRevisionRef = useRef(0);
+  const englishRevisionRef = useRef(0);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (state.agentPageActive !== 'config') return;
     let active = true;
-    invoke<boolean>('agent_get_english_delegation').then(value => {
-      if (active) setEnabled(value);
+    const revision = modesRevisionRef.current;
+    const englishRevision = englishRevisionRef.current;
+    void invoke<boolean>('agent_get_english_delegation').then(value => {
+      if (active && englishRevision === englishRevisionRef.current) setEnglish(value);
+    }).catch(failure => { if (active) setError(String(failure)); });
+    void invoke<WorkModes>('agent_get_work_modes').then(value => {
+      if (active && revision === modesRevisionRef.current) setModes(value);
     }).catch(failure => { if (active) setError(String(failure)); });
     return () => { active = false; };
+  }, [state.agentPageActive]);
+
+  useEffect(() => {
+    let active = true;
+    let unlisten: (() => void) | undefined;
+    void import('@tauri-apps/api/event').then(async ({ listen }) => {
+      const stop = await listen<WorkModes>('agent-work-modes', event => {
+        if (active) { modesRevisionRef.current += 1; setModes(event.payload); }
+      });
+      if (active) unlisten = stop;
+      else stop();
+    }).catch(failure => { if (active) setError(String(failure)); });
+    return () => { active = false; unlisten?.(); };
   }, []);
 
-  const toggle = async () => {
-    if (enabled === null || saving) return;
-    const next = !enabled;
-    setSaving(true); setError('');
-    try { await invoke('agent_set_english_delegation', { enabled: next }); setEnabled(next); }
+  const toggle = async (mode: WorkMode | 'english') => {
+    const enabled = mode === 'english' ? english : modes?.[mode];
+    if (enabled == null || savingRef.current) return;
+    savingRef.current = true;
+    setSaving(mode); setError('');
+    try {
+      if (mode === 'english') { await invoke('agent_set_english_delegation', { enabled: !enabled }); englishRevisionRef.current += 1; setEnglish(!enabled); }
+      else {
+        const revision = modesRevisionRef.current;
+        const next = await invoke<WorkModes>('agent_set_work_mode', { mode, enabled: !enabled });
+        if (revision === modesRevisionRef.current) setModes(next);
+      }
+    }
     catch (failure) { setError(String(failure)); }
-    finally { setSaving(false); }
+    finally { savingRef.current = false; setSaving(null); }
   };
 
   return <section className="agent-settings-section">
-    <div className="agent-delegation-heading"><h2 id="agent-delegation-label">{t('agent.delegation.title')}</h2><button type="button" className={`library-toggle agent-delegation-switch${enabled ? ' on' : ''}`} role="switch" aria-checked={enabled === true} aria-labelledby="agent-delegation-label" disabled={enabled === null || saving} onClick={() => void toggle()}><span className="library-toggle-knob" aria-hidden="true" /></button></div>
-    <p className="agent-field-hint">{t('agent.delegation.description')}{' '}{t('agent.delegation.status')}</p>
+    <h2>{t('agent.modes.title')}</h2>
+    <div className="agent-mode-list">
+      <AgentModeRow title={t('agent.delegation.title')} description={`${t('agent.delegation.description')} ${t('agent.delegation.status')}`} enabled={english} saving={saving !== null} onToggle={() => void toggle('english')} />
+      <AgentModeRow title={t('agent.modes.sentinel.title')} description={t('agent.modes.sentinel.description')} enabled={modes?.sentinel ?? null} saving={saving !== null} onToggle={() => void toggle('sentinel')} />
+      <AgentModeRow title={t('agent.modes.project_manager.title')} description={t('agent.modes.project_manager.description')} enabled={modes?.projectManager ?? null} saving={saving !== null} onToggle={() => void toggle('projectManager')} />
+      <AgentModeRow title={t('agent.modes.expert_config.title')} description={t('agent.modes.expert_config.description')} enabled={modes?.expertConfig ?? null} saving={saving !== null} onToggle={() => void toggle('expertConfig')} />
+    </div>
     {error && <p className="agent-feedback error" role="alert">{formatAgentError(error, t)}</p>}
   </section>;
 }
@@ -454,6 +533,12 @@ function AgentHelpModal({ onClose }: { onClose: () => void }) {
     <h3>{t('agent.help.delegation_heading')}</h3>
     <p>{t('agent.help.delegation_description')}</p>
     <p>{t('agent.help.delegation_tip')}</p>
+    <h3>{t('agent.modes.sentinel.title')}</h3>
+    <p>{t('agent.help.sentinel_description')}</p>
+    <h3>{t('agent.modes.project_manager.title')}</h3>
+    <p>{t('agent.help.project_manager_description')}</p>
+    <h3>{t('agent.modes.expert_config.title')}</h3>
+    <p>{t('agent.help.expert_config_description')}</p>
     <h3>{t('agent.help.examples_heading')}</h3>
     <dl className="agent-command-examples">{[
       [t('agent.help.example.open_label'), t('agent.help.example.open')],
@@ -478,7 +563,7 @@ export function AgentPages({ page }: { page: AgentPage }) {
   const t = useT();
   const { state } = useAppState();
   const [helpOpen, setHelpOpen] = useState(false);
-  if (page === 'config') return <PageFrame page="config"><div className="agent-settings-scroll"><div className="agent-settings-content"><p className="agent-settings-intro">{t('agent.settings.intro')}{' '}<button type="button" className="agent-help-link" onClick={() => setHelpOpen(true)}>{t('agent.settings.help')}</button></p><AgentModelSection /><AgentDelegationSection /><AgentChannelsSection /></div></div>{helpOpen && state.agentPageActive === 'config' && <AgentHelpModal onClose={() => setHelpOpen(false)} />}</PageFrame>;
+  if (page === 'config') return <PageFrame page="config"><div className="agent-settings-scroll"><div className="agent-settings-content"><p className="agent-settings-intro">{t('agent.settings.intro')}{' '}<button type="button" className="agent-help-link" onClick={() => setHelpOpen(true)}>{t('agent.settings.help')}</button></p><AgentModelSection /><AgentWorkModesSection /><AgentChannelsSection /></div></div>{helpOpen && state.agentPageActive === 'config' && <AgentHelpModal onClose={() => setHelpOpen(false)} />}</PageFrame>;
   return <AgentChatPage />;
 }
 

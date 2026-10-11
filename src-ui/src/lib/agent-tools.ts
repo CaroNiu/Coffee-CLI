@@ -76,8 +76,13 @@ export function createAgentToolExecutor({ stateRef, dispatch, pending, isCancell
       const observer = getTerminalObserver(sessionId);
       const target = project().find(item => item.sessionId === sessionId);
       if (!observer || !target || !generation || observer.generation !== generation) throw new Error('会话已关闭或重启，请重新读取终端清单');
-      const guard = () => !isCancelled(request.requestId) && getTerminalObserver(sessionId)?.generation === generation;
-      if (request.name === 'terminal_read_screen') return observer.readScreen(args.view === 'viewport' ? 'viewport' : 'live');
+      const guard = () => {
+        const current = project().find(item => item.sessionId === sessionId);
+        return !isCancelled(request.requestId) && getTerminalObserver(sessionId)?.generation === generation
+          && current?.tool === target.tool
+          && (typeof args.expectedCwd !== 'string' || historyDirectory(args.expectedCwd) === historyDirectory(current?.cwd ?? ''));
+      };
+      if (request.name === 'terminal_read_screen') return { ...await observer.readScreen(args.view === 'viewport' ? 'viewport' : 'live'), tool: target.tool, cwd: target.cwd, language: stateRef.current.currentLang };
       if (request.name === 'terminal_read_scrollback') return observer.readScrollback(typeof args.startRow === 'number' ? args.startRow : undefined, typeof args.limit === 'number' ? args.limit : undefined);
       if (request.name === 'sessions_select') {
         dispatch({ type: 'SET_ACTIVE_TERMINAL', id: target.tabId });
@@ -93,10 +98,13 @@ export function createAgentToolExecutor({ stateRef, dispatch, pending, isCancell
         return { closed: true, sessionId, generation };
       }
       if (request.name === 'terminal_send' || request.name === 'terminal_key') {
+        if (typeof args.expectedCwd === 'string' && historyDirectory(args.expectedCwd) !== historyDirectory(target.cwd ?? '')) throw new Error('工作目录已经改变，请重新读屏并检查项目后再派发');
         const before = await observer.readScreen();
         const interrupt = request.name === 'terminal_key' && args.key === 'CtrlC';
         if (!interrupt && (before.freshness.gap || before.freshness.failed || before.freshness.flushState !== 'flushed')) throw new Error('终端输出尚未同步或存在丢失，暂不发送输入');
-        if (!await pending(request.requestId) || !guard()) throw new Error('操作已取消或目标会话已改变');
+        const active = await pending(request.requestId);
+        if (typeof args.expectedCwd === 'string' && historyDirectory(args.expectedCwd) !== historyDirectory(project().find(item => item.sessionId === sessionId)?.cwd ?? '')) throw new Error('工作目录已经改变，请重新检查项目后再派发');
+        if (!active || !guard()) throw new Error('操作已取消或目标会话已改变');
         if (request.name === 'terminal_send') {
           if (typeof args.text !== 'string') throw new Error('消息必须是文本');
           await submitTerminalPrompt(sessionId, args.text, guard);

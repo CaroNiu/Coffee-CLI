@@ -77,13 +77,18 @@ for (const [language, dictionary] of Object.entries(api.dictionaries)) {
   context.__agentTestLanguage = language;
   context.__agentTestState.agentPageActive = 'config';
   const settings = renderToStaticMarkup(React.createElement(api.AgentPages, { page: 'config' }));
-  for (const key of ['agent.settings.intro', 'agent.settings.help', 'agent.model.title', 'agent.model.provider', 'agent.delegation.title', 'agent.channels.title']) {
+  for (const key of ['agent.settings.intro', 'agent.settings.help', 'agent.model.title', 'agent.model.provider', 'agent.modes.title', 'agent.delegation.title', 'agent.modes.sentinel.title', 'agent.modes.project_manager.title', 'agent.modes.expert_config.title', 'agent.channels.title']) {
     assert.ok(settings.includes(escaped(dictionary[key])), `${language}: settings did not render ${key}`);
+  }
+  assert.equal((settings.match(/role="switch"/g) ?? []).length, 4, `${language}: all four work modes need their own switch`);
+  assert.equal((settings.match(/aria-describedby=/g) ?? []).length, 4, `${language}: switches need accessible descriptions`);
+  for (const key of ['agent.delegation.description', 'agent.modes.sentinel.description', 'agent.modes.project_manager.description', 'agent.modes.expert_config.description']) {
+    assert.ok(settings.includes(escaped(dictionary[key])), `${language}: switch description did not render ${key}`);
   }
   const sidebar = renderToStaticMarkup(React.createElement(api.ChannelConnectionSummary));
   assert.ok(sidebar.includes(escaped(dictionary['agent.sidebar.disconnected'])), `${language}: sidebar did not switch language`);
   const help = renderToStaticMarkup(React.createElement(api.AgentHelpModal, { onClose() {} }));
-  for (const key of ['agent.help.title', 'agent.help.workflow_intro', 'agent.help.delegation_description', 'agent.help.delegation_tip', 'agent.help.examples_hint']) {
+  for (const key of ['agent.help.title', 'agent.help.workflow_intro', 'agent.help.delegation_description', 'agent.help.delegation_tip', 'agent.help.sentinel_description', 'agent.help.project_manager_description', 'agent.help.expert_config_description', 'agent.help.examples_hint']) {
     assert.ok(help.includes(escaped(dictionary[key])), `${language}: help did not render ${key}`);
   }
   assert.ok(help.includes('href="https://github.com/edison7009/Coffee-CLI/issues"'), `${language}: feedback link was lost`);
@@ -92,6 +97,12 @@ for (const [language, dictionary] of Object.entries(api.dictionaries)) {
   const chat = renderToStaticMarkup(React.createElement(api.AgentPages, { page: 'agent' }));
   for (const key of ['agent.chat.welcome', 'agent.chat.suggestion.terminals', 'agent.chat.suggestion.progress', 'agent.chat.suggestion.history']) {
     assert.ok(chat.includes(escaped(dictionary[key])), `${language}: chat did not render ${key}`);
+  }
+}
+
+for (const language of ['zh-CN', 'zh-TW']) {
+  for (const key of ['agent.delegation.title', 'agent.modes.sentinel.title', 'agent.modes.project_manager.title', 'agent.modes.expert_config.title']) {
+    assert.equal([...api.dictionaries[language][key]].length, 4, `${language}: work mode titles should use four characters`);
   }
 }
 
