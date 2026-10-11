@@ -221,7 +221,12 @@ fn summary(graph: &Graph) -> Value {
     json!({"nodes":graph.nodes.len(),"relations":graph.edges.len(),"sourceFiles":files.len(),"schemaVersion":graph.schema,"graphifyVersion":graph.version,"sampleFiles":files.into_iter().take(6).map(|(file,nodes)|json!({"path":file.chars().take(160).collect::<String>(),"nodes":nodes,"truncated":file.chars().count()>160})).collect::<Vec<_>>(),"relationTypes":relations.into_iter().take(8).map(|(relation,count)|json!({"relation":relation.chars().take(60).collect::<String>(),"count":count})).collect::<Vec<_>>(),"coverage":"Local code AST only; documents and media were not semantically analyzed; dependency/build directories and sensitive configuration files excluded"})
 }
 fn cached(root: &Path, identity: &str, cwd: &Path) -> Result<Option<(Cache,Graph,Vec<u8>)>, String> {
-    let base=scope(root,identity,cwd)?; let path=base.join("current.json"); if !path.exists(){return Ok(None);}
+    let base=scope(root,identity,cwd)?; let path=base.join("current.json");
+    match fs::symlink_metadata(&path) {
+        Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => {},
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        _ => return Err("Graphify cache metadata unavailable or symlink".into()),
+    }
     let cache:Cache=serde_json::from_slice(&read(&path,16_384)?).map_err(|_|"Graphify cache metadata invalid")?;
     if cache.identity!=identity || cache.cwd!=cwd_id(cwd){return Err("Graphify cache identity or project mismatch".into());} valid_id(&cache.plan_id)?;
     let graph_dir=directory(&base,&["runs",&cache.plan_id,"graphify-out"])?;
@@ -287,6 +292,11 @@ mod tests {
         assert_ne!(source_fingerprint(&canonical).unwrap(),first);fs::remove_dir_all(root).unwrap();
     }
     #[test]fn graph_budgets_and_tampered_cache_never_return_fresh_evidence(){let(root,agent,cwd)=fixture();let id=seed(&agent,"owner",&cwd,false);let base=scope(&agent,"owner",&cwd.canonicalize().unwrap()).unwrap();fs::write(base.join("runs").join(id).join("graphify-out/graph.json"),"{}").unwrap();assert!(inspect(&agent,"owner",cwd.to_str().unwrap()).is_err());let path=root.join("large.json");let file=fs::File::create(&path).unwrap();file.set_len(MAX_GRAPH_BYTES as u64+1).unwrap();assert!(load_graph(&path,&cwd.canonicalize().unwrap()).unwrap_err().contains("budget"));fs::remove_dir_all(root).unwrap();}
+    #[test]fn absent_cache_is_missing_but_non_file_metadata_is_rejected(){
+        let(root,agent,cwd)=fixture();assert_eq!(inspect(&agent,"owner",cwd.to_str().unwrap()).unwrap()["state"],"missing");
+        let base=scope(&agent,"owner",&cwd.canonicalize().unwrap()).unwrap();fs::create_dir(base.join("current.json")).unwrap();
+        assert!(inspect(&agent,"owner",cwd.to_str().unwrap()).is_err());fs::remove_dir_all(root).unwrap();
+    }
     #[test]fn authentication_source_is_in_scope_but_credentials_are_not(){let(root,_,cwd)=fixture();assert!(!blocked("tokenizer.py"));assert!(!blocked("password-reset.ts"));assert!(!blocked("secret.ts"));assert!(blocked("credentials.json"));assert!(blocked("api-token.yaml"));let before=source_fingerprint(&cwd.canonicalize().unwrap()).unwrap();fs::write(cwd.join("tokenizer.py"),"def tokenize(): return []\n").unwrap();assert_ne!(source_fingerprint(&cwd.canonicalize().unwrap()).unwrap(),before);fs::remove_dir_all(root).unwrap();}
     #[test]fn saved_project_understanding_refreshes_when_graph_sources_change(){let(root,agent,cwd)=fixture();seed(&agent,"owner",&cwd,false);let first=crate::agent_projects::project_inspect(&agent,"owner",cwd.to_str().unwrap(),false).unwrap();assert_eq!(first["graphify"]["state"],"ready");crate::agent_projects::project_save(&agent,"owner",cwd.to_str().unwrap(),first["fingerprint"].as_str().unwrap(),"main calls greet; Graphify source locations verified",None).unwrap();assert_eq!(crate::agent_projects::project_inspect(&agent,"owner",cwd.to_str().unwrap(),false).unwrap()["needsUpdate"],false);assert_eq!(prepare_build(&agent,"owner",cwd.to_str().unwrap(),false).unwrap()["state"],"ready");fs::write(cwd.join("src/helper.py"),"def greet(): return 'new behavior'\n").unwrap();let changed=crate::agent_projects::project_inspect(&agent,"owner",cwd.to_str().unwrap(),false).unwrap();assert_eq!(changed["graphify"]["state"],"stale");assert_eq!(changed["needsUpdate"],true);assert!(crate::agent_projects::project_save(&agent,"owner",cwd.to_str().unwrap(),first["fingerprint"].as_str().unwrap(),"old graph",None).is_err());fs::remove_dir_all(root).unwrap();}
     #[test]fn already_stale_graph_still_invalidates_notes_after_another_source_edit(){
