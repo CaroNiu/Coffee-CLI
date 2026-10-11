@@ -28,6 +28,34 @@ and `git tag --list "v*"`.
   hidden only for verified TUIs that draw their own caret; unknown and future
   tools default to a visible static cursor. (#145)
 
+## [3.5.8] — 2026-10-11
+
+This release continues the mobile workflow introduced in v3.5.7: use WeChat or
+Telegram to talk to Coffee Agent, read the actual text in managed CLI terminals,
+open visible tool tabs in your chosen directory, and arrange work from your
+phone. Conversations remain available on the desktop when you return.
+
+### Changed
+- **Coffee Agent now follows the app language in all 11 supported locales.**
+  Message settings, channel status, help, activity indicators, and known error
+  messages update with the selected language without changing stored chats.
+- **Reuse the CLI bubble conversation interface.** User messages appear on the
+  right and Agent replies on the left, with the same per-turn navigation rail
+  and message-copy controls used by CLI conversations.
+- **Clearer English delegation and help.** The delegation switch saves
+  automatically without briefly replacing its description or shifting text.
+  Help explains how you can chat in your language while Coffee Agent delegates
+  tasks to other CLI agents in English and reports back in your language.
+
+### Fixed
+- **Keep the reading position in Coffee Agent history.** Navigating to an older
+  turn prevents streaming output from pulling the view back to the latest
+  reply; loading earlier messages preserves the current reading position even
+  while the active reply grows.
+
+Message-channel support is still being refined. Please share problems and
+suggestions through [GitHub Issues](https://github.com/edison7009/Coffee-CLI/issues).
+
 ## [3.5.7] — 2026-10-11
 
 ### Added
