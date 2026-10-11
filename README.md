@@ -54,12 +54,14 @@ Coffee CLI can launch **any** command-line agent — but the ones below get deep
 |---|---|---|
 | **T1** | **Dynamic Island · Desktop-style conversation** (bubbles + permission/input cards) · History · Heatmap · Changes · Brand icon · One-click launch · Custom launch args | **Claude Code** · **Codex CLI** · **Kimi Code** |
 | **T2** | Native terminal · History · Heatmap · Changes · Brand icon · One-click launch · Custom launch args | OpenCode · mimocode · Grok Build · OpenClaw · Hermes Agent · Qwen Code · Pi · Kilo Code · Oh-My-Pi · CodeBuddy |
-| **T3** | Brand icon · One-click launch | Crush · Aider · Goose · Copilot CLI · Cursor · Cline · Antigravity |
+| **T3** | Brand icon · One-click launch | Crush · Aider · Goose · Copilot CLI · Cursor · Cline · Antigravity · Muse Code |
 | **T4** | Open a terminal tab and type the command to launch | any other CLI |
 
 *T1 status and interaction detection is hook-free and currently available only for Claude Code, Codex CLI, and Kimi Code. Coffee CLI reads verified native-title or rendered-terminal state; it does not install status hooks. Other tools stay in their native terminal UI even when Coffee CLI can read their history.*
 
 *T1 and T2 CLIs ship today; T3 integrations are rolling in.*
+
+Muse Code launches `muse` in your selected directory. Its session history and heatmap are not integrated into Coffee CLI yet.
 
 ---
 
@@ -205,6 +207,8 @@ Coffee CLI 是专为 AI CLI Agent 打造的**原生桌面工作台**，支持 Cl
 ### AI CLI 支持级别
 
 **T1 的定义：同时支持灵动岛和桌面端式对话**，包括泡泡对话以及权限/输入选择卡片。目前 T1 支持 **Claude Code、Codex CLI 和 Kimi Code**。OpenCode、mimocode、Grok Build 等其他工具保持原生终端界面；即使 Coffee CLI 可以读取其历史记录，也不代表它们支持 T1 界面。
+
+Muse Code 目前支持在所选目录启动 `muse`，暂未接入 Coffee CLI 的会话记录和热力图。
 
 ### 为谁而生？
 

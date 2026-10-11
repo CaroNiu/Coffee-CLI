@@ -26,6 +26,28 @@ const evaluate = (code, context = {}) => vm.runInNewContext(ts.transpileModule(c
 }).outputText, context);
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
+// Muse's Windows launcher title must not replace the selected workspace name.
+{
+  const tree = source('components/center/CenterPanel.tsx');
+  let title;
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === 'title'
+      && node.initializer?.getText(tree).includes('baseTitle')) title = node.initializer;
+    ts.forEachChild(node, visit);
+  }
+  visit(tree); assert.ok(title);
+  const displayedTitle = (tool, toolTitle, baseTitle = 'E300') => evaluate(title.getText(tree), {
+    session: { tool, toolTitle, folderPath: 'E:\\E300' }, baseTitle,
+  });
+  for (const launcher of [String.raw`C:\WINDOWS\system32\cmd.exe`, String.raw`C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe`]) {
+    assert.equal(displayedTitle('muse', launcher), 'E300', 'Muse keeps its actual workspace label');
+  }
+  assert.equal(displayedTitle('muse', undefined, 'Muse Code'), 'Muse Code');
+  assert.equal(displayedTitle('claude', '  Implement feature  '), 'Implement feature', 'other tools retain native conversation titles');
+  assert.equal(displayedTitle('codex', ''), 'E300');
+  console.log('OK: Muse workspace tab name and existing-tool native titles');
+}
+
 // Agent reuses Gambit, but only while its tab is visible. The shared composer
 // must preserve drafts on rejection and never send a second request while busy.
 {

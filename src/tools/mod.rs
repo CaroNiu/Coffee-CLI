@@ -196,6 +196,7 @@ mod grok;
 pub mod hermes;
 mod kilo;
 mod mimocode;
+mod muse;
 mod openclaw;
 mod opencode;
 mod qwen;
@@ -252,6 +253,7 @@ pub static TOOLS: &[&ToolDescriptor] = &[
     // transcript parser in server.rs, resume preset in terminal.rs,
     // launchpad tile in CenterPanel's catalog.
     &codebuddy::DESCRIPTOR,
+    &muse::DESCRIPTOR,
 ];
 
 /// Lookup by id. `None` if the id isn't registered. Used by legacy cleanup
