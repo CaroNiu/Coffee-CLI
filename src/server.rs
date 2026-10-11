@@ -2342,14 +2342,9 @@ fn opencode_sessions_sql(conn: &rusqlite::Connection) -> String {
         let filter = if table == "session" && has_v2_sessions {
             "WHERE NOT EXISTS(SELECT 1 FROM session_v2 WHERE id = s.id)"
         } else { "" };
-        // V2 splits the working directory into a root + relative subpath.
-        // Older V1 databases predate the optional `path` column.
-        let subpath = if conn.prepare(&format!("SELECT path FROM {table} LIMIT 0")).is_ok() {
-            "s.path"
-        } else { "NULL" };
         queries.push(format!(
             "SELECT s.id, s.title, s.directory, s.time_created, s.time_updated, \
-             s.time_archived, s.parent_id, {count} AS msg_count, {subpath} AS subpath \
+             s.time_archived, s.parent_id, {count} AS msg_count \
              FROM {table} s {filter}"
         ));
     }
@@ -3771,7 +3766,7 @@ fn find_drizzle_sessions_sqlite(
     // the Sessions board with un-resumable child conversations. MiMo Code
     // shares this Drizzle schema/scanner, so the same filter applies.
     let query = format!("WITH sessions AS ({}) \
-                 SELECT s.id, s.title, s.directory, s.time_created, s.time_updated, s.msg_count, s.subpath \
+                 SELECT s.id, s.title, s.directory, s.time_created, s.time_updated, s.msg_count \
                  FROM sessions s \
                  WHERE s.time_archived IS NULL \
                    AND s.parent_id IS NULL \
@@ -3789,14 +3784,11 @@ fn find_drizzle_sessions_sqlite(
             .unwrap_or(None)
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| default_title.to_string());
+        // V1 and V2 store the actual cwd in `directory`; `path` is relative
+        // to the project root, not a child of this directory.
         let directory: String = row.get::<_, Option<String>>(2)
             .unwrap_or(None)
             .unwrap_or_default();
-        let directory = match row.get::<_, Option<String>>(6).unwrap_or(None) {
-            Some(path) if !path.is_empty() && path != "." =>
-                std::path::Path::new(&directory).join(path).to_string_lossy().into_owned(),
-            _ => directory,
-        };
         let time_created: i64 = row.get(3).unwrap_or(0);
         let time_updated: i64 = row.get(4).unwrap_or(0);
         let msg_count: i64 = row.get(5).unwrap_or(0);

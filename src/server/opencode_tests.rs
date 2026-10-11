@@ -173,15 +173,43 @@ fn opencode_v2_empty_migrated_session_does_not_restore_stale_v1_text() {
 }
 
 #[test]
-fn opencode_v2_history_preserves_the_session_project_subdirectory() {
-    let db = seed_v2_db();
-    let conn = rusqlite::Connection::open(&db).unwrap();
-    conn.execute_batch("ALTER TABLE session_v2 ADD COLUMN path TEXT;
-        UPDATE session_v2 SET path = 'packages/app' WHERE id = 'ses_main'").unwrap();
-    drop(conn);
-    let mut sessions = Vec::new();
-    find_drizzle_sessions_sqlite(&db, "opencode", "OpenCode Session", &mut sessions);
-    assert_eq!(std::path::PathBuf::from(&sessions[0].cwd),
-        std::path::Path::new("/proj").join("packages/app"));
-    std::fs::remove_file(db).unwrap();
+fn opencode_sqlite_history_preserves_the_session_working_directory() {
+    for table in ["session_v2", "session"] {
+        let db = seed_v2_db();
+        let conn = rusqlite::Connection::open(&db).unwrap();
+        if table == "session" {
+            conn.execute_batch("ALTER TABLE session_v2 RENAME TO session;
+                DROP TABLE session_message;
+                CREATE TABLE message (session_id TEXT);
+                INSERT INTO message VALUES ('ses_main'), ('ses_main')").unwrap();
+        }
+        for tool in ["opencode", "mimocode", "kilo"] {
+            let mut sessions = Vec::new();
+            find_drizzle_sessions_sqlite(&db, tool, "Session", &mut sessions);
+            assert_eq!(sessions.len(), 1);
+            assert_eq!(sessions[0].cwd, "/proj", "{table}/{tool}, no path column");
+        }
+        conn.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN path TEXT")).unwrap();
+        for (directory, path) in [
+            ("C:/Users/cxj/Desktop", Some("Users/cxj/Desktop")),
+            ("F:/VibeCoding_workspace/GitShow/packages/app", Some("packages/app")),
+            ("F:/VibeCoding_workspace/GitShow", Some("")),
+            ("/home/user/work", Some("home/user/work")),
+            ("/proj/packages/app", Some("packages/app")),
+            ("/proj", Some(".")),
+            ("/proj", None),
+        ] {
+            conn.execute(&format!("UPDATE {table} SET directory = ?1, path = ?2 WHERE id = 'ses_main'"),
+                rusqlite::params![directory, path]).unwrap();
+            for tool in ["opencode", "mimocode", "kilo"] {
+                let mut sessions = Vec::new();
+                find_drizzle_sessions_sqlite(&db, tool, "Session", &mut sessions);
+                assert_eq!(sessions.len(), 1);
+                assert_eq!(sessions[0].cwd, directory, "{table}/{tool}, path={path:?}");
+                assert_eq!(sessions[0].tool, tool);
+            }
+        }
+        drop(conn);
+        std::fs::remove_file(db).unwrap();
+    }
 }
