@@ -46,7 +46,23 @@ fn directory(root: &Path, segments: &[&str]) -> Result<PathBuf, String> {
 }
 fn scope(root: &Path, identity: &str, cwd: &Path) -> Result<PathBuf, String> {
     if identity.is_empty() || identity.len() > 1_000 { return Err("Invalid Graphify identity".into()); }
-    if dunce::simplified(root).starts_with(dunce::simplified(cwd)) || root.canonicalize().is_ok_and(|path|path.starts_with(cwd)) { return Err("Graphify cache must stay outside the selected project; select its actual source directory".into()); }
+    // Resolve parent aliases before creating a cache whose final directories do not exist yet.
+    let mut ancestor = root;
+    let mut suffix = Vec::new();
+    let resolved_root = loop {
+        match ancestor.canonicalize() {
+            Ok(mut path) => {
+                for segment in suffix.iter().rev() { path.push(segment); }
+                break path;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                suffix.push(ancestor.file_name().ok_or("Invalid Graphify storage path")?.to_os_string());
+                ancestor = ancestor.parent().ok_or("Invalid Graphify storage path")?;
+            }
+            Err(_) => return Err("Graphify storage path unavailable".into()),
+        }
+    };
+    if dunce::simplified(&resolved_root).starts_with(dunce::simplified(cwd)) { return Err("Graphify cache must stay outside the selected project; select its actual source directory".into()); }
     directory(root, &["graphify", &hash(identity.as_bytes()), &hash(cwd_id(cwd).as_bytes())])
 }
 fn valid_id(id: &str) -> Result<(), String> { if uuid::Uuid::parse_str(id).is_ok_and(|parsed| parsed.to_string() == id) { Ok(()) } else { Err("Invalid Graphify plan ID".into()) } }
@@ -315,5 +331,13 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
     #[test]fn analysis_plans_require_real_directories_and_an_external_cache(){let(root,agent,cwd)=fixture();assert!(prepare_build(&agent,"owner","relative",false).is_err());let internal=cwd.join("coffee-cache");assert!(prepare_build(&internal,"owner",cwd.to_str().unwrap(),false).unwrap_err().contains("outside"));assert!(!internal.exists());fs::remove_dir_all(root).unwrap();}
+    #[cfg(unix)]#[test]fn aliased_parent_cannot_create_a_missing_cache_inside_the_project(){
+        let(root,_,cwd)=fixture();let alias=root.join("workspace-alias");
+        std::os::unix::fs::symlink(cwd.canonicalize().unwrap(),&alias).unwrap();
+        let internal=alias.join("not-created/nested-cache");
+        assert!(prepare_build(&internal,"owner",cwd.to_str().unwrap(),false).unwrap_err().contains("outside"));
+        assert!(prepare_install(&internal,"owner",cwd.to_str().unwrap()).unwrap_err().contains("outside"));
+        assert!(!cwd.join("not-created").exists());fs::remove_dir_all(root).unwrap();
+    }
     #[cfg(unix)]#[test]fn source_and_cache_symlinks_are_rejected(){let(root,agent,cwd)=fixture();std::os::unix::fs::symlink(root.join("private.py"),cwd.join("src/link.py")).unwrap();assert!(source_path(&cwd.canonicalize().unwrap(),"src/link.py").is_err());let base=scope(&agent,"owner",&cwd.canonicalize().unwrap()).unwrap();std::os::unix::fs::symlink(root.join("outside.json"),base.join("current.json")).unwrap();assert!(inspect(&agent,"owner",cwd.to_str().unwrap()).is_err());fs::remove_dir_all(root).unwrap();}
 }
