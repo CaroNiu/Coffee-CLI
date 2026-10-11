@@ -2324,6 +2324,7 @@ html.is-windows[data-frost="frost"] #root {
 
 [data-shape="panel"] .chrome-tabs-header {
     height: 31px;
+    padding-left: 8px;
 }
 
 [data-shape="panel"] .chrome-tab.active {
