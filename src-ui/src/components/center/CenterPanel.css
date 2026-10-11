@@ -9,19 +9,16 @@
   border-radius: 0; /* Fully flush, edge to edge */
 }
 
-/* Tool-tab strip. Portaled into the titlebar (#titlebar-tab-slot) so the tabs
-   sit on the drag bar like Windows Terminal / Chrome instead of a separate row
-   inside the content. Fixed height, bottom-aligned in the taller bar (via
-   .titlebar-tabs) so the tabs hug the content below and a reserve sits above. */
+/* Tool tabs sit in the titlebar with equal space above and below each tab. */
 .chrome-tabs-header {
   display: flex;
   align-items: stretch;
-  height: 32px;
+  height: 30px;
   padding: 0 2px 0 8px;
   border-bottom: none;
   position: relative;
   z-index: 10;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -36,11 +33,7 @@
   font-weight: 500;
   color: var(--text-2);
   background: transparent;
-  /* --shape-radius-tab is ALREADY a top-only radius (e.g. `10px 10px 0 0`, or 0
-     in sharp/slab) — so the tab is rounded on top, square at the bottom. It
-     fills the bar to its bottom edge, and the active tab's fill meets the
-     content directly below (Windows-Terminal seam). Do NOT re-wrap this in
-     `var() var() 0 0` — that expands to 10 values and the browser drops it. */
+  /* Corner treatment follows the selected shape style. */
   border-radius: var(--shape-radius-tab);
   cursor: pointer;
   user-select: none;
@@ -69,11 +62,7 @@
 }
 
 /* Active drag state — pointer-down a tab and slide it horizontally.
- * INTENTIONALLY zero visual effect (no opacity, no shadow, no cursor
- * change): the dragged tab's bottom edge meets the terminal area's
- * top edge, and any elevation / dimming there breaks the chrome-tab
- * → terminal seam continuity. The tab just moves; its appearance
- * stays identical to its non-drag self.
+ * Keep the tab's appearance unchanged while it moves.
  *
  * Two rules below are mechanical, not stylistic:
  *   z-index — ensures the dragged tab renders above siblings during
@@ -86,11 +75,6 @@
   z-index: 5;
   transition: none;
 }
-
-/* The Chrome "flare" pseudo-elements that seamed the active tab into the
-   terminal directly below it were removed when the strip moved up into the
-   titlebar — there's no adjacent terminal to bridge into up here. The active
-   tab now reads via its --bg-terminal fill alone (WT-style flat tab). */
 
 .chrome-tab-new {
   width: 28px;
