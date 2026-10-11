@@ -28,6 +28,39 @@ and `git tag --list "v*"`.
   hidden only for verified TUIs that draw their own caret; unknown and future
   tools default to a visible static cursor. (#145)
 
+## [3.5.9] — 2026-10-11
+
+This release continues Coffee CLI's AI + mobile message gateway workflow:
+talk to the built-in Coffee Agent through WeChat or Telegram, let it read the
+actual text in managed CLI terminals, open visible desktop tabs in your chosen
+tool and directory, delegate through Gambit, and report progress to your phone.
+Continue the same conversation from desktop history when you return.
+
+The 11-language Agent UI, shared bubble conversation view, message copying,
+turn navigation, stable history reading, and optional English delegation from
+v3.5.8 remain available. v3.5.9 adds Muse Code launching and fixes request
+feedback and session working directories.
+
+### Added
+- **Muse Code launch support with the Meta PNG icon.** Start an installed
+  `muse` in the directory you choose, using the same visible terminal tabs as
+  other CLI tools. The icon is shared by tool cards, tabs, and Gambit. Muse
+  session history and heatmap integration are not included.
+
+### Fixed
+- **Keep Muse tabs named after the chosen working directory.** Windows launcher
+  titles no longer replace the tab name with a system executable path.
+- **Avoid duplicate Coffee Agent request errors.** Once the failure is recorded
+  in the conversation, missing model ID/API key and network errors no longer
+  appear a second time above the input area.
+- **Restore OpenCode sessions in their actual working directory.** Use the
+  stored directory without appending the relative project path again. This
+  fixes duplicated directory segments and preserves compatibility with older
+  MiMo Code and Kilo session databases. (#150)
+
+Message-channel support is still being refined. Please share problems and
+suggestions through [GitHub Issues](https://github.com/edison7009/Coffee-CLI/issues).
+
 ## [3.5.8] — 2026-10-11
 
 This release continues the mobile workflow introduced in v3.5.7: use WeChat or
