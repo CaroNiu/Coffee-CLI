@@ -131,3 +131,38 @@ assert.equal(sends.at(-1).conversationId, 'shared-wechat-history');
 assert.equal(api.useAgentClient().route, 'weixin-bound');
 assert.deepEqual(Array.from(api.useAgentClient().messages, message => message.text), ['earlier mobile message', 'continue this work on desktop']);
 console.log('  ok  desktop continues the original mobile conversation ID and preserves its history');
+
+// A failed run is shown in history or as a footer error, never both. The
+// current receipt must be newer than the messages present when refresh began.
+const failureConversation = api.openAgentConversation('failure-history');
+const oldFailure = { id: 401, role: 'assistant', text: 'Agent 请求未完成：请先在 Agent 配置中填写模型 ID' };
+reads.shift()(page('failure-history', [oldFailure]));
+await failureConversation;
+let failureId = 401;
+for (const error of ['请先在 Agent 配置中填写模型 ID', '请先在 Agent 配置中填写 API 密钥', 'Model service returned HTTP 401', 'Could not reach the model service']) {
+  const runId = `failure-${failureId}`;
+  api.receiveAgentEvent({ conversationId: 'failure-history', runId, kind: 'started' });
+  api.receiveAgentEvent({ conversationId: 'failure-history', runId, kind: 'error', text: error });
+  assert.equal(api.useAgentClient().error, error, 'an error remains visible while its history receipt is loading');
+  const receipt = { id: ++failureId, role: 'assistant', text: `Agent 请求未完成：${error}` };
+  reads.shift()(page('failure-history', [oldFailure, receipt]));
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(api.useAgentClient().error, '', 'the new persisted failure receipt replaces the duplicate footer error');
+  assert.equal(api.useAgentClient().messages.at(-1).text, receipt.text, 'failure history remains available to reopen');
+}
+console.log('  ok  missing model/key, HTTP 401, and network failure show one persisted error receipt');
+
+const repeatedError = api.useAgentClient().messages.at(-1).text.slice('Agent 请求未完成：'.length);
+const unchangedHistory = Array.from(api.useAgentClient().messages);
+api.receiveAgentEvent({ conversationId: 'failure-history', runId: 'no-new-receipt', kind: 'started' });
+api.receiveAgentEvent({ conversationId: 'failure-history', runId: 'no-new-receipt', kind: 'error', text: repeatedError });
+reads.shift()(page('failure-history', unchangedHistory));
+await new Promise(resolve => setImmediate(resolve));
+assert.equal(api.useAgentClient().error, repeatedError, 'an identical receipt from a previous run cannot hide the current failure');
+
+api.receiveAgentEvent({ conversationId: 'failure-history', runId: 'unrelated-receipt', kind: 'started' });
+api.receiveAgentEvent({ conversationId: 'failure-history', runId: 'unrelated-receipt', kind: 'error', text: repeatedError });
+reads.shift()(page('failure-history', [...unchangedHistory, { id: ++failureId, role: 'assistant', text: 'an unrelated reply' }]));
+await new Promise(resolve => setImmediate(resolve));
+assert.equal(api.useAgentClient().error, repeatedError, 'a different reply cannot hide the current failure');
+console.log('  ok  a missing or mismatched new failure receipt keeps the footer error visible');

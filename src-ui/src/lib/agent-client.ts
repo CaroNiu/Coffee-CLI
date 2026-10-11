@@ -76,10 +76,17 @@ export function useAgentClient() {
 export async function refreshAgentConversation() {
   const revision = conversationRevision;
   const target = snapshot.conversationId || 'desktop';
+  const run = currentRun;
+  const error = snapshot.error;
+  const lastStoredId = snapshot.messages.reduce((id, message) => Math.max(id, message.id), 0);
   const page = await invoke<ConversationPage>('agent_get_conversation', { conversationId: target });
   if (revision === conversationRevision && target === (snapshot.conversationId || 'desktop')) {
+    const lastMessage = page.messages.at(-1);
+    const errorRecorded = error && snapshot.error === error && currentRun === run
+      && !runs.has(page.id) && !page.runId && lastMessage && lastMessage.id > lastStoredId
+      && lastMessage.role === 'assistant' && lastMessage.text === `Agent 请求未完成：${error}`;
     currentRun = runs.get(page.id) ?? page.runId ?? '';
-    update({ conversationId: page.id, route: page.route, messages: page.messages, hasOlder: page.hasOlder, running: !!currentRun });
+    update({ conversationId: page.id, route: page.route, messages: page.messages, hasOlder: page.hasOlder, running: !!currentRun, ...(errorRecorded ? { error: '' } : {}) });
   }
 }
 export async function refreshAgentConversations() {
