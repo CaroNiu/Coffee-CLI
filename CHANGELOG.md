@@ -28,6 +28,40 @@ and `git tag --list "v*"`.
   hidden only for verified TUIs that draw their own caret; unknown and future
   tools default to a visible static cursor. (#145)
 
+## [3.6.1] — 2026-10-14
+
+Coffee CLI continues its AI + mobile message gateway workflow: talk to Coffee
+Agent through WeChat or Telegram, arrange work in visible desktop CLI tabs,
+and follow progress from your phone. This release builds on the four work modes
+introduced in v3.6.0 with stronger memory and more compact model context.
+
+### Added
+- **Background durable memory.** Completed turns can contribute lasting user
+  preferences and confirmed project decisions. Recall is scoped to the identity
+  and verified project, with bounded capacity, deduplication, and conflict checks
+  that preserve later manual corrections and forgetting. Extraction uses
+  additional tokens from the configured model.
+- **Recoverable output compression.** Long history and project results use
+  compact summaries with exact identifiers and paths. Saved originals can be
+  read in pages across conversations and restarts. Live terminal screens, input
+  results, file reads, and installation plans remain uncompressed.
+- **Kiro and MiniMax Code launch support.** Add tool tiles, brand icons, and
+  split-pane selection for installed `kiro-cli chat` and `mcode`. These tools
+  support launching only; history, heatmap, and status integration are not added.
+
+### Changed
+- **Theme-aware rectangular tabs.** Refine detached tab spacing and corner
+  shapes, with connected borders retained for the Panel style.
+
+### Fixed
+- **Continue when conversation summarization fails.** Fall back to bounded
+  recent context without deleting history or advancing the summary checkpoint.
+- **Windows Agent TUI mouse-wheel reports.** Forward ConPTY wheel input when
+  a TUI requests it, preserving normal terminal scrolling otherwise.
+
+Please share feedback through
+[GitHub Issues](https://github.com/edison7009/Coffee-CLI/issues).
+
 ## [3.5.9] — 2026-10-11
 
 This release continues Coffee CLI's AI + mobile message gateway workflow:

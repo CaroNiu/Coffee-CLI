@@ -1,58 +1,52 @@
 <details open>
 <summary><b>🇨🇳 简体中文</b></summary>
 
-### Coffee CLI v3.6.0 · AI + 移动消息网关
+### Coffee CLI v3.6.1 · AI + 移动消息网关，记忆更持久
 
-Coffee CLI 继续推进 AI + 移动消息网关：通过熟悉的微信或 Telegram 与内置 Coffee Agent 对话，让它读取受管理 CLI 终端的实际文字，在你指定的工具和目录中打开桌面真实可见的标签，派发任务并汇报进度，在手机上继续接管工作。v3.6.0 新增哨兵模式、项目经理与专家配置，让 Coffee Agent 能主动通知、理解项目，并协助配置工具。
+通过微信或 Telegram 与 Coffee Agent 对话，让它在电脑上打开你指定的 CLI 工具和目录、派发任务并汇报进度，在手机上继续接管工作。延续 v3.6.0 的英文派发、哨兵模式、项目经理和专家配置，本次升级让 Coffee Agent 更好地记住工作，并减少长输出占用的上下文。
 
-- **四种工作方式，按需开启。** 英文派发、哨兵模式、项目经理、专家配置集中在消息设置中，采用两行两列开关与说明 Tips，切换后自动保存。
-- **英文派发。** 用自己的语言与 Coffee Agent 沟通，它用英文向其他 CLI Agent 派发任务，再用你的语言汇报结果；关闭后也使用你的语言派发。
-- **哨兵模式。** 不必先发消息询问：观察到任务结束后，Coffee Agent 会向已连接的消息渠道主动发送结果与完成情况。首版支持 Claude Code、Codex、Kimi Code 与 Oh My Pi。等待权限不视为完成；任务结束也不等于成功，中断和不完整输出会明确说明。
-- **项目经理。** 读取项目目录、近期 Git 提交与未提交改动，保存项目理解与记忆，派发前参考，并在需求不清楚时先向你询问。可接入 Graphify 提取代码结构和关系；首次安装依赖需要确认，扫描结果保存在 Coffee CLI 的本地数据目录。开启后会额外消耗模型 token。
-- **专家配置。** 读取工具已有的 Skills 与 MCP，按项目需要查找候选并提出建议。目前支持确认后为 Claude Code、Codex 安装项目级 Skill 或受支持的 MCP，在可见终端执行并验证结果；配置变更会再次检查，失败时尝试恢复受影响的配置，并说明仍需处理的状态。已打开的 CLI 可能需要重载或认证。
-- **消息设置和 Coffee Agent 标签可拖动。** 与终端标签左右混合排序，关闭、重开和终端重启保持正确顺序，已有工作与输入草稿不受影响。
-- **延续手机与电脑共享对话。** 保留本地历史、长对话摘要、工作偏好记忆、泡泡对话、侧边导航和复制按钮；Coffee Agent 界面支持 11 种语言。
-- **项目理解与配置识别更可靠。** 修复源码连续变化后的记忆失效检测，减少目录扫描中的 Git 进程调用，并正确识别带行尾注释的 Skill 显式调用策略及缓存符号链接。
+- **强化长期记忆。** 回复后在后台整理长期偏好与用户确认的项目决策，按身份和已核实的项目召回，支持去重、更新与容量整理；后续手动修改或忘记优先于旧的后台任务。自动提炼会额外消耗配置模型的 token，记忆有容量限制。
+- **RTK 式长输出压缩与原文回读。** 长历史和项目结果先提供精简摘要，保留准确的路径与标识；需要细节时按页读取已保存的原文，重启或新建对话后仍可回读。实时终端画面、输入结果、文件读取和安装计划保持完整。
+- **长对话更稳。** 前文摘要失败时使用近期上下文继续对话，完整历史仍保留，不会误推进摘要进度。
+- **标签样式更精致。** 各主题采用矩形标签，按样式调整圆角和边距；Panel 保持连贯线条，标签与页面的层次更清楚。
+- **新增 Kiro 与 MiniMax Code。** 支持启动已安装的工具，提供品牌图标和分屏选择；本次仅支持启动，不包含会话记录、热力图和状态集成。
+- **改善 Windows 滚轮交互。** 修复 Pi、Oh My Pi 和 Claude Code 的部分全屏终端界面无法收到滚轮事件的问题，其他终端保持原有滚动方式。感谢 @keros68 提供线索。
 
-消息连接与自动调度仍在持续完善。欢迎通过 [GitHub Issues](https://github.com/edison7009/Coffee-CLI/issues) 提交问题、意见和建议，帮助我们改善这套 AI 工作方式。
+消息连接与自动调度仍在持续完善。欢迎通过 [GitHub Issues](https://github.com/edison7009/Coffee-CLI/issues) 提交问题、意见和建议。
 
 </details>
 
 <details>
 <summary><b>🇬🇧 English</b></summary>
 
-### Coffee CLI v3.6.0 · AI + a Mobile Message Gateway
+### Coffee CLI v3.6.1 · AI + a Mobile Message Gateway, with Stronger Memory
 
-Coffee CLI continues its AI + mobile message gateway approach. Talk to the built-in Coffee Agent through familiar WeChat or Telegram conversations. It reads the actual text in managed CLI terminals, opens visible desktop tabs in the tools and directories you specify, delegates tasks, and reports progress. Keep managing work from your phone. v3.6.0 adds Sentinel, Project Manager, and Expert Configuration modes for proactive notifications, project understanding, and tool configuration.
+Talk to Coffee Agent through WeChat or Telegram. It opens visible desktop CLI tabs in your chosen tools and directories, delegates tasks, and reports progress so you can keep managing work from your phone. Building on v3.6.0's English Delegation, Sentinel, Project Manager, and Expert Configuration modes, this release strengthens memory and reduces context used by long output.
 
-- **Four optional work modes.** English Delegation, Sentinel, Project Manager, and Expert Configuration share a two-by-two switch layout in Message Settings, with explanatory tips and automatic saving.
-- **English Delegation.** Talk to Coffee Agent in your own language; it sends tasks to other CLI agents in English and reports back in your language. Turn it off to delegate in your language too.
-- **Sentinel.** Receive proactive results through connected message channels after an observed task ends. Initial support covers Claude Code, Codex, Kimi Code, and Oh My Pi. Permission waits are excluded from completion notifications. A task ending does not mean it succeeded; interruptions and incomplete output are stated explicitly.
-- **Project Manager.** Read project files, recent Git commits, and uncommitted changes; store project understanding and memory, refer to it before delegation, and ask about unclear requirements. Optional Graphify integration extracts code structure and relationships. Dependency installation requires confirmation, and scan data stays in Coffee CLI's local data directory. This mode uses additional model tokens.
-- **Expert Configuration.** Inspect existing Skills and MCP settings and suggest candidates for the project. Confirmed project-level Skill and supported MCP installation currently covers Claude Code and Codex, runs in visible terminals, and verifies results. Configuration changes are checked again; failures trigger an attempt to restore affected configuration and report any remaining action needed. Already open CLI tools may need reloading or authentication.
-- **Draggable Message Settings and Coffee Agent tabs.** Reorder them alongside terminal tabs. Closing, reopening, and restarting terminals preserves the correct order and existing work and input drafts.
-- **Continue conversations across phone and computer.** Retain local history, long-conversation summaries, work preferences, bubble conversations, side navigation, and copy buttons. Coffee Agent's UI supports 11 languages.
-- **More reliable project understanding and configuration inspection.** Fix memory invalidation after repeated source changes, reduce Git process calls during directory scans, and correctly recognize Skill invocation policies with inline comments and cache symlinks.
+- **Stronger durable memory.** Background extraction captures lasting preferences and user-confirmed project decisions, with identity-scoped recall, verified project scope, deduplication, updates, and capacity management. Later manual corrections and forgetting take priority over stale background work. Extraction uses additional configured-model tokens; memory has capacity limits.
+- **Recoverable RTK-style output compression.** Long history and project results use compact summaries with exact paths and identifiers. Read saved originals in pages, including after a restart or a new conversation. Live terminal screens, input results, file reads, and installation plans remain intact.
+- **More resilient long conversations.** If summarization fails, continue using recent context while retaining the full archive and the previous summary checkpoint.
+- **Refined tabs across themes.** Rectangular tabs use theme-specific corners and balanced spacing; Panel retains connected borders.
+- **Kiro and MiniMax Code launch support.** Add brand icons and split-pane selection for installed tools. This is launch-only support, without history, heatmap, or status integration.
+- **Improved Windows wheel interaction.** Restore wheel reports in affected Pi, Oh My Pi, and Claude Code alternate-screen TUIs while preserving other terminals' scrolling. Thanks to @keros68 for the investigation.
 
-Message connections and automatic coordination are still being refined. Please share problems, ideas, and suggestions through [GitHub Issues](https://github.com/edison7009/Coffee-CLI/issues).
+Message connections and automatic coordination continue to improve. Please share feedback through [GitHub Issues](https://github.com/edison7009/Coffee-CLI/issues).
 
 </details>
 
 <details>
 <summary><b>🇹🇼 繁體中文</b></summary>
 
-### Coffee CLI v3.6.0 · AI + 行動訊息閘道
+### Coffee CLI v3.6.1 · AI + 行動訊息閘道，記憶更持久
 
-Coffee CLI 持續推進 AI + 行動訊息閘道：透過熟悉的微信或 Telegram 與內建 Coffee Agent 對話，讓它讀取受管理 CLI 終端的實際文字，在你指定的工具和目錄中開啟桌面實際可見的分頁，派發任務並回報進度，在手機上繼續接管工作。v3.6.0 新增哨兵模式、專案經理與專家設定，提供主動通知、專案理解和工具設定協助。
+透過微信或 Telegram 與 Coffee Agent 對話，讓它在電腦上開啟你指定的 CLI 工具和目錄、派發任務並回報進度，在手機上繼續接管工作。延續 v3.6.0 的英文派發、哨兵模式、專案經理和專家設定，本次強化記憶，並減少長輸出佔用的上下文。
 
-- **四種工作方式，依需求開啟。** 英文派發、哨兵模式、專案經理、專家設定集中在訊息設定中，採兩行兩列開關與說明 Tips，切換後自動儲存。
-- **英文派發。** 用自己的語言與 Coffee Agent 溝通，它以英文向其他 CLI Agent 派發任務，再用你的語言回報；關閉後也用你的語言派發。
-- **哨兵模式。** 觀察到任務結束後，主動透過已連線的訊息渠道回報結果。首版支援 Claude Code、Codex、Kimi Code 與 Oh My Pi。等待權限不視為完成；任務結束也不等於成功，中斷與不完整輸出會明確說明。
-- **專案經理。** 讀取專案目錄、近期 Git 提交及未提交變更，保存專案理解與記憶，派發前參考，需求不明確時先詢問。可接入 Graphify 提取程式碼結構與關係；安裝依賴需要確認，掃描資料保存在 Coffee CLI 本機資料目錄。開啟後會額外消耗模型 token。
-- **專家設定。** 讀取工具已有的 Skills 和 MCP，依專案需要查找候選並建議。目前支援確認後為 Claude Code、Codex 安裝專案級 Skill 或受支援的 MCP，在可見終端執行並驗證結果；重新檢查設定變更，失敗時嘗試還原受影響的設定，並說明仍需處理的狀態。已開啟的 CLI 可能需要重新載入或驗證身分。
-- **訊息設定和 Coffee Agent 分頁可拖動。** 與終端分頁左右混合排序，關閉、重開及終端重啟保持正確順序，不影響既有工作與輸入草稿。
-- **延續手機與電腦共享對話。** 保留本機歷史、長對話摘要、工作偏好記憶、泡泡對話、側邊導覽和複製按鈕；Coffee Agent 介面支援 11 種語言。
-- **專案理解與設定識別更可靠。** 修復原始碼連續變更後的記憶失效偵測，減少目錄掃描的 Git 程序呼叫，並正確識別含行尾註解的 Skill 呼叫策略及快取符號連結。
+- **強化長期記憶。** 回覆後在背景整理長期偏好及使用者確認的專案決策，依身分及已核實的專案召回，支援去重、更新與容量整理。後續手動修改或忘記優先於舊的背景任務。自動提煉會額外消耗設定模型的 token，記憶有容量限制。
+- **RTK 式長輸出壓縮與原文回讀。** 長歷史及專案結果提供精簡摘要，保留準確路徑與識別碼；可分頁讀取原文，重新啟動或建立新對話後仍可讀取。即時終端畫面、輸入結果、檔案讀取及安裝計畫保持完整。
+- **長對話更穩。** 前文摘要失敗時使用近期上下文繼續對話，保留完整歷史及原有摘要進度。
+- **分頁樣式更精緻。** 各主題採用矩形分頁，依樣式調整圓角和邊距；Panel 保持連貫線條。
+- **新增 Kiro 與 MiniMax Code。** 支援啟動已安裝的工具，提供品牌圖示及分割畫面選擇；本次僅支援啟動，不含歷史、熱力圖和狀態整合。
+- **改善 Windows 滾輪互動。** 修復 Pi、Oh My Pi 和 Claude Code 部分全螢幕终端介面的滾輪事件，其他終端保持原有滾動方式。感謝 @keros68 提供線索。
 
 訊息連線與自動調度仍在持續完善。歡迎透過 [GitHub Issues](https://github.com/edison7009/Coffee-CLI/issues) 提交問題、意見和建議。
 
@@ -61,39 +55,35 @@ Coffee CLI 持續推進 AI + 行動訊息閘道：透過熟悉的微信或 Teleg
 <details>
 <summary><b>🇯🇵 日本語</b></summary>
 
-### Coffee CLI v3.6.0 · AI + モバイルメッセージゲートウェイ
+### Coffee CLI v3.6.1 · AI + モバイルメッセージゲートウェイ、記憶を強化
 
-Coffee CLI は AI + モバイルメッセージゲートウェイを引き続き進めています。WeChat や Telegram で内蔵 Coffee Agent と会話すると、管理対象の CLI ターミナルに実際に表示される文字を読み取り、指定したツールとディレクトリでデスクトップのタブを開き、タスクを依頼して進捗を報告します。スマートフォンから仕事を管理できます。v3.6.0 では、完了通知、プロジェクト理解、ツール設定を支援する新しいモードを追加しました。
+WeChat や Telegram で Coffee Agent と会話し、指定したツールとディレクトリでデスクトップの CLI タブを開き、タスクの依頼と進捗確認をスマートフォンから行えます。v3.6.0 の英語依頼、Sentinel、Project Manager、Expert Configuration を引き継ぎ、記憶と長い出力の扱いを改善しました。
 
-- **4 つの任意モード。** 英語でのタスク依頼、Sentinel、Project Manager、Expert Configuration をメッセージ設定の 2 行 2 列のスイッチにまとめました。説明 Tips を表示でき、切り替えは自動保存されます。
-- **英語でのタスク依頼。** 自分の言語で Coffee Agent と会話し、ほかの CLI Agent への依頼は英語、結果の報告は自分の言語で受け取れます。オフにすると依頼にも自分の言語を使います。
-- **Sentinel。** 観測したタスクが終了すると、接続済みメッセージチャネルへ結果を自動通知します。初期対応は Claude Code、Codex、Kimi Code、Oh My Pi です。権限待ちは完了通知の対象外です。終了は成功を意味するとは限らず、中断や不完全な出力は明示します。
-- **Project Manager。** プロジェクトファイル、最近の Git コミット、未コミットの変更を読み、理解と記憶を保存して依頼前に参照します。曖昧な要件は先に確認します。Graphify でコード構造と関係を抽出でき、依存ツールのインストールには確認が必要です。解析データは Coffee CLI のローカルデータディレクトリに保存します。追加のモデル token を消費します。
-- **Expert Configuration。** 既存の Skills と MCP 設定を読み、プロジェクト向けの候補を提案します。現在は Claude Code と Codex に対するプロジェクト単位の Skill と対応 MCP の確認後インストールを支援します。可視ターミナルで実行して結果を検証し、設定変更を再確認します。失敗時は設定の復元を試み、残っている対応事項を報告します。起動中の CLI は再読み込みや認証が必要な場合があります。
-- **設定と Coffee Agent のタブをドラッグ。** ターミナルタブと混在させて左右に並べ替えられます。閉じる、再び開く、ターミナルを再起動する操作でも順序と作業、入力中の下書きを保持します。
-- **スマートフォンとパソコンで会話を継続。** ローカル履歴、長い会話の要約、作業上の好み、吹き出し表示、サイドナビゲーション、コピーボタンを引き続き利用できます。Coffee Agent の UI は 11 言語に対応します。
-- **プロジェクト理解と設定確認の信頼性を改善。** ソースの連続変更による記憶の更新漏れ、ディレクトリ走査時の過剰な Git 呼び出し、行末コメント付き Skill ポリシーとキャッシュのシンボリックリンク判定を修正しました。
+- **長期記憶を強化。** 返信後に、継続的な好みとユーザーが確認したプロジェクト方針をバックグラウンドで整理します。ユーザーと確認済みプロジェクトごとに関連情報を参照し、重複除去、更新、容量管理に対応します。後からの手動修正や削除を優先します。設定モデルの追加 token を使用し、記憶容量には上限があります。
+- **元の出力を読める RTK 方式の圧縮。** 長い履歴とプロジェクト情報を要約し、パスと識別子は正確に保持します。保存した原文はページ単位で読み取れ、再起動や新しい会話でも参照できます。現在のターミナル画面、入力結果、ファイル読み取り、インストール計画は圧縮しません。
+- **長い会話の継続性を改善。** 要約が失敗しても最近の文脈で会話を続け、完全な履歴と元の要約位置を保持します。
+- **テーマに合わせたタブ。** 長方形タブの角と余白を調整し、Panel は連続した境界線を保持します。
+- **Kiro と MiniMax Code を追加。** インストール済みツールの起動、ブランドアイコン、分割画面の選択に対応します。履歴、ヒートマップ、状態連携は含みません。
+- **Windows のホイール操作を改善。** Pi、Oh My Pi、Claude Code の一部の全画面 TUI にホイール入力を届け、ほかのターミナルのスクロールは維持します。調査に協力した @keros68 に感謝します。
 
-メッセージ接続と自動調整は引き続き改善中です。不具合、ご意見、ご提案を [GitHub Issues](https://github.com/edison7009/Coffee-CLI/issues) にお寄せください。
+接続と自動調整は引き続き改善中です。ご意見や不具合を [GitHub Issues](https://github.com/edison7009/Coffee-CLI/issues) にお寄せください。
 
 </details>
 
 <details>
 <summary><b>🇰🇷 한국어</b></summary>
 
-### Coffee CLI v3.6.0 · AI + 모바일 메시지 게이트웨이
+### Coffee CLI v3.6.1 · AI + 모바일 메시지 게이트웨이, 기억 강화
 
-Coffee CLI는 AI + 모바일 메시지 게이트웨이 방식을 계속 발전시키고 있습니다. WeChat이나 Telegram에서 내장 Coffee Agent와 대화하면 관리 중인 CLI 터미널의 실제 텍스트를 읽고, 지정한 도구와 디렉터리에서 데스크톱에 보이는 탭을 열어 작업을 전달하고 진행 상황을 알려 줍니다. 휴대폰에서 계속 작업을 관리할 수 있습니다. v3.6.0은 능동 알림, 프로젝트 이해, 도구 설정을 위한 새 모드를 추가합니다.
+WeChat이나 Telegram에서 Coffee Agent와 대화하면 지정한 도구와 디렉터리로 데스크톱 CLI 탭을 열고, 작업을 전달하고, 휴대폰에서 진행 상황을 확인할 수 있습니다. v3.6.0의 영어 작업 전달, Sentinel, Project Manager, Expert Configuration을 이어 가며 기억과 긴 출력 처리를 개선했습니다.
 
-- **필요에 따라 선택하는 4가지 모드.** 영어 작업 전달, Sentinel, Project Manager, Expert Configuration을 메시지 설정의 2행 2열 스위치에 모았습니다. 설명 Tips를 제공하며 변경은 자동 저장합니다.
-- **영어 작업 전달.** 자신의 언어로 Coffee Agent와 대화하고, 다른 CLI Agent에는 영어로 작업을 전달하며 결과는 자신의 언어로 받습니다. 끄면 작업 전달에도 자신의 언어를 사용합니다.
-- **Sentinel.** 관찰된 작업이 끝나면 연결된 메시지 채널로 결과를 먼저 알려 줍니다. 초기 지원 도구는 Claude Code, Codex, Kimi Code, Oh My Pi입니다. 권한 대기는 완료 알림 대상이 아닙니다. 종료가 성공을 뜻하지는 않으며, 중단과 불완전한 출력은 명확하게 설명합니다.
-- **Project Manager.** 프로젝트 파일, 최근 Git 커밋, 커밋하지 않은 변경을 읽고 프로젝트 이해와 기억을 저장하여 작업 전달 전에 참고합니다. 요구가 불명확하면 먼저 질문합니다. Graphify로 코드 구조와 관계를 추출할 수 있으며 의존 도구 설치는 확인이 필요합니다. 분석 데이터는 Coffee CLI의 로컬 데이터 디렉터리에 저장합니다. 추가 모델 token을 사용합니다.
-- **Expert Configuration.** 기존 Skills와 MCP 설정을 읽고 프로젝트에 맞는 후보를 제안합니다. 현재는 확인 후 Claude Code와 Codex에 프로젝트 단위 Skill 또는 지원 MCP를 설치합니다. 보이는 터미널에서 실행하고 결과를 검증하며 설정 변경을 다시 확인합니다. 실패하면 설정 복원을 시도하고 남은 조치 사항을 보고합니다. 이미 열린 CLI는 다시 로드하거나 인증해야 할 수 있습니다.
-- **메시지 설정과 Coffee Agent 탭 드래그.** 터미널 탭과 함께 좌우 순서를 바꿀 수 있습니다. 닫기, 다시 열기, 터미널 재시작에도 올바른 순서와 기존 작업, 입력 초안을 유지합니다.
-- **휴대폰과 컴퓨터에서 대화 이어가기.** 로컬 기록, 긴 대화 요약, 작업 선호 기억, 말풍선 대화, 측면 탐색, 복사 버튼을 유지합니다. Coffee Agent UI는 11개 언어를 지원합니다.
-- **프로젝트 이해와 설정 인식 개선.** 소스가 연속 변경될 때 기억 갱신이 누락되던 문제를 수정하고 디렉터리 검색의 Git 호출을 줄였습니다. 줄 끝 주석이 있는 Skill 호출 정책과 캐시 심볼릭 링크도 올바르게 처리합니다.
+- **장기 기억 강화.** 답변 후 지속적인 선호와 사용자가 확인한 프로젝트 결정을 백그라운드에서 정리합니다. 사용자와 확인된 프로젝트에 따라 관련 기억을 불러오고, 중복 제거, 갱신, 용량 관리를 지원합니다. 나중에 수동으로 수정하거나 잊도록 한 내용이 이전 백그라운드 작업보다 우선합니다. 설정 모델의 추가 token을 사용하며 기억 용량에는 제한이 있습니다.
+- **원문을 다시 읽을 수 있는 RTK 방식 압축.** 긴 기록과 프로젝트 결과를 요약하면서 경로와 식별자는 정확히 보존합니다. 저장된 원문은 페이지 단위로 읽으며 재시작이나 새 대화에서도 확인할 수 있습니다. 실시간 터미널 화면, 입력 결과, 파일 읽기, 설치 계획은 그대로 유지합니다.
+- **긴 대화의 안정성 개선.** 요약에 실패해도 최근 문맥으로 대화를 계속하며 전체 기록과 이전 요약 위치를 보존합니다.
+- **테마에 맞춘 탭 개선.** 직사각형 탭의 모서리와 여백을 다듬고 Panel은 이어지는 테두리를 유지합니다.
+- **Kiro와 MiniMax Code 추가.** 설치된 도구 실행, 브랜드 아이콘, 분할 화면 선택을 지원합니다. 기록, 히트맵, 상태 연동은 포함하지 않습니다.
+- **Windows 휠 입력 개선.** Pi, Oh My Pi, Claude Code의 일부 전체 화면 TUI에 휠 이벤트를 전달하며 다른 터미널의 스크롤은 유지합니다. 조사에 도움을 준 @keros68에게 감사합니다.
 
-메시지 연결과 자동 조율은 계속 개선 중입니다. 문제, 의견, 제안을 [GitHub Issues](https://github.com/edison7009/Coffee-CLI/issues)에 남겨 주세요.
+연결과 자동 조율은 계속 개선 중입니다. 문제와 의견을 [GitHub Issues](https://github.com/edison7009/Coffee-CLI/issues)에 남겨 주세요.
 
 </details>
