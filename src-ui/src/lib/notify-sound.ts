@@ -11,8 +11,9 @@
 // additionally require a local user-submission marker to exclude startup TUI
 // activity from completion notifications.
 //
-// Sounds are synthesized with WebAudio — no audio assets, no WebView2
-// permission prompts. The two chimes are ported from DeepSeek-Reasonix's
+// Windows plays bundled WAV versions through Win32: WebView2's audio renderer
+// can fail even when resume() is called by the preview button. Other platforms
+// synthesize the same tones with WebAudio. The two chimes are ported from DeepSeek-Reasonix's
 // synthesized sound set (https://github.com/esengine/DeepSeek-Reasonix):
 //   done — "Generation complete": rising E6 → G6 → C7 triad
 //   wait — "Awaiting response": A6 → E6 descending fifth
@@ -29,6 +30,8 @@ import {
   type AgentStatus,
   type ToolType,
 } from '../store/app-state';
+import { commands, isTauri } from '../tauri';
+import { IS_WINDOWS } from './platform';
 
 export type NotifyKind = 'done' | 'wait';
 
@@ -113,6 +116,17 @@ function note(ac: AudioContext, freq: number, start: number, dur: number, peak: 
 /** Play one of the two notification chimes. Exported so Settings can offer
  *  a "preview" button per kind. */
 export function playNotifySound(kind: NotifyKind) {
+  if (IS_WINDOWS && isTauri) {
+    commands.playNotifySound(kind).catch(error => {
+      console.warn('[notify-sound] Native playback failed:', error);
+      playWebAudioSound(kind);
+    });
+    return;
+  }
+  playWebAudioSound(kind);
+}
+
+function playWebAudioSound(kind: NotifyKind) {
   const ac = audioCtx();
   if (!ac) return;
   const t0 = ac.currentTime + 0.01;
@@ -162,7 +176,11 @@ export function initNotifySound(
   // Check all terminals for transitions
   for (const terminal of statusTerminals) {
     const currentStatus = terminal.agentStatus;
-    if (!currentStatus) continue;
+    if (!currentStatus) {
+      prevStatus.delete(terminal.id);
+      cancelPendingDone(terminal.id);
+      continue;
+    }
 
     const prev = prevStatus.get(terminal.id);
 

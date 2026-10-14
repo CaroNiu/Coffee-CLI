@@ -131,6 +131,7 @@ export interface FontInfo {
 
 export const commands = {
   pickFolder: () => invoke<string>('pick_folder'),
+  playNotifySound: (kind: 'done' | 'wait') => invoke<void>('play_notify_sound', { kind }),
 
   // Window decorators
   windowMinimize: () => invoke<void>('window_minimize'),
