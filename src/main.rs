@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod terminal;
+mod opencode_island;
 mod server;
 mod agent;
 mod agent_modes;

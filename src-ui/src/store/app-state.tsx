@@ -27,10 +27,10 @@ export function supportsNativeAgentStatus(tool: ToolType): boolean {
   return tool === 'claude' || tool === 'codex' || tool === 'omp';
 }
 
-/** Status can come from native titles even without a conversation view or
- * rendered-screen interaction parser. */
+/** OpenCode v2's process-local adapter and native titles can report status
+ * without a conversation view or rendered-screen interaction parser. */
 export function supportsAgentStatus(tool: ToolType): boolean {
-  return supportsNativeAgentStatus(tool) || supportsEnhancedTool(tool);
+  return tool === 'opencode' || supportsNativeAgentStatus(tool) || supportsEnhancedTool(tool);
 }
 
 // Theme: color palette family (orthogonal to shape and to mode).
@@ -357,7 +357,7 @@ type Action =
   | { type: 'SET_TERMINAL_HIDDEN'; id: string; isHidden: boolean }
   | { type: 'RESTART_TERMINAL'; id: string; newId: string }
   | { type: 'OPEN_HYPER_AGENT_TAB' }
-  | { type: 'SET_AGENT_STATUS'; id: string; status: AgentStatus }
+  | { type: 'SET_AGENT_STATUS'; id: string; status: AgentStatus | undefined }
   | { type: 'SET_BG'; path: string; bgType: 'image' | 'video' }
   | { type: 'CLEAR_BG' }
   | { type: 'SET_WALLPAPER_OPACITY'; opacity: number }

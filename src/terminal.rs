@@ -758,6 +758,21 @@ pub fn spawn(
     for (k, v) in &extra_env {
         cmd.env(k, v);
     }
+    let local_opencode = std::path::Path::new(&program)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| {
+            matches!(name.to_ascii_lowercase().as_str(),
+                "opencode" | "opencode.exe" | "opencode.cmd" | "opencode.ps1" | "opencode2" | "opencode2.exe")
+        });
+    if tool_name.as_deref() == Some("opencode") && local_opencode {
+        match crate::opencode_island::environment(&extra_env) {
+            Ok(content) => {
+                cmd.env("OPENCODE_CLI_CONFIG_CONTENT", content);
+            }
+            Err(error) => eprintln!("[OpenCode island] integration unavailable: {error}"),
+        }
+    }
 
     // ── Open PTY pair ──────────────────────────────────────────────────────
     let pty_system = native_pty_system();

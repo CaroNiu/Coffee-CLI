@@ -1379,6 +1379,8 @@ export function CenterPanel() {
           // overrides the cwd basename when the tool has set a non-empty one.
           // Muse inherits its Windows launcher's title; keep the workspace name.
           const title = session.tool === 'muse' ? baseTitle : session.toolTitle?.trim() || baseTitle;
+          const showAgentStatus = supportsAgentStatus(session.tool)
+            && (session.tool !== 'opencode' || session.agentStatus !== undefined);
           return (
             <div
               key={session.id}
@@ -1391,8 +1393,8 @@ export function CenterPanel() {
             >
               {icon}
               <span className="tab-title" style={{ flex: '0 1 auto', minWidth: 0, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{title}</span>
-              <div className={`tab-actions${supportsAgentStatus(session.tool) ? '' : ' tab-actions--close-only'}`}>
-                {supportsAgentStatus(session.tool) && (
+              <div className={`tab-actions${showAgentStatus ? '' : ' tab-actions--close-only'}`}>
+                {showAgentStatus && (
                   <div className={`tab-status-grid status-${
                     session.agentStatus === 'wait_input' ? 'waiting' : session.agentStatus ?? 'idle'
                   }${__IS_LINUX__ ? ' tab-status-grid--static' : ''}`}>

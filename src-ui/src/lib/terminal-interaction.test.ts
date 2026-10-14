@@ -576,6 +576,8 @@ export function main(): void {
   ] as const;
   equal(supportsAgentStatus('omp'), true, 'OMP Dynamic Island enabled');
   equal(supportsNativeAgentStatus('omp'), true, 'OMP uses native title state');
+  equal(supportsAgentStatus('opencode'), true, 'OpenCode v2 island can receive adapter state');
+  equal(supportsNativeAgentStatus('opencode'), false, 'stock OpenCode titles are not state');
   for (const tool of terminalOnlyTools) {
     equal(supportsTerminalInteraction(tool), false, `${tool}: Coffee interaction disabled`);
     equal(supportsConversationTool(tool), false, `${tool}: conversation mode disabled`);

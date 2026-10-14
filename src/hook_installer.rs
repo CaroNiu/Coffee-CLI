@@ -1,6 +1,7 @@
 // Coffee CLI legacy hook cleanup
 //
-// Coffee no longer installs status hooks or plugins into third-party tools.
+// Coffee no longer registers persistent status hooks in third-party config.
+// OpenCode v2's process-local TUI adapter is managed by opencode_island.rs.
 // At app launch this module removes artifacts written by older releases while
 // preserving user-owned hooks and unrelated configuration.
 //

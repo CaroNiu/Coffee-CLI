@@ -34,6 +34,7 @@ import { registerFileDropTarget, formatPathsForInsert } from '../../lib/file-dro
 import { parseClaudeTerminalTitle } from '../../lib/claude-terminal-title';
 import { parseCodexTerminalTitle } from '../../lib/codex-terminal-title';
 import { parseOmpTerminalTitle } from '../../lib/omp-terminal-title';
+import { parseOpenCodeTerminalTitle } from '../../lib/opencode-terminal-title';
 import { markNotifySoundPromptSubmitted } from '../../lib/notify-sound';
 import { markSentinelExit, markSentinelWorking } from '../../lib/agent-sentinel';
 import { usesSelfRenderedCaret } from '../../lib/chat-tools';
@@ -552,9 +553,9 @@ function TierTerminalImpl({
       dispatch({ type: 'SET_AGENT_STATUS', id: sessionId, status });
     };
     const markAgentSubmission = () => {
-      // OMP reports all three states and deduplicates unchanged titles. Enter
+      // OMP and OpenCode's adapter report all three states. Enter
       // may only advance a selector, so a guessed working state could stick.
-      if (!usesAgentStatus || tool === 'omp') return;
+      if (!usesAgentStatus || tool === 'omp' || tool === 'opencode') return;
       clearScreenIdleTimer();
       // The old selector frame may still be painted, but Enter hands control
       // back to the agent immediately. The next parsed screen will confirm or
@@ -568,7 +569,7 @@ function TierTerminalImpl({
       scheduleScreenIdle(2_500);
     };
     const scheduleScreenIdle = (delayMs = 900) => {
-      if (!usesAgentStatus) return;
+      if (!usesAgentStatus || tool === 'opencode') return;
       clearScreenIdleTimer();
       screenIdleTimer = window.setTimeout(() => {
         screenIdleTimer = undefined;
@@ -1326,7 +1327,8 @@ function TierTerminalImpl({
     // Tool sets its own tab title via OSC 0/2 (e.g. Claude Code's conversation
     // summary) → xterm fires onTitleChange → mirror it to the tab title.
     // Claude, Codex and OMP carry their authoritative activity state in the
-    // title. Strip animated prefixes from Coffee's visible tab title so native
+    // title; OpenCode v2 uses a process-local TUI adapter frame. Strip status
+    // prefixes from Coffee's visible tab title so native
     // title updates do not make the text jitter. Claude's title only exposes
     // working vs non-working; permission prompts share its static idle prefix.
     let lastTabTitle: string | undefined;
@@ -1342,6 +1344,16 @@ function TierTerminalImpl({
         publishNativeStatus(parsed.status);
         if (parsed.status === 'wait_input') {
           requestTerminalForNativeAction('native:codex:action-required');
+        }
+      } else if (tool === 'opencode') {
+        const parsed = parseOpenCodeTerminalTitle(title);
+        if (parsed) {
+          displayTitle = parsed.displayTitle;
+          if (parsed.status) publishNativeStatus(parsed.status);
+          else {
+            nativeStatus = null;
+            dispatch({ type: 'SET_AGENT_STATUS', id: sessionId, status: undefined });
+          }
         }
       } else if (tool === 'omp') {
         const parsed = parseOmpTerminalTitle(title);
@@ -1504,7 +1516,7 @@ function TierTerminalImpl({
           sizeSync.markPtyStopped();
           setProcessExited(true);
           if (usesAgentStatus) {
-            dispatch({ type: 'SET_AGENT_STATUS', id: sessionId, status: 'idle' });
+            dispatch({ type: 'SET_AGENT_STATUS', id: sessionId, status: tool === 'opencode' ? undefined : 'idle' });
           }
         },
         onExit: () => {
@@ -1524,7 +1536,7 @@ function TierTerminalImpl({
           sizeSync.markPtyStopped();
           setProcessExited(true);
           if (usesAgentStatus) {
-            dispatch({ type: 'SET_AGENT_STATUS', id: sessionId, status: 'idle' });
+            dispatch({ type: 'SET_AGENT_STATUS', id: sessionId, status: tool === 'opencode' ? undefined : 'idle' });
           }
         },
         onCwd: (cwd) => {
