@@ -135,6 +135,8 @@ import CLINE_SVG from '../../icons-inline/cline.svg?raw';
 import OMP_SVG from '../../icons-inline/omp.svg?raw';
 import CODEBUDDY_SVG from '../../icons-inline/codebuddy.svg?raw';
 import MUSE_DATA_URL from '../../icons-inline/muse.png?inline';
+import KIRO_SVG from '../../icons-inline/kiro.svg?raw';
+import MINIMAX_SVG from '../../icons-inline/minimax.svg?raw';
 import AIDER_DATA_URL from '../../icons-inline/aider.png?inline';
 import KIMICODE_DATA_URL from '../../icons-inline/kimicode.png?inline';
 import CRUSH_DATA_URL from '../../icons-inline/crush.png?inline';
@@ -274,6 +276,8 @@ const SvgOmp       = () => inlineSvgIcon(OMP_SVG);
 // inline SVG so the markup's own fills render verbatim and synchronously.
 const SvgCodeBuddy = () => inlineSvgIcon(CODEBUDDY_SVG);
 const SvgMuse = () => bgIcon(MUSE_DATA_URL);
+const SvgKiro = () => inlineSvgIcon(KIRO_SVG);
+const SvgMiniMax = () => inlineSvgIcon(MINIMAX_SVG);
 
 // Coffee 101 card icon — animated coffee mark (same as the brand mark
 // now portaled into the titlebar from Explorer.tsx): steam wave loops 3s, cup
@@ -464,6 +468,8 @@ const getToolIcon = (tool: ToolType): React.ReactNode => {
     case 'omp': return <SvgOmp />;
     case 'codebuddy': return <SvgCodeBuddy />;
     case 'muse': return <SvgMuse />;
+    case 'kiro': return <SvgKiro />;
+    case 'minimax': return <SvgMiniMax />;
     case 'remote':
     case 'terminal': return <TerminalIcon />;
     case 'two-split': return <SvgTwoSplit />;
@@ -485,7 +491,7 @@ export { getToolIcon };
 const VALID_PIN_KEYS = new Set<string>([
   'claude', 'opencode', 'mimocode', 'kilo', 'openclaw', 'codex', 'grok', 'antigravity', 'qwen', 'hermes', 'terminal',
   'pi', 'crush', 'aider', 'kimicode', 'goose', 'copilot', 'cursor', 'cline', 'omp',
-  'codebuddy', 'muse',
+  'codebuddy', 'muse', 'kiro', 'minimax',
   'installer', 'four-split', 'three-split', 'two-split',
 ]);
 
@@ -598,6 +604,8 @@ export function CenterPanel() {
     omp: <SvgOmp />,
     codebuddy: <SvgCodeBuddy />,
     muse: <SvgMuse />,
+    kiro: <SvgKiro />,
+    minimax: <SvgMiniMax />,
   };
 
   // Built-in AI CLI catalog. Fully local — no remote fetch. Display
@@ -607,7 +615,7 @@ export function CenterPanel() {
     'claude', 'opencode', 'mimocode', 'kilo', 'openclaw', 'codex', 'grok', 'antigravity', 'qwen', 'hermes',
     // Pi/Oh-My-Pi (T2), Kimi Code (T1), Antigravity/Crush/Aider/Goose/Copilot/Cursor/Cline (T3).
     'pi', 'crush', 'aider', 'kimicode', 'goose', 'copilot', 'cursor', 'cline', 'omp',
-    'codebuddy', 'muse',
+    'codebuddy', 'muse', 'kiro', 'minimax',
   ].map((key) => ({ key: key as ToolType, label: getToolDisplayName(key) }));
 
   // Unified agent catalog — fully local. The remote catalog fetch
@@ -1276,6 +1284,8 @@ export function CenterPanel() {
       case 'omp': return { icon, title: cwd ?? getToolDisplayName('omp'), tooltip: pathTip };
       case 'codebuddy': return { icon, title: cwd ?? getToolDisplayName('codebuddy'), tooltip: pathTip };
       case 'muse': return { icon, title: cwd ?? getToolDisplayName('muse'), tooltip: pathTip };
+      case 'kiro': return { icon, title: cwd ?? getToolDisplayName('kiro'), tooltip: pathTip };
+      case 'minimax': return { icon, title: cwd ?? getToolDisplayName('minimax'), tooltip: pathTip };
       case 'remote': {
         let title = t('tool.remote') as string;
         if (session.toolData) {

@@ -195,6 +195,8 @@ mod codebuddy;
 mod grok;
 pub mod hermes;
 mod kilo;
+mod kiro;
+mod minimax;
 mod mimocode;
 mod muse;
 mod openclaw;
@@ -254,6 +256,8 @@ pub static TOOLS: &[&ToolDescriptor] = &[
     // launchpad tile in CenterPanel's catalog.
     &codebuddy::DESCRIPTOR,
     &muse::DESCRIPTOR,
+    &kiro::DESCRIPTOR,
+    &minimax::DESCRIPTOR,
 ];
 
 /// Lookup by id. `None` if the id isn't registered. Used by legacy cleanup
