@@ -48,6 +48,10 @@
   transition: background 0.15s, color 0.15s, transform 0.18s ease;
 }
 
+.chrome-tab .tab-title {
+  /* Keep CJK fallback fonts and Latin titles in the same centered line box. */
+  line-height: 18px;
+}
 
 .chrome-tab:hover:not(.active) {
   background: var(--bg-hover);
@@ -834,7 +838,7 @@
   justify-content: center;
   border-radius: var(--radius-sm);
   flex-shrink: 0;
-  font-size: 22px;
+  font-size: 28px;
   color: var(--text-1);
 }
 

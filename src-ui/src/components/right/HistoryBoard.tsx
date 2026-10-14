@@ -21,6 +21,8 @@ import { useTextContextMenu } from '../../lib/use-text-context-menu';
 // can `?inline`-import them as data URIs and bypass the <img> async-decode
 // flash. We pull the same data URIs here so HistoryBoard doesn't need a
 // separate file copy on disk.
+import CLAUDE_DATA_URL from '../../icons-inline/claude.svg?inline';
+import MIMOCODE_DATA_URL from '../../icons-inline/mimocode.png?inline';
 import HERMES_DATA_URL from '../../icons-inline/hermes.png?inline';
 import OPENCODE_DATA_URL from '../../icons-inline/opencode.png?inline';
 // Kimi Code (PNG squircle) — fixed-color brand mark, ?inline data URI.
@@ -45,19 +47,19 @@ import OPENCLAW_SVG from '../../icons-inline/openclaw.svg?raw';
 import CODEBUDDY_SVG from '../../icons-inline/codebuddy.svg?raw';
 import './HistoryBoard.css';
 
-// Tool icons — claude/codex/qwen load via <img src=public/...>
+// Tool icons — codex/qwen load via <img src=public/...>
 // because HistoryBoard mounts once at app start and never re-mounts on tab
-// switch, so the one-time decode flash is invisible. Hermes/OpenCode are
-// PNG-inlined to share the same bytes the Launchpad uses (no duplicate files).
+// switch, so the one-time decode flash is invisible. Other imported assets
+// share the same bytes the Launchpad uses (no duplicate files).
 
 const TOOL_ICON_SRC: Record<string, string> = {
-  claude:      '/icons/tools/claude.svg',
+  claude:      CLAUDE_DATA_URL,
   codex:       '/icons/tools/codex.svg',
   qwen:        '/icons/tools/qwen.svg',
   hermes:      HERMES_DATA_URL,
   opencode:    OPENCODE_DATA_URL,
   kimicode:    KIMICODE_DATA_URL,
-  mimocode:    '/icons/tools/mimocode.svg',
+  mimocode:    MIMOCODE_DATA_URL,
   kilo:        '/icons/tools/kilo.svg',
 };
 

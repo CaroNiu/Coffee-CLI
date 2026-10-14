@@ -119,6 +119,8 @@ import './CenterPanel.css';
 // Launchpad re-mount, even with `decoding="sync"` + App-mount img.decode()
 // priming. See the comment block above OPENCODE_SVG below for the full
 // rationale and the history of failed attempts.
+import CLAUDE_SVG from '../../icons-inline/claude.svg?raw';
+import MIMOCODE_DATA_URL from '../../icons-inline/mimocode.png?inline';
 import HERMES_DATA_URL from '../../icons-inline/hermes.png?inline';
 import TERMINAL_MAC_DATA_URL from '../../icons-inline/terminal-macos.png?inline';
 import TERMINAL_LINUX_DATA_URL from '../../icons-inline/terminal-linux.png?inline';
@@ -184,7 +186,6 @@ const bgIcon = (dataUrl: string, size = '1em', extra: React.CSSProperties = {}) 
 // would collide between React renders if the same component mounted
 // twice — the shared module-level constants get stamped into the DOM
 // identically each time, and browsers scope gradient refs per-element.
-const CLAUDE_SVG    = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" width="100%" height="100%"><path clip-rule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z" fill="#D97757" fill-rule="evenodd"/></svg>';
 const CODEX_SVG     = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="100%" height="100%"><defs><linearGradient gradientUnits="userSpaceOnUse" id="codex-fill" x1="12" x2="12" y1="3" y2="21"><stop stop-color="#B1A7FF"/><stop offset=".5" stop-color="#7A9DFF"/><stop offset="1" stop-color="#3941FF"/></linearGradient></defs><path d="M19.503 0H4.496A4.496 4.496 0 000 4.496v15.007A4.496 4.496 0 004.496 24h15.007A4.496 4.496 0 0024 19.503V4.496A4.496 4.496 0 0019.503 0z" fill="#fff"/><path d="M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388zm3.482 10.565a.637.637 0 000 1.272h3.636a.637.637 0 100-1.272h-3.636zM8.462 9.23a.637.637 0 00-1.106.631l1.272 2.224-1.266 2.136a.636.636 0 101.095.649l1.454-2.455a.636.636 0 00.005-.64L8.462 9.23z" fill="url(#codex-fill)"/></svg>';
 // Antigravity brand mark — Lobe Icons set, 4-color ribbon under a mountain
 // mask. Inlined as a string so multiple Launchpad mounts share the same
@@ -207,11 +208,6 @@ const QWEN_SVG      = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 2
 // Markup lives in src/icons-inline/openclaw.svg and is imported ?raw above so
 // HistoryBoard can reuse the same bytes. Gradient IDs stay verbatim from the
 // source asset; browsers scope them per-<svg> so multiple mounts don't clash.
-
-// MiMo Code (Xiaomi's OpenCode fork) — official orange squircle mark, from
-// EchoBird's icons/tools/mimocode.svg. Inline SVG so it renders synchronously
-// (no flash on tab switch — same rationale as OPENCODE_SVG).
-const MIMOCODE_SVG  = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-200.008 -199.727 512 512" width="100%" height="100%"><path fill="#FF6900" d="M258.626-146.231c-48.304-48.118-117.759-53.496-202.634-53.496c-84.982,0-154.542,5.44-202.826,53.688c-48.277,48.228-53.174,117.676-53.174,202.561c0,84.899,4.897,154.368,53.194,202.613c48.281,48.255,117.833,53.139,202.806,53.139c84.974,0,154.514-4.884,202.795-53.139c48.294-48.254,53.205-117.714,53.205-202.613C311.992-28.472,307.028-97.995,258.626-146.231L258.626-146.231z"/><path fill="#FFFFFF" d="M204.546-41.122c1.759,0,3.223,1.417,3.223,3.161v189.386c0,1.715-1.464,3.139-3.223,3.139H163.05c-1.781,0-3.228-1.424-3.228-3.139V-37.961c0-1.743,1.446-3.161,3.228-3.161H204.546z M24.468-41.122c31.303,0,64.033,1.435,80.176,17.589c15.871,15.897,17.59,47.549,17.656,78.286v96.671c0,1.715-1.446,3.139-3.219,3.139h-41.49c-1.777,0-3.229-1.424-3.229-3.139V53.09c-0.044-17.167-1.031-34.81-9.884-43.692c-7.62-7.641-21.839-9.391-36.625-9.754h-75.21c-1.764,0-3.208,1.419-3.208,3.136v148.645c0,1.715-1.462,3.139-3.237,3.139h-41.516c-1.774,0-3.201-1.424-3.201-3.139V-37.961c0-1.743,1.426-3.161,3.201-3.161H24.468z M33.755,34.305c1.766,0,3.201,1.413,3.201,3.143v113.977c0,1.715-1.436,3.139-3.201,3.139H-9.829c-1.792,0-3.228-1.424-3.228-3.139V37.448c0-1.73,1.436-3.143,3.228-3.143H33.755z"/></svg>';
 
 const inlineSvgIcon = (markup: string, size = '1em', extra: React.CSSProperties = {}) => (
   <span
@@ -242,9 +238,9 @@ const SvgQwen      = () => inlineSvgIcon(QWEN_SVG);
 // trade-off (fixed flash-on-mount in WebView2) wasn't worth it; the inline
 // SVG with rounded outer rect matches the brand visually within a pixel or two.
 const SvgOpenCode  = () => inlineSvgIcon(OPENCODE_SVG);
-const SvgMimo      = () => inlineSvgIcon(MIMOCODE_SVG, '1em', { borderRadius: 'var(--radius-xs)', overflow: 'hidden' });
+const SvgMimo      = () => bgIcon(MIMOCODE_DATA_URL, '1em', { borderRadius: 'var(--radius-xs)' });
 // Kilo Code (OpenCode fork, `kilo` binary) — official square favicon mark
-// from kilo.ai. Hard-square art gets the same rounded crop as MiMo's mark.
+// from kilo.ai. Hard-square art gets a rounded crop.
 const SvgKilo      = () => inlineSvgIcon(KILO_SVG, '1em', { borderRadius: 'var(--radius-xs)', overflow: 'hidden' });
 const SvgOpenClaw  = () => inlineSvgIcon(OPENCLAW_SVG);
 const SvgCodex       = () => inlineSvgIcon(CODEX_SVG);
