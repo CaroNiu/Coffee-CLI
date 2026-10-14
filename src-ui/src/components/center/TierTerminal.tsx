@@ -39,6 +39,7 @@ import { markSentinelExit, markSentinelWorking } from '../../lib/agent-sentinel'
 import { usesSelfRenderedCaret } from '../../lib/chat-tools';
 import { onWindowForeground } from '../../lib/window-focus-filter';
 import { createTerminalSizeSync, DEFAULT_TERMINAL_GRID } from '../../lib/terminal-size-sync';
+import { IS_WINDOWS } from '../../lib/platform';
 import { commands } from '../../tauri';
 import { registerTerminalObserver } from '../../lib/terminal-observer';
 import { confirmTerminalAgentStatus, forwardTerminalInput, isTerminalSubmitInput, registerTerminalControl, setTerminalControlReady, submitTerminalPrompt, terminalControlStatus } from '../../lib/terminal-control';
@@ -1090,8 +1091,9 @@ function TierTerminalImpl({
     //   • alt-screen + mouse mode  → return true → xterm forwards wheel→mouse
     //                                to the app (Claude/Codex capture the mouse
     //                                and do their own scrolling / Ctrl+T).
-    //   • alt-screen + NO mouse    → emit Up/Down arrows so the TUI navigates,
-    //                                then return false to swallow the no-op.
+    //   • Windows agent + NO mouse → forward SGR wheel reports (ConPTY fix).
+    //   • other alt-screen + NO mouse → emit Up/Down arrows so the TUI navigates,
+    //                                   then return false to swallow the no-op.
     term.attachCustomWheelEventHandler((e) => {
       try {
         const inAltScreen = term.buffer.active.type === 'alternate';
@@ -1109,6 +1111,23 @@ function TierTerminalImpl({
           e.deltaMode === 2 ? Math.abs(e.deltaY) :                  // pages
           Math.abs(e.deltaY) / 100;                                // pixels
         const lines = Math.max(1, Math.min(Math.round(notches * 3), 9));
+
+        // ConPTY drops these agents' mouse-enable sequences. Their full-screen
+        // views expect SGR wheel reports; arrows recall prompts instead. Keep
+        // the workaround wheel-only so shell selection and other TUIs retain
+        // their existing behavior. xterm's parsed buffer handles split output.
+        if (IS_WINDOWS && (tool === 'pi' || tool === 'omp' || tool === 'claude')) {
+          const screen = term.element?.querySelector('.xterm-screen')?.getBoundingClientRect();
+          if (screen && screen.width > 0 && screen.height > 0) {
+            const col = Math.max(1, Math.min(term.cols, Math.floor((e.clientX - screen.left) * term.cols / screen.width) + 1));
+            const row = Math.max(1, Math.min(term.rows, Math.floor((e.clientY - screen.top) * term.rows / screen.height) + 1));
+            const button = (e.deltaY > 0 ? 65 : 64) + (e.shiftKey ? 4 : 0) + (e.altKey ? 8 : 0) + (e.ctrlKey ? 16 : 0);
+            const reports = Math.max(1, Math.min(Math.round(notches), 9));
+            forwardTerminalInput(sessionId, `\x1b[<${button};${col};${row}M`.repeat(reports)).catch(() => {});
+            e.preventDefault();
+            return false;
+          }
+        }
 
         // App-cursor-keys mode (DECCKM) decides SS3 (ESC O) vs CSI (ESC [);
         // most TUIs accept either, but honor it when xterm exposes it.
