@@ -27,14 +27,12 @@ import HERMES_DATA_URL from '../../icons-inline/hermes.png?inline';
 import OPENCODE_DATA_URL from '../../icons-inline/opencode.png?inline';
 // Kimi Code (PNG squircle) — fixed-color brand mark, ?inline data URI.
 import KIMICODE_DATA_URL from '../../icons-inline/kimicode.png?inline';
-// Pi is a MONOCHROME currentColor mark (its <style> sets fill: currentColor),
-// so it must render as an INLINE SVG (not an <img>) to inherit the surrounding
-// text color — otherwise currentColor resolves to black and the mark is
-// invisible on dark themes. CenterPanel does the same (?raw + inlineSvgIcon).
+// Pi is a fixed-color brand mark, rendered as an INLINE SVG so it shares the
+// synchronous rendering path used by CenterPanel (?raw + inlineSvgIcon).
 import PI_SVG from '../../icons-inline/pi.svg?raw';
 import OMP_SVG from '../../icons-inline/omp.svg?raw';
-// Grok Build - same monochrome currentColor mark treatment as Pi: inline SVG
-// so it inherits the surrounding text color across light/dark themes.
+// Grok Build - monochrome currentColor mark rendered inline so it inherits
+// the surrounding text color across light/dark themes.
 import GROK_SVG from '../../icons-inline/grok.svg?raw';
 // OpenClaw (lobster mascot) — full-color brand mark (red gradient + teal
 // eyes), NOT currentColor, so it renders as an INLINE SVG rather than <img>;
@@ -64,12 +62,9 @@ const TOOL_ICON_SRC: Record<string, string> = {
 };
 
 const getToolIcon = (tool: string) => {
-  // Pi is a monochrome currentColor mark — render it as an INLINE SVG so it
-  // inherits the surrounding text color (theme-adaptive, matching the
-  // launchpad's inlineSvgIcon treatment). An <img> would isolate the SVG and
-  // resolve currentColor to black — invisible on dark themes (issue: "会话记录
-  // 列表 Pi 图标一直是黑色看不清"). The other tools are fixed-color brand
-  // marks (logo orange, codex gradient, kimi squircle…) and stay <img>.
+  // Pi is a fixed-color brand mark. Keep it inline so it shares the
+  // synchronous rendering path used by the launchpad; other fixed-color
+  // brand marks stay <img>.
   if (tool === 'pi' || tool === 'grok' || tool === 'omp') {
     const svg = tool === 'pi' ? PI_SVG : tool === 'omp' ? OMP_SVG : GROK_SVG;
     return (

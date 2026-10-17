@@ -248,8 +248,8 @@ const SvgAntigravity = () => inlineSvgIcon(ANTIGRAVITY_SVG);
 // PNG-backed icons render via CSS background-image with data-URI sources
 // (see bgIcon). Hermes uses `cover` to fill the rounded square.
 const SvgHermes      = () => bgIcon(HERMES_DATA_URL, '1em', { borderRadius: 'var(--radius-xs)', backgroundSize: 'cover' });
-// Additional tool icons. Monochrome marks (Pi, Copilot) are inline SVG
-// using currentColor so they follow the theme; raster brand marks render via bgIcon.
+// Additional tool icons. Pi and Copilot are inline SVG brand marks; raster
+// brand marks render via bgIcon.
 const SvgPi        = () => inlineSvgIcon(PI_SVG);
 const SvgCopilot   = () => inlineSvgIcon(COPILOT_SVG);
 const SvgGrok       = () => inlineSvgIcon(GROK_SVG);
