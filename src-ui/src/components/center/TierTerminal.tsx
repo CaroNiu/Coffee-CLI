@@ -729,19 +729,22 @@ function TierTerminalImpl({
         const screenEl = termRef.current.querySelector('.xterm-screen') as HTMLElement | null;
         if (imeTextarea && screenEl) {
           const freeze = () => {
-            // Calculate the correct buffer cursor position at composition start,
-            // rather than trusting the current textarea position (which may have
-            // been dragged to an animation position by xterm's updateCompositionElements).
-            const cellW = term.cols > 0 ? screenEl.clientWidth / term.cols : 8;
-            const cellH = term.rows > 0 ? screenEl.clientHeight / term.rows : 17;
-            const cx = Math.min(term.buffer.active.cursorX, term.cols - 1);
-            const cy = term.buffer.active.cursorY;
-            const left = `${cx * cellW}px`;
-            const top = `${cy * cellH}px`;
-            imeFrozenRef.current = { left, top };
-            // Snap textarea to the correct position immediately
-            imeTextarea.style.left = left;
-            imeTextarea.style.top = top;
+            // Backport of xterm PR #5759 (upstream issue #5734, fixed for 7.0.0):
+            // xterm 6.0.0 repositions the helper textarea only after a full parse,
+            // so a prompt-style TUI (Claude Code et al.) that draws placeholder
+            // text and restores the cursor within one render tick can leave the
+            // IME anchored at a stale mid-parse position when composition starts.
+            // We run in capture phase, so isComposing is still false here; force
+            // xterm's own _syncTextArea to re-anchor now with its accurate
+            // css.cell metrics + wide-char width (the old clientWidth/cols math
+            // drifted right as cursorX grew).
+            (term as unknown as { _syncTextArea?: () => void })._syncTextArea?.();
+            // Freeze the now-accurate position so the onRender / onCursorMove
+            // overrides below hold it against xterm's async composition updates.
+            imeFrozenRef.current = {
+              left: imeTextarea.style.left,
+              top: imeTextarea.style.top,
+            };
           };
           const unfreeze = () => { imeFrozenRef.current = null; };
           imeTextarea.addEventListener('compositionstart', freeze, { capture: true });
@@ -2159,14 +2162,12 @@ function TierTerminalImpl({
             if (imeFrozenRef.current) return;
             const term = xtermRef.current;
             const textarea = termRef.current?.querySelector('.xterm-helper-textarea') as HTMLTextAreaElement | null;
-            const screenEl = termRef.current?.querySelector('.xterm-screen') as HTMLElement | null;
-            if (term && textarea && screenEl) {
-              const cellW = term.cols > 0 ? screenEl.clientWidth / term.cols : 8;
-              const cellH = term.rows > 0 ? screenEl.clientHeight / term.rows : 17;
-              const cx = Math.min(term.buffer.active.cursorX, term.cols - 1);
-              const cy = term.buffer.active.cursorY;
-              textarea.style.left = `${cx * cellW}px`;
-              textarea.style.top = `${cy * cellH}px`;
+            if (term && textarea) {
+              // Re-anchor with xterm's own accurate _syncTextArea (the same
+              // backport as the compositionstart freeze above) instead of the
+              // old clientWidth/cols approximation that drifted right as
+              // cursorX grew.
+              (term as unknown as { _syncTextArea?: () => void })._syncTextArea?.();
             }
           }
         }}
