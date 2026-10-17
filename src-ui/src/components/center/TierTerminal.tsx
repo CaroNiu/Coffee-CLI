@@ -401,6 +401,11 @@ function TierTerminalImpl({
   // composition (Windows) — see the compositionstart/end wiring in the
   // init effect. Null when no composition is active.
   const imeFrozenRef = useRef<{ left: string; top: string } | null>(null);
+  // Last non-parked textarea position (Windows IME): the TUI sometimes parks the
+  // buffer cursor at the right edge after a backspace; freeze() falls back to
+  // this when it detects the cursor parked. Populated by the onCursorMove tracker
+  // in the init effect.
+  const imeLastGoodRef = useRef<{ left: string; top: string } | null>(null);
   const wrapRef  = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   type TerminalSizeSync = ReturnType<typeof createTerminalSizeSync>;
@@ -719,64 +724,109 @@ function TierTerminalImpl({
       //
       // Freeze during composition: a TUI redraws on every keystroke and its
       // buffer cursor can hop between the input box and the output region
-      // mid-composition; xterm's own _syncTextArea drags the helper textarea
+      // mid-composition; xterm's updateCompositionElements drags the helper textarea
       // (and the IME candidate window with it) along every hop — the "jumpy
       // candidate" users feel as 乱跳. We pin the textarea at compositionstart
       // and hold it until compositionend, so the candidate stays put for the
       // whole word/phrase. Clicks still re-anchor between compositions.
       if (!__IS_LINUX__ && navigator.userAgent.toLowerCase().includes('win')) {
         const imeTextarea = termRef.current.querySelector('.xterm-helper-textarea') as HTMLTextAreaElement | null;
-        const screenEl = termRef.current.querySelector('.xterm-screen') as HTMLElement | null;
-        if (imeTextarea && screenEl) {
+        if (imeTextarea) {
           const freeze = () => {
-            // Backport of xterm PR #5759 (upstream issue #5734, fixed for 7.0.0):
-            // xterm 6.0.0 repositions the helper textarea only after a full parse,
-            // so a prompt-style TUI (Claude Code et al.) that draws placeholder
-            // text and restores the cursor within one render tick can leave the
-            // IME anchored at a stale mid-parse position when composition starts.
-            // We run in capture phase, so isComposing is still false here; force
-            // xterm's own _syncTextArea to re-anchor now with its accurate
-            // css.cell metrics + wide-char width (the old clientWidth/cols math
-            // drifted right as cursorX grew).
-            (term as unknown as { _syncTextArea?: () => void })._syncTextArea?.();
-            // Freeze the now-accurate position so the onRender / onCursorMove
-            // overrides below hold it against xterm's async composition updates.
+            // Backport of xterm PR #5759 (upstream issue #5734): re-anchor at
+            // compositionstart so the IME uses the latest cursor, not a stale
+            // mid-parse position. But some TUIs park the buffer cursor at the
+            // right edge after a backspace; anchoring there parks the candidate
+            // window too. When the cursor looks parked (right edge), restore the
+            // last non-parked position tracked by onCursorMove below instead.
+            const b = term.buffer.active;
+            // Parked = the real cursor is NOT at the input box: at the right edge
+            // OR outside the bottom rows. Claude Code (Ink) hides the real cursor
+            // and parks it mid-render while the input box lives at the bottom.
+            const parked = b.cursorX >= term.cols - 4 || b.cursorY < term.rows - 3;
+            if (parked && imeLastGoodRef.current) {
+              imeTextarea.style.left = imeLastGoodRef.current.left;
+              imeTextarea.style.top = imeLastGoodRef.current.top;
+            } else {
+              (term as unknown as { _syncTextArea?: () => void })._syncTextArea?.();
+              // Remember this non-parked position as the last good anchor, so a
+              // later parked composition (Claude Code after backspace) can fall
+              // back to it. The onCursorMove tracker alone missed this because
+              // Claude Code never re-moves the cursor to the input box via CSI.
+              imeLastGoodRef.current = {
+                left: imeTextarea.style.left,
+                top: imeTextarea.style.top,
+              };
+            }
             imeFrozenRef.current = {
               left: imeTextarea.style.left,
               top: imeTextarea.style.top,
             };
           };
           const unfreeze = () => { imeFrozenRef.current = null; };
+          // Clear the leftover textarea value after composition ends, so the next
+          // composition's caret isn't offset by stale pinyin (valueLen in the old
+          // diagnostic was 7). Must run AFTER xterm's _finalizeComposition reads
+          // the value to send the commit — xterm does that read in its own
+          // setTimeout(0) scheduled from its bubble-phase compositionend, so we
+          // schedule ours from a bubble-phase listener registered after xterm's,
+          // making our setTimeout(0) fire second.
+          const clearLeftover = () => {
+            setTimeout(() => {
+              if (!imeFrozenRef.current) {
+                imeTextarea.value = '';
+              }
+            }, 0);
+          };
           imeTextarea.addEventListener('compositionstart', freeze, { capture: true });
           imeTextarea.addEventListener('compositionend', unfreeze, { capture: true });
+          imeTextarea.addEventListener('compositionend', clearLeftover);
           unlisteners.push(() => {
             imeTextarea.removeEventListener('compositionstart', freeze, { capture: true });
             imeTextarea.removeEventListener('compositionend', unfreeze, { capture: true });
+            imeTextarea.removeEventListener('compositionend', clearLeftover);
           });
-          // xterm's internal _syncTextArea runs off its own cursor-move
-          // listener (registered at open, before ours), so writing the frozen
-          // spot back here wins within the same synchronous dispatch — no
-          // intermediate paint, no visible jitter.
-          const cursorMoveListener = term.onCursorMove(() => {
+          // Track the last non-parked textarea position (see freeze()): xterm's
+          // _syncTextArea runs on cursor move before this listener, so the textarea
+          // is already at the cursor here; snapshot it when NOT parked at the edge.
+          const trackCursor = term.onCursorMove(() => {
+            const cb = term.buffer.active;
+            if (cb.cursorX < term.cols - 4 && cb.cursorY >= term.rows - 3) {
+              imeLastGoodRef.current = {
+                left: imeTextarea.style.left,
+                top: imeTextarea.style.top,
+              };
+            }
+          });
+          unlisteners.push(() => trackCursor.dispose());
+          // During composition xterm's _syncTextArea is a no-op (its isComposing
+          // guard), so cursor moves don't drag the textarea. The only thing that
+          // moves it is CompositionHelper.updateCompositionElements, which runs on
+          // onRender and has a setTimeout async tail. Override onRender to hold
+          // the frozen spot against both the sync and async updates.
+          const reapplyFrozen = () => {
             const f = imeFrozenRef.current;
             if (f) {
               imeTextarea.style.left = f.left;
               imeTextarea.style.top = f.top;
             }
-          });
-          unlisteners.push(() => cursorMoveListener.dispose());
-          // CRITICAL: Windows CompositionHelper.updateCompositionElements runs
-          // in onRender (not just onCursorMove), and has a setTimeout async tail
-          // that moves textarea AFTER our synchronous onCursorMove override. We must
-          // also override in onRender to catch both the sync and async updates.
-          const renderListener = term.onRender(() => {
-            const f = imeFrozenRef.current;
-            if (f) {
-              imeTextarea.style.left = f.left;
-              imeTextarea.style.top = f.top;
-            }
-          });
+          };
+          const renderListener = term.onRender(() => reapplyFrozen());
           unlisteners.push(() => renderListener.dispose());
+          // updateCompositionElements also runs SYNCHRONOUSLY on every
+          // compositionupdate (before onRender) and has a setTimeout(0) tail that
+          // runs after onRender — both drag the textarea back to the parked buffer
+          // cursor. Re-apply the frozen spot synchronously (to win the sync race)
+          // and again in a setTimeout(0) scheduled after xterm's tail (bubble
+          // listener registered later) to win the async race.
+          const onCompositionUpdate = () => {
+            reapplyFrozen();
+            setTimeout(reapplyFrozen, 0);
+          };
+          imeTextarea.addEventListener('compositionupdate', onCompositionUpdate);
+          unlisteners.push(() => {
+            imeTextarea.removeEventListener('compositionupdate', onCompositionUpdate);
+          });
         }
       }
 
