@@ -28,6 +28,19 @@ and `git tag --list "v*"`.
   hidden only for verified TUIs that draw their own caret; unknown and future
   tools default to a visible static cursor. (#145)
 
+## [3.6.5] — 2026-10-19
+
+### Fixed
+- **Character Flow responds to every tab switch.** Switching between existing
+  tool tabs immediately restarts the ripple, even after rendering load has
+  paused the ambient animation. Background pausing and frame limits remain.
+
+### Changed
+- **Language-aware messaging defaults.** Simplified and Traditional Chinese
+  default to WeChat; other interface languages default to Telegram in the
+  disconnected sidebar prompt and initial channel selection. Connected channels
+  retain their actual status, and manual channel selections are preserved.
+
 ## [3.6.4] — 2026-10-18
 
 ### Added

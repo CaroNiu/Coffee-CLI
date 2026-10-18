@@ -1,64 +1,49 @@
 <details open>
 <summary><b>🇨🇳 简体中文</b></summary>
 
-### Coffee CLI v3.6.4 · 字符流与标签互动
+### Coffee CLI v3.6.5 · 更顺畅的字符流互动
 
-- **全新字符流外观。** 在「设置 → 外观 → 形态 → 字符流」中开启，让随主题配色变化的字符在背景中流动。
-- **切换标签，背景回应。** 在终端、Coffee Agent、消息设置和 Diff 标签之间切换时，流场随之变化，波纹从目标标签的位置轻轻扩散。
-- **好看，也照顾性能。** 复用同一张画布，限制帧率和分辨率；窗口失焦或隐藏时暂停，闲置后静止，卡顿时自动退避，并遵循系统减少动态效果和高对比度设置。
-- **形态名称完成本地化。** 全部 11 种界面语言都支持形态名称翻译，中文 Monogram 现显示为「老花纹」。
-- **Pi 图标更饱满。** 去掉外围透明留白，保留原有三色图案，标签页和工具列表中的图标不再显小。
+- **每次切换标签，字符流都会回应。** 修复在已有工具标签之间切换时，互动可能被卡顿退避暂停的问题；无需先打开新标签，切换即可重新触发波纹，同时保留后台暂停和帧率限制。
+- **消息渠道默认值更贴近语言习惯。** 简体、繁体中文默认微信，其他界面语言默认 Telegram，左下角未连接提示与设置页初始选择保持一致。已连接时显示真实渠道状态，并保留手动选择。
 
 </details>
 
 <details>
 <summary><b>🇬🇧 English</b></summary>
 
-### Coffee CLI v3.6.4 · Character Flow and Interactive Tabs
+### Coffee CLI v3.6.5 · Smoother Character Flow Interaction
 
-- **A new Character Flow appearance.** Enable it in Settings → Appearance → Shape for drifting background glyphs that follow your theme colors.
-- **The background responds to tab switches.** Switching terminal, Coffee Agent, message settings, or Diff tabs changes the flow and sends a subtle ripple from the selected tab.
-- **Designed to stay light.** Reuse one canvas, cap frame rate and resolution, pause when hidden or unfocused, settle when idle, and back off under rendering load. Reduced-motion and high-contrast preferences are respected.
-- **Shape names in all 11 interface languages.** Appearance options now follow the selected language, including localized Monogram and Character Flow names.
-- **A fuller Pi icon.** Remove transparent outer padding while retaining the three-color mark, improving its size in tabs and tool lists.
+- **Character Flow responds to every tab switch.** Switching between existing tool tabs now restarts the ripple immediately, even after rendering load has paused the ambient animation. Opening a new tab first is no longer needed. Background pausing and frame limits remain.
+- **Messaging defaults follow your interface language.** Simplified and Traditional Chinese default to WeChat; other languages default to Telegram in the disconnected sidebar prompt and initial channel selection. Connected channels retain their actual status, and manual selections are preserved.
 
 </details>
 
 <details>
 <summary><b>🇹🇼 繁體中文</b></summary>
 
-### Coffee CLI v3.6.4 · 字元流與分頁互動
+### Coffee CLI v3.6.5 · 更順暢的字元流互動
 
-- **全新字元流外觀。** 在「設定 → 外觀 → 形態 → 字元流」中開啟，讓隨主題配色變化的字元在背景中流動。
-- **切換分頁，背景回應。** 在終端機、Coffee Agent、訊息設定和 Diff 分頁之間切換時，流場隨之變化，波紋從目標分頁的位置輕輕擴散。
-- **兼顧視覺與效能。** 重複使用同一張畫布，限制影格率與解析度；視窗失焦或隱藏時暫停，閒置後靜止，卡頓時自動退避，並遵循系統減少動態效果和高對比設定。
-- **形態名稱完成在地化。** 全部 11 種介面語言都支援形態名稱翻譯，中文 Monogram 現顯示為「老花紋」。
-- **Pi 圖示更飽滿。** 去掉外圍透明留白，保留原有三色圖案，分頁和工具清單中的圖示不再顯小。
+- **每次切換分頁，字元流都會回應。** 修正在既有工具分頁之間切換時，互動可能因效能退避而暫停的問題；不必先開啟新分頁，切換即可重新觸發波紋，同時保留背景暫停與影格率限制。
+- **訊息管道預設值更貼近語言習慣。** 簡體、繁體中文預設微信，其他介面語言預設 Telegram，左下角未連線提示與設定頁初始選擇保持一致。已連線時顯示實際管道狀態，並保留手動選擇。
 
 </details>
 
 <details>
 <summary><b>🇯🇵 日本語</b></summary>
 
-### Coffee CLI v3.6.4 · 文字の流れとタブの連動
+### Coffee CLI v3.6.5 · よりスムーズな文字の流れ
 
-- **新しい「文字の流れ」スタイル。** 設定の外観・形状から有効にすると、テーマカラーに合わせた文字が背景を流れます。
-- **タブの切り替えに背景が反応。** ターミナル、Coffee Agent、メッセージ設定、Diff のタブを切り替えると流れが変わり、選択したタブの位置から小さな波紋が広がります。
-- **描画負荷にも配慮。** 1 枚のキャンバスを再利用し、フレームレートと解像度を制限。非表示・非アクティブ時は一時停止し、アイドル時は静止、負荷が高い場合は描画間隔を延長します。動きを減らす設定と高コントラスト設定にも対応します。
-- **形状名を 11 言語に翻訳。** Monogram や文字の流れを含む外観オプションが、選択した言語で表示されます。
-- **Pi アイコンの余白を修正。** 3 色のマークを維持したまま透明な外周余白を取り除き、タブやツール一覧で見やすい大きさにしました。
+- **タブを切り替えるたびに背景が反応。** 描画負荷によって背景アニメーションが一時停止した後でも、既存のツールタブ間の切り替えで波紋がすぐに再開します。先に新しいタブを開く必要はありません。バックグラウンドでの一時停止とフレームレート制限は維持します。
+- **メッセージ連携の初期値が表示言語に対応。** 簡体字・繁体字中国語では WeChat、その他の言語では Telegram を、未接続時のサイドバー表示と設定画面の初期選択に使用します。接続済みの連携先は実際の状態を表示し、手動選択も保持します。
 
 </details>
 
 <details>
 <summary><b>🇰🇷 한국어</b></summary>
 
-### Coffee CLI v3.6.4 · 문자 흐름과 탭 상호작용
+### Coffee CLI v3.6.5 · 더 부드러운 문자 흐름 상호작용
 
-- **새로운 문자 흐름 스타일.** 설정의 외관·형태에서 활성화하면 테마 색상에 맞춘 문자가 배경에서 흐릅니다.
-- **탭 전환에 반응하는 배경.** 터미널, Coffee Agent, 메시지 설정, Diff 탭을 전환하면 흐름이 바뀌고 선택한 탭 위치에서 잔잔한 파동이 퍼집니다.
-- **성능도 고려했습니다.** 하나의 캔버스를 재사용하고 프레임 속도와 해상도를 제한합니다. 창이 숨겨지거나 비활성화되면 일시 중지하고, 유휴 상태에서는 정지하며, 렌더링 부하가 높으면 간격을 늘립니다. 동작 줄이기와 고대비 설정도 따릅니다.
-- **11개 언어로 형태 이름 번역.** 모노그램과 문자 흐름을 포함한 외관 옵션이 선택한 언어로 표시됩니다.
-- **더 선명한 Pi 아이콘.** 기존 3색 마크를 유지하면서 바깥쪽 투명 여백을 제거해 탭과 도구 목록에서 더 크게 보입니다.
+- **탭을 전환할 때마다 배경이 반응합니다.** 렌더링 부하로 배경 애니메이션이 일시 중지된 뒤에도 기존 도구 탭 사이를 전환하면 파동이 즉시 다시 시작됩니다. 먼저 새 탭을 열 필요가 없습니다. 백그라운드 일시 중지와 프레임 속도 제한은 유지됩니다.
+- **메시지 채널 기본값이 인터페이스 언어를 따릅니다.** 중국어 간체·번체는 WeChat, 다른 언어는 Telegram을 미연결 사이드바 안내와 설정 화면의 초기 선택으로 사용합니다. 연결된 채널은 실제 상태를 표시하고 수동 선택도 유지합니다.
 
 </details>
