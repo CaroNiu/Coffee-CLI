@@ -15,7 +15,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
   
   <!-- External CSS -->
-  <link rel="stylesheet" href="./css/style.css?v=0.4.6">
+  <link rel="stylesheet" href="./css/style.css?v=0.4.7">
 </head>
 <body>
 
@@ -209,68 +209,11 @@
   <!-- Demo Showcase Section -->
   <section class="demo-section">
     <div class="demo-wrapper">
-
       <div class="demo-screen">
         <div class="demo-screen-inner">
-          <img id="demo-gif" src="demo/wallpaper.jpg" alt="Coffee CLI demo" />
-          <div class="demo-loading" id="demo-loading">
-            <svg class="demo-loading-logo" width="48" height="48" viewBox="0 0 24 24" overflow="visible" xmlns="http://www.w3.org/2000/svg">
-              <defs><mask id="demoLoadMask"><path fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 -8c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4M12 -8c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4M16 -8c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4"><animate attributeName="d" dur="3s" repeatCount="indefinite" values="M8 0c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4M12 0c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4M16 0c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4;M8 -8c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4M12 -8c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4M16 -8c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4"/></path><path d="M4 7h16v0h-16v12h16v-32h-16Z"><animate fill="freeze" attributeName="d" begin="1s" dur="0.6s" to="M4 2h16v5h-16v12h16v-24h-16Z"/></path></mask></defs><g stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path fill="currentColor" fill-opacity="0" stroke-dasharray="48" d="M17 9v9c0 1.66 -1.34 3 -3 3h-6c-1.66 0 -3 -1.34 -3 -3v-9Z"><animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="48;0"/><animate fill="freeze" attributeName="fill-opacity" begin="1.6s" dur="0.4s" to="1"/></path><path fill="none" stroke-dasharray="16" stroke-dashoffset="16" d="M17 9h3c0.55 0 1 0.45 1 1v3c0 0.55 -0.45 1 -1 1h-3"><animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.3s" to="0"/></path></g><path fill="currentColor" d="M0 0h24v24H0z" mask="url(#demoLoadMask)"/>
-            </svg>
-          </div>
+          <img id="demo-gif" src="demo/hero.gif" alt="Coffee CLI demo" width="1080" height="604" loading="lazy" />
         </div>
       </div>
-
-      <div class="demo-meta">
-        <p class="demo-title" id="demo-title">Custom Wallpapers</p>
-        <p class="demo-desc" id="demo-desc">Make Coffee CLI yours. Drop in any image or animated video as your background — your workspace, your vibe.</p>
-      </div>
-
-      <div class="demo-tabs">
-        <button class="demo-tab" data-index="0"
-          data-gif="demo/theme-switching.gif"
-          data-title="Theme Switching"
-          data-desc="Switch between built-in themes instantly. The entire interface — including your active terminal session — updates live. No restart, no flicker.">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
-          <span>Themes</span>
-        </button>
-        <button class="demo-tab" data-index="1"
-          data-gif="demo/task-board.gif"
-          data-title="Task Board"
-          data-desc="Keep track of everything your agent is doing. Organize work into To-Do, In Progress, and Done — right in the sidebar, while the agent runs.">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-          <span>Task Board</span>
-        </button>
-        <button class="demo-tab" data-index="2"
-          data-gif="demo/session-history.gif"
-          data-title="Session History"
-          data-desc="Every agent session is automatically saved. Scroll back, search, and resume any past conversation exactly where you left off.">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
-          <span>History</span>
-        </button>
-        <button class="demo-tab" data-index="3"
-          data-gif="demo/multi-tab.gif"
-          data-title="Multi-Tab Sessions"
-          data-desc="Run multiple agents and terminals in parallel, each fully isolated. Vibe-code in one tab, run a game in another — zero interference.">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-          <span>Multi-Tab</span>
-        </button>
-        <button class="demo-tab" data-index="4"
-          data-gif="demo/multilingual.png"
-          data-title="11 Languages"
-          data-desc="Coffee CLI speaks your language — literally. Switch the entire interface to English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский, or Tiếng Việt. No English required.">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
-          <span>Languages</span>
-        </button>
-        <button class="demo-tab" data-index="5"
-          data-gif="demo/wallpaper.gif"
-          data-title="Custom Wallpapers"
-          data-desc="Make Coffee CLI yours. Drop in any image or animated video as your background — your workspace, your vibe.">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
-          <span>Wallpaper</span>
-        </button>
-      </div>
-
     </div>
   </section>
 
@@ -297,6 +240,6 @@
     </div>
   </footer>
 
-  <script src="./js/main.js?v=0.9.9"></script>
+  <script src="./js/main.js?v=0.9.10"></script>
 </body>
 </html>
