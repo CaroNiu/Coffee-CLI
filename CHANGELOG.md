@@ -28,6 +28,25 @@ and `git tag --list "v*"`.
   hidden only for verified TUIs that draw their own caret; unknown and future
   tools default to a visible static cursor. (#145)
 
+## [3.6.4] — 2026-10-18
+
+### Added
+- **Interactive Character Flow appearance.** Choose Character Flow in Settings
+  → Appearance → Shape for a theme-colored, drifting glyph background. Switching
+  terminal, Coffee Agent, message settings, or Diff tabs changes the flow and
+  sends a subtle ripple from the selected tab while reusing the same renderer.
+- **Low-power animation scheduling.** Pause while the window is hidden or
+  unfocused, settle when idle, bound resolution and frame rate, and back off
+  when rendering slows down. Respect reduced-motion and high-contrast settings.
+
+### Changed
+- **Localized shape names in all 11 interface languages.** Chinese appearance
+  settings now include “老花纹” for Monogram and “字符流” for Character Flow.
+
+### Fixed
+- **Pi icon sizing.** Remove transparent outer padding so the existing
+  three-color mark fills its icon slot consistently in tabs and tool lists.
+
 ## [3.6.1] — 2026-10-14
 
 Coffee CLI continues its AI + mobile message gateway workflow: talk to Coffee

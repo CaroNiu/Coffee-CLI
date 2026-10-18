@@ -59,6 +59,8 @@ jobs:
           node scripts/run-tab-drag-test.mjs
           node scripts/run-agent-client-test.mjs
           node scripts/run-agent-i18n-test.mjs
+          node scripts/run-character-background-test.mjs
+          node scripts/run-character-tab-interaction-test.mjs
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
