@@ -140,7 +140,9 @@ await test('pauses on blur and hide, resumes without rebuilding or jumping time'
   const f = fixture();
   f.advance(1000);
   const count = f.draws, time = f.time;
-  f.focus(false); f.advance(600_000);
+  f.focus(false);
+  f.renderer.select('background-tool', { x: 0.4, y: 0.03 });
+  f.advance(600_000);
   assert.equal(f.draws, count); assert.equal(f.timers.size, 0);
   f.focus(true); f.advance(1000);
   assert.ok(f.draws > count && f.time - time < 2);
@@ -198,6 +200,31 @@ for (const mode of ['gpu', 'slow', 'late']) await test(`backs off ${mode} frames
   f.advance(5000); assert.equal(f.draws, count);
   f.lag(null); f.advance(60_000);
   assert.ok(f.draws > count); assert.equal(f.programs, 1);
+  f.renderer.dispose();
+});
+
+for (const mode of ['gpu', 'slow', 'late']) await test(`every existing tool tab switch interrupts ${mode} backoff`, () => {
+  const f = fixture();
+  f.advance(1000); f.lag(mode); f.advance(5000);
+  f.lag(null);
+  const count = f.draws;
+  f.win.dispatchEvent(new Event('pointermove'));
+  f.win.dispatchEvent(new Event('keydown'));
+  f.advance(1000);
+  assert.equal(f.draws, count, 'ordinary activity must preserve performance backoff');
+  let previousSeed;
+  for (const [id, x] of [['codex-session', 0.25], ['claude-session', 0.45], ['codex-session', 0.25]]) {
+    const before = f.draws;
+    f.renderer.select(id, { x, y: 0.03 }); f.advance(100);
+    assert.ok(f.draws > before, 'a tab switch must produce feedback immediately, including returning to an old tab');
+    assert.deepEqual(Array.from(f.uniforms.u_origin), [x, 0.03]);
+    assert.ok(f.uniforms.u_age < 0.2);
+    assert.notEqual(f.uniforms.u_glyphSeed, previousSeed);
+    previousSeed = f.uniforms.u_glyphSeed;
+    // A busy tool may cause another backoff before the next switch.
+    f.lag(mode); f.advance(5000); f.lag(null);
+  }
+  assert.equal(f.programs, 1); assert.equal(f.textures, 1);
   f.renderer.dispose();
 });
 

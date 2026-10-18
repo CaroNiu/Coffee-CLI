@@ -422,6 +422,14 @@ export function createCharacterRenderer(canvas: HTMLCanvasElement): CharacterRen
         targetSeed = ((hash >>> 0) % 9700) / 2425;
         origin = position;
         selectedAt = time;
+        // Explicit tab feedback must not wait for the ambient animation's retry.
+        if (retryAt) {
+          retryAt = 0;
+          cancel();
+          lastTick = performance.now();
+        }
+        faults = slowFrames = gpuLate = 0;
+        lateFrames = [];
         wake();
       },
       dispose: release,

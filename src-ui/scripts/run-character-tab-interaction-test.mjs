@@ -63,7 +63,7 @@ const mockReact = {
 const preferences = new Map();
 const bounds = { left: 10, top: 20, width: 1000, height: 600 };
 const host = { appendChild: canvas => attached.push(canvas), getBoundingClientRect: () => bounds };
-const tabs = ['terminal:a', 'terminal:b', 'agent:agent', 'agent:config', 'diff'].map((id, index) => ({
+const tabs = ['terminal:a', 'terminal:b', 'agent:agent', 'agent:config', 'diff', 'terminal:blank'].map((id, index) => ({
   dataset: { tabId: id }, visible: true,
   rect: { left: 210 + index * 150, top: 60, width: 100, height: 40 },
   getClientRects() { return this.visible ? [this.rect] : []; },
@@ -96,7 +96,8 @@ runInNewContext(compiled.outputFiles[0].text, context);
 const { CharacterBackground, selectedTabId, reducer } = module.exports;
 let state = {
   activeTerminalId: 'terminal:a', agentPageActive: null, diffTabActive: false,
-  agentPages: [], terminals: [{ id: 'terminal:a' }, { id: 'terminal:b' }], tabOrder: ['terminal:a', 'terminal:b'],
+  agentPages: [], terminals: [{ id: 'terminal:a', tool: 'codex' }, { id: 'terminal:b', tool: 'claude' }, { id: 'terminal:blank', tool: null }],
+  tabOrder: ['terminal:a', 'terminal:b', 'terminal:blank'],
 };
 function render() {
   cursor = 0;
@@ -111,6 +112,10 @@ const originalCanvas = attached[0];
 // Exercise real state transitions, including returning to the same terminal.
 for (const [action, expected] of [
   [{ type: 'SET_ACTIVE_TERMINAL', id: 'terminal:b' }, 'terminal:b'],
+  [{ type: 'SET_ACTIVE_TERMINAL', id: 'terminal:a' }, 'terminal:a'],
+  [{ type: 'SET_ACTIVE_TERMINAL', id: 'terminal:b' }, 'terminal:b'],
+  [{ type: 'SET_ACTIVE_TERMINAL', id: 'terminal:blank' }, 'terminal:blank'],
+  [{ type: 'SET_ACTIVE_TERMINAL', id: 'terminal:a' }, 'terminal:a'],
   [{ type: 'OPEN_AGENT_PAGE', page: 'agent' }, 'agent:agent'],
   [{ type: 'OPEN_AGENT_PAGE', page: 'config' }, 'agent:config'],
   [{ type: 'SET_DIFF_TAB_ACTIVE', active: true }, 'diff'],
