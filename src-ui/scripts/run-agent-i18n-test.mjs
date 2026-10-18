@@ -75,6 +75,7 @@ for (const [language, dictionary] of Object.entries(api.dictionaries)) {
     assert.deepEqual(placeholders(dictionary[key]), placeholders(api.dictionaries.en[key]), `${language}: missing interpolation in ${key}`);
   }
   context.__agentTestLanguage = language;
+  context.__agentTestState.currentLang = language;
   context.__agentTestState.agentPageActive = 'config';
   const settings = renderToStaticMarkup(React.createElement(api.AgentPages, { page: 'config' }));
   for (const key of ['agent.settings.intro', 'agent.settings.help', 'agent.model.title', 'agent.model.provider', 'agent.modes.title', 'agent.delegation.title', 'agent.modes.sentinel.title', 'agent.modes.project_manager.title', 'agent.modes.expert_config.title', 'agent.channels.title']) {
@@ -86,7 +87,9 @@ for (const [language, dictionary] of Object.entries(api.dictionaries)) {
     assert.ok(settings.includes(escaped(dictionary[key])), `${language}: switch description did not render ${key}`);
   }
   const sidebar = renderToStaticMarkup(React.createElement(api.ChannelConnectionSummary));
-  assert.ok(sidebar.includes(escaped(dictionary['agent.sidebar.disconnected'])), `${language}: sidebar did not switch language`);
+  const defaultChannel = language.startsWith('zh') ? dictionary['agent.channels.weixin'] : 'Telegram';
+  assert.ok(sidebar.includes(escaped(`${defaultChannel} · ${dictionary['agent.channels.status.disconnected']}`)), `${language}: sidebar must show the locale's default channel`);
+  assert.ok(settings.includes(`class="settings-font-current">${escaped(defaultChannel)}</span>`), `${language}: channel selector must use the same default as the sidebar`);
   const help = renderToStaticMarkup(React.createElement(api.AgentHelpModal, { onClose() {} }));
   for (const key of ['agent.help.title', 'agent.help.workflow_intro', 'agent.help.delegation_description', 'agent.help.delegation_tip', 'agent.help.sentinel_description', 'agent.help.project_manager_description', 'agent.help.expert_config_description', 'agent.help.examples_hint']) {
     assert.ok(help.includes(escaped(dictionary[key])), `${language}: help did not render ${key}`);

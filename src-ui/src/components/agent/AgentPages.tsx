@@ -398,7 +398,8 @@ function AgentChannelsSection() {
   const t = useT();
   const { state } = useAppState();
   const { channels } = useAgentClient();
-  const [selectedChannel, setSelectedChannel] = useState<'weixin' | 'telegram'>('weixin');
+  const [channelChoice, setSelectedChannel] = useState<'weixin' | 'telegram' | null>(null);
+  const selectedChannel = channelChoice ?? (state.currentLang.startsWith('zh') ? 'weixin' : 'telegram');
   const [token, setToken] = useState('');
   const [pairing, setPairing] = useState<TelegramPairing | null>(null);
   const [login, setLogin] = useState<WeixinLogin | null>(null);
@@ -573,7 +574,10 @@ export function ChannelConnectionSummary() {
   const { channels } = useAgentClient();
   const weixin = channels?.status.weixin === 'connected';
   const telegram = channels?.status.telegram === 'connected';
-  const label = t(weixin && telegram ? 'agent.sidebar.both_connected' : weixin ? 'agent.sidebar.weixin_connected' : telegram ? 'agent.sidebar.telegram_connected' : 'agent.sidebar.disconnected');
+  const defaultChannel = state.currentLang.startsWith('zh') ? t('agent.channels.weixin') : 'Telegram';
+  const label = weixin || telegram
+    ? t(weixin && telegram ? 'agent.sidebar.both_connected' : weixin ? 'agent.sidebar.weixin_connected' : 'agent.sidebar.telegram_connected')
+    : `${defaultChannel} · ${t('agent.channels.status.disconnected')}`;
   return <div className="agent-channel-summary">
     <button type="button" className="agent-channel-summary-label" aria-label={t('agent.sidebar.open_settings', { status: label })} onClick={() => dispatch({ type: 'OPEN_AGENT_PAGE', page: 'config' })}>{label}</button>
     <button type="button" className="agent-sidebar-button" aria-label={t('agent.sidebar.open_agent')} aria-pressed={state.agentPageActive === 'agent'} onClick={() => dispatch({ type: 'OPEN_AGENT_PAGE', page: 'agent' })}>
