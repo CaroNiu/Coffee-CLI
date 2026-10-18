@@ -163,6 +163,15 @@ export const ko = {
   // Theme Menu
   'theme.section.color': '색상',
   'theme.section.shape': '형태',
+  'theme.shape.soft': '부드러움',
+  'theme.shape.slab': '석판',
+  'theme.shape.sharp': '각진 모서리',
+  'theme.shape.glass': '유리',
+  'theme.shape.frost': '반투명 유리',
+  'theme.shape.panel': '패널',
+  'theme.shape.carbon': '탄소 섬유',
+  'theme.shape.monogram': '모노그램',
+  'theme.shape.characters': '문자 흐름',
   'theme.section.icons': '아이콘 스타일',
   // 테마 모드(‘색상’ 오른쪽에서 라이트/나이트/시스템 설정 따르기)
   'theme.mode.light': '라이트',

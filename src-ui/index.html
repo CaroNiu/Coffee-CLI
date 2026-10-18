@@ -56,6 +56,10 @@
           document.documentElement.setAttribute('data-frost', shape);
           shape = 'glass';
         }
+        if (shape === 'characters') {
+          document.documentElement.setAttribute('data-background', 'characters');
+          shape = 'carbon';
+        }
         document.documentElement.setAttribute('data-shape', shape);
       })();
     </script>

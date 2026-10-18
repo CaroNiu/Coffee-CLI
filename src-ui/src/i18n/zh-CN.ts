@@ -164,6 +164,15 @@ export const zhCN = {
   // Theme Menu
   'theme.section.color': '配色',
   'theme.section.shape': '形态',
+  'theme.shape.soft': '柔和',
+  'theme.shape.slab': '石板',
+  'theme.shape.sharp': '锐角',
+  'theme.shape.glass': '玻璃',
+  'theme.shape.frost': '磨砂',
+  'theme.shape.panel': '面板',
+  'theme.shape.carbon': '碳纤维',
+  'theme.shape.monogram': '老花纹',
+  'theme.shape.characters': '字符流',
   'theme.section.icons': '图标风格',
   // 主题风格（在“配色”右侧切换白天/夜晚/跟随系统）
   'theme.mode.light': '明亮',

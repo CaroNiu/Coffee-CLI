@@ -2457,6 +2457,30 @@ html.is-windows[data-frost="frost"] #root {
     background: rgba(255, 255, 255, 0.18);
 }
 
+/* Character flow shares Carbon's transparent chrome, with one GPU canvas
+   replacing the static material. Keep it inside the root's rounded clip. */
+[data-background="characters"] #root {
+    background: var(--bg-app);
+}
+[data-background="characters"] #root::before,
+[data-background="characters"] #root::after {
+    display: none;
+}
+.character-background,
+.character-background canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+.character-background {
+    z-index: -1;
+}
+.character-background canvas {
+    display: block;
+}
+
 /* Chrome goes transparent so the unified carbon backdrop reads across the
    whole window (same idea as Glass, minus the blur). Inner content keeps
    its own surfaces for readability; per-region tints can be tightened

@@ -389,7 +389,7 @@ export function SettingsModal() {
                       className={`settings-chip${s.code === state.currentShape ? ' active' : ''}`}
                       onClick={() => setShape(s.code)}
                     >
-                      {s.label}
+                      {t(s.labelKey)}
                     </button>
                   ))}
                 </div>

@@ -163,6 +163,15 @@ export const ja = {
   // Theme Menu
   'theme.section.color': 'カラー',
   'theme.section.shape': 'シェイプ',
+  'theme.shape.soft': 'ソフト',
+  'theme.shape.slab': 'スラブ',
+  'theme.shape.sharp': 'シャープ',
+  'theme.shape.glass': 'ガラス',
+  'theme.shape.frost': 'すりガラス',
+  'theme.shape.panel': 'パネル',
+  'theme.shape.carbon': 'カーボン',
+  'theme.shape.monogram': 'モノグラム',
+  'theme.shape.characters': '文字の流れ',
   'theme.section.icons': 'アイコン',
   // テーマモード（「配色」の右側でライト/ナイト/システムに従う）
   'theme.mode.light': 'ライト',

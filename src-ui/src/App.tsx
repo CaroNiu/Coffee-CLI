@@ -12,6 +12,7 @@ import { TitleBar } from './components/common/TitleBar';
 import { ResizeEdges } from './components/common/ResizeEdges';
 import { PanelResizer, type PanelSide } from './components/common/PanelResizer';
 import { SettingsModal } from './components/common/SettingsModal';
+import { CharacterBackground } from './components/common/CharacterBackground';
 import { Explorer } from './components/left/Explorer';
 import { CenterPanel } from './components/center/CenterPanel';
 import { ActiveGambit } from './components/center/ActiveGambit';
@@ -188,6 +189,8 @@ function useSlidingPanel(hidden: boolean): { mounted: boolean; collapsed: boolea
 
 export function App() {
   const { state } = useAppState();
+  const activeTabId = state.agentPageActive ? `agent:${state.agentPageActive}`
+    : state.diffTabActive ? 'diff' : state.activeTerminalId;
   // Resolved half of the palette (index.html sets it pre-paint, the effect
   // below keeps it current) — re-renders us when follow-system flips.
   const resolvedMode = useDataAttr('data-mode');
@@ -353,9 +356,12 @@ export function App() {
       el.setAttribute('data-shape', 'glass');
       el.setAttribute('data-frost', state.currentShape);
     } else {
-      el.setAttribute('data-shape', state.currentShape);
+      // Character flow reuses Carbon's transparent chrome without its mesh.
+      el.setAttribute('data-shape', state.currentShape === 'characters' ? 'carbon' : state.currentShape);
       el.removeAttribute('data-frost');
     }
+    if (state.currentShape === 'characters') el.setAttribute('data-background', 'characters');
+    else el.removeAttribute('data-background');
     try { localStorage.setItem('cc-shape', state.currentShape); } catch { /* Best-effort operation; failure is non-fatal. */ }
 
     // Frost = OS/compositor blur under a CSS tint from the selected theme.
@@ -474,6 +480,7 @@ export function App() {
 
   return (
     <>
+      {state.currentShape === 'characters' && <CharacterBackground selectedId={activeTabId} />}
       {/* Custom titlebar — drag region + minimize / maximize / close */}
       <TitleBar />
       <AgentBridge />

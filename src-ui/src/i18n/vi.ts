@@ -165,6 +165,15 @@ Xóa tờ ghi chú này khi bạn sẵn sàng và bắt đầu tác vụ đầu 
   // Theme Menu
   'theme.section.color': 'Màu sắc',
   'theme.section.shape': 'Hình dạng',
+  'theme.shape.soft': 'Mềm mại',
+  'theme.shape.slab': 'Phiến đá',
+  'theme.shape.sharp': 'Góc cạnh',
+  'theme.shape.glass': 'Kính',
+  'theme.shape.frost': 'Kính mờ',
+  'theme.shape.panel': 'Bảng',
+  'theme.shape.carbon': 'Carbon',
+  'theme.shape.monogram': 'Chữ lồng',
+  'theme.shape.characters': 'Dòng ký tự',
   'theme.section.icons': 'Biểu tượng',
   // Chế độ giao diện (bên phải mục "Màu sắc")
   'theme.mode.light': 'Sáng',

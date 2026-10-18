@@ -164,6 +164,15 @@ export const zhTW = {
   // Theme Menu
   'theme.section.color': '配色',
   'theme.section.shape': '形態',
+  'theme.shape.soft': '柔和',
+  'theme.shape.slab': '石板',
+  'theme.shape.sharp': '銳角',
+  'theme.shape.glass': '玻璃',
+  'theme.shape.frost': '磨砂',
+  'theme.shape.panel': '面板',
+  'theme.shape.carbon': '碳纖維',
+  'theme.shape.monogram': '老花紋',
+  'theme.shape.characters': '字元流',
   'theme.section.icons': '圖示風格',
   // 主題風格（在「配色」右側切換明亮/夜晚/跟隨系統）
   'theme.mode.light': '明亮',

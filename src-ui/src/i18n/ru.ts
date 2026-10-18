@@ -163,6 +163,15 @@ export const ru = {
   // Theme Menu
   'theme.section.color': 'Цвета',
   'theme.section.shape': 'Форма',
+  'theme.shape.soft': 'Мягкие углы',
+  'theme.shape.slab': 'Плита',
+  'theme.shape.sharp': 'Острые углы',
+  'theme.shape.glass': 'Стекло',
+  'theme.shape.frost': 'Матовое стекло',
+  'theme.shape.panel': 'Панель',
+  'theme.shape.carbon': 'Карбон',
+  'theme.shape.monogram': 'Монограмма',
+  'theme.shape.characters': 'Поток символов',
   'theme.section.icons': 'Иконки',
   // Режим темы (справа от «Цвета»)
   'theme.mode.light': 'Светлая',
