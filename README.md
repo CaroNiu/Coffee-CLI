@@ -84,15 +84,11 @@ Coffee CLI removes both barriers at once: **no terminal expertise required, no E
 
 Coffee CLI ships with multiple built-in themes. Switch between them instantly — the entire interface, including the active terminal session, updates live. No restart, no flicker. Whether you prefer a dark workspace late at night or a lighter tone during a presentation, one click is all it takes.
 
-![Theme Switching](screenshot/theme-switching.gif)
-
 ---
 
 #### Task Board
 
 Your agent works fast. Keep up with it. The built-in task board lets you create and organize tasks into **To-Do / In Progress / Done** columns — right in the sidebar while the agent runs. No external tool, no tab switching. Everything the agent is doing and everything you still need it to do, visible at a glance.
-
-![Task Board](screenshot/task-board.gif)
 
 ---
 
@@ -100,23 +96,11 @@ Your agent works fast. Keep up with it. The built-in task board lets you create 
 
 Every conversation with every agent is automatically saved. The **History panel** gives you a full searchable log of past sessions — scroll back through what was said, what was built, what went wrong. Pick up any past session exactly where you left off, or use it as context for a new one.
 
-![Session History](screenshot/session-history.gif)
-
----
-
-#### Multi-Tab: Vibe Coding + DOS Game
-
-Run multiple agents and terminals in parallel, each in its own tab with its own independent context. Here: a **Claude Code vibe-coding session** running alongside a **DOS game in the built-in terminal** — two completely separate processes, zero interference. Coffee CLI handles whatever you throw at it.
-
-![Multi-Tab Sessions](screenshot/multi-tab.gif)
-
 ---
 
 #### 11-Language Interface
 
 The Coffee CLI app ships with a fully localized UI in 11 languages — menus, dialogs, shortcuts, and every corner of the workspace speak English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português, Русский, or Tiếng Việt. Switch anytime from the settings.
-
-![11 Languages](screenshot/multilingual.png)
 
 ---
 
