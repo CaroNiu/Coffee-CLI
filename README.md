@@ -29,7 +29,7 @@
 </p>
 
 <p align="center">
-  <img src="screenshot/hero.png" alt="Coffee CLI — Launchpad with underwater wallpaper" width="860" />
+  <img src="screenshot/hero.gif" alt="Coffee CLI — Multiple AI CLI sessions in action" width="860" />
 </p>
 
 ---
