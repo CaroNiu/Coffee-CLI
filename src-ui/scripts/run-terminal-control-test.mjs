@@ -14,6 +14,8 @@ async function test(name, run) { await run(); passed++; console.log(`  ok  ${nam
 function fixture() {
   const writes = [];
   let failure;
+  let failAfter;
+  let invokeCount = 0;
   let enterGate;
   const module = { exports: {} };
   runInNewContext(compiled.outputFiles[0].text, {
@@ -21,15 +23,17 @@ function fixture() {
     window: { __TAURI_INTERNALS__: { invoke: async (command, args) => {
       assert.equal(command, 'tier_terminal_input');
       writes.push(args);
+      invokeCount++;
       if (failure) throw new Error(failure);
+      if (failAfter !== undefined && invokeCount > failAfter) throw new Error('chunk write lost');
       if (args.data === '\r' && enterGate) await enterGate;
     } } },
   });
   const api = module.exports;
   let submitted = 0;
-  const term = { modes: { applicationCursorKeysMode: false }, paste: text => { api.forwardTerminalInput('target', `\x1b[200~${text.replace(/\n/g, '\r')}\x1b[201~`).catch(() => {}); } };
+  const term = { modes: { applicationCursorKeysMode: false, bracketedPasteMode: true } };
   const dispose = api.registerTerminalControl('target', term, () => submitted++);
-  return { api, writes, term, dispose, setFailure: value => { failure = value; }, holdEnter: () => { let release; enterGate = new Promise(resolve => { release = resolve; }); return release; }, get submitted() { return submitted; } };
+  return { api, writes, term, dispose, setFailure: value => { failure = value; }, setFailAfter: value => { failAfter = value; }, holdEnter: () => { let release; enterGate = new Promise(resolve => { release = resolve; }); return release; }, get submitted() { return submitted; } };
 }
 await test('does not send before PTY startup or after exit', async () => {
   const f = fixture();
@@ -120,5 +124,37 @@ await test('uses TUI application cursor mode and rejects arbitrary control seque
   assert.equal(f.writes[0].data, '\x1bOB');
   await assert.rejects(f.api.sendTerminalKey('target', '\x1b[3~', () => true), /不支持/);
   assert.equal(f.writes.length, 1);
+});
+await test('large paste splits into ordered chunks under one bracketed pair before Enter (issue #127)', async () => {
+  const f = fixture(); f.api.setTerminalControlReady('target', true);
+  const text = 'a'.repeat(2048 * 2 + 10);
+  await f.api.submitTerminalPrompt('target', text);
+  assert.equal(f.writes.length, 4);
+  assert.equal(f.writes[0].data, `\x1b[200~${text.slice(0, 2048)}`);
+  assert.equal(f.writes[1].data, text.slice(2048, 4096));
+  assert.equal(f.writes[2].data, `${text.slice(4096)}\x1b[201~`);
+  assert.equal(f.writes[3].data, '\r');
+  assert.equal(f.submitted, 1);
+  assert.equal(f.api.terminalControlStatus('target').localInputPending, false);
+});
+await test('paste chunking never splits a UTF-16 surrogate pair', async () => {
+  const f = fixture(); f.api.setTerminalControlReady('target', true);
+  const text = 'x'.repeat(2047) + '😀' + 'y'.repeat(5000);
+  await f.api.submitTerminalPrompt('target', text);
+  const first = f.writes[0].data.slice('\x1b[200~'.length);
+  const tail = first.charCodeAt(first.length - 1);
+  assert.ok(!(tail >= 0xd800 && tail <= 0xdbff), 'high surrogate must not end a chunk');
+  assert.ok(f.writes[1].data.startsWith('😀'), 'surrogate pair must open the next chunk');
+  const body = f.writes.slice(0, -1).map(write => write.data.replace(/^\x1b\[200~/, '').replace(/\x1b\[201~$/, '')).join('');
+  assert.equal(body, text);
+});
+await test('lost chunk mid-paste marks dirty and never sends Enter (issue #127)', async () => {
+  const f = fixture(); f.api.setTerminalControlReady('target', true);
+  f.setFailAfter(1);
+  await assert.rejects(f.api.submitTerminalPrompt('target', 'a'.repeat(2048 * 2 + 10)), /chunk write lost/);
+  assert.ok(f.writes.length < 4);
+  assert.ok(!f.writes.some(write => write.data === '\r'), 'Enter must not follow a truncated paste');
+  assert.equal(f.submitted, 0);
+  assert.equal(f.api.terminalControlStatus('target').localInputPending, true);
 });
 console.log(`\n${passed} terminal control tests passed.`);
