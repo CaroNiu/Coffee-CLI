@@ -99,6 +99,10 @@ export const ja = {
 
   // Settings modal (titlebar gear)
   'settings.title': '設定',
+  'settings.general': '一般',
+  'settings.uiScale': '表示倍率',
+  'settings.uiScale.reset': '既定に戻す',
+  'settings.uiScale.error': '表示倍率の適用または保存に失敗しました。再試行してください。',
   'settings.appearance': '外観',
   'settings.wallpaper': '壁紙',
   'settings.terminal': 'ターミナル',

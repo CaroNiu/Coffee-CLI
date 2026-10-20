@@ -99,6 +99,10 @@ export const zhTW = {
 
   // Settings modal (titlebar gear)
   'settings.title': '設定',
+  'settings.general': '通用',
+  'settings.uiScale': '介面縮放',
+  'settings.uiScale.reset': '恢復預設',
+  'settings.uiScale.error': '縮放套用或儲存失敗，請重試。',
   'settings.appearance': '外觀',
   'settings.wallpaper': '桌布',
   'settings.terminal': '終端',

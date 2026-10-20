@@ -99,6 +99,10 @@ export const pt = {
 
   // Settings modal (titlebar gear)
   'settings.title': 'Configurações',
+  'settings.general': 'Geral',
+  'settings.uiScale': 'Escala da interface',
+  'settings.uiScale.reset': 'Restaurar padrão',
+  'settings.uiScale.error': 'Não foi possível aplicar ou salvar a escala. Tente novamente.',
   'settings.appearance': 'Aparência',
   'settings.wallpaper': 'Papel de parede',
   'settings.terminal': 'Terminal',

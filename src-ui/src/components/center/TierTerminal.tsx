@@ -40,6 +40,7 @@ import { markSentinelExit, markSentinelWorking } from '../../lib/agent-sentinel'
 import { usesSelfRenderedCaret } from '../../lib/chat-tools';
 import { onWindowForeground } from '../../lib/window-focus-filter';
 import { createTerminalSizeSync, DEFAULT_TERMINAL_GRID } from '../../lib/terminal-size-sync';
+import { UI_SCALE_CHANGED } from '../../lib/ui-scale';
 import { IS_WINDOWS } from '../../lib/platform';
 import { commands } from '../../tauri';
 import { registerTerminalObserver } from '../../lib/terminal-observer';
@@ -674,9 +675,11 @@ function TierTerminalImpl({
     };
     document.fonts.addEventListener('loadingdone', onFontsSettled);
     document.fonts.addEventListener('loadingerror', onFontsSettled);
+    window.addEventListener(UI_SCALE_CHANGED, onFontsSettled);
     unlisteners.push(() => {
       document.fonts.removeEventListener('loadingdone', onFontsSettled);
       document.fonts.removeEventListener('loadingerror', onFontsSettled);
+      window.removeEventListener(UI_SCALE_CHANGED, onFontsSettled);
     });
     const initTerminal = async () => {
       await fontReady;

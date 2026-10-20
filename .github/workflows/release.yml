@@ -46,6 +46,8 @@ jobs:
           node scripts/run-opencode-island-test.mjs
           node scripts/run-notify-sound-test.mjs
           node scripts/run-terminal-size-sync-test.mjs
+          node scripts/run-ui-scale-test.mjs
+          node scripts/run-settings-slider-test.mjs
           node scripts/run-shiki-test.mjs
           node scripts/run-tab-renderer-test.mjs
           node scripts/run-conversation-virtualizer-test.mjs

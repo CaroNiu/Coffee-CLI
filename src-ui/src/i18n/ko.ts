@@ -99,6 +99,10 @@ export const ko = {
 
   // Settings modal (titlebar gear)
   'settings.title': '설정',
+  'settings.general': '일반',
+  'settings.uiScale': '화면 배율',
+  'settings.uiScale.reset': '기본값 복원',
+  'settings.uiScale.error': '배율 적용 또는 저장에 실패했습니다. 다시 시도해 주세요.',
   'settings.appearance': '외관',
   'settings.wallpaper': '배경화면',
   'settings.terminal': '터미널',

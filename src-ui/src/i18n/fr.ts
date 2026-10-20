@@ -99,6 +99,10 @@ export const fr = {
 
   // Settings modal (titlebar gear)
   'settings.title': 'Paramètres',
+  'settings.general': 'Général',
+  'settings.uiScale': 'Échelle de l’interface',
+  'settings.uiScale.reset': 'Valeur par défaut',
+  'settings.uiScale.error': 'Impossible d’appliquer ou d’enregistrer l’échelle. Réessayez.',
   'settings.appearance': 'Apparence',
   'settings.wallpaper': "Fond d'écran",
   'settings.terminal': 'Terminal',

@@ -8,6 +8,7 @@ import { invoke, commands } from './tauri';
 import { loadToolInfo } from './lib/tool-info';
 import { onWindowBackground, onWindowForeground } from './lib/window-focus-filter';
 import { IS_MACOS, IS_WINDOWS } from './lib/platform';
+import { initializeUiScale } from './lib/ui-scale';
 
 // macOS uses native window decorations + traffic lights (titleBarStyle:
 // "Overlay" in tauri.macos.conf.json). Tag <html> before first paint so the
@@ -24,7 +25,8 @@ if (IS_WINDOWS) document.documentElement.classList.add('is-windows');
 // canonical display names on first render (no 'claude' → 'Claude
 // Code' label flash). The window is `visible: false` until
 // show_main_window fires below, so the ~10ms wait is invisible.
-void loadToolInfo().finally(() => {
+const uiScaleReady = initializeUiScale();
+void Promise.all([loadToolInfo(), uiScaleReady]).finally(() => {
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <AppProvider>
@@ -55,11 +57,11 @@ if (typeof document !== 'undefined' && document.fonts) {
 // Window starts with `visible: false` (see tauri.conf.json) to hide the
 // Windows-default chrome flash. Reveal it only after the first paint so
 // the first frame the user sees is the final themed UI.
-requestAnimationFrame(() => {
+void uiScaleReady.finally(() => requestAnimationFrame(() => {
   requestAnimationFrame(() => {
     invoke('show_main_window').catch(() => {});
   });
-});
+}));
 
 // ── Background-mode throttle ────────────────────────────────────────────
 // When the OS hides the Coffee CLI window (other Space, app switched

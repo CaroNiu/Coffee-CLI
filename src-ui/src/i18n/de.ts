@@ -99,6 +99,10 @@ export const de = {
 
   // Settings modal (titlebar gear)
   'settings.title': 'Einstellungen',
+  'settings.general': 'Allgemein',
+  'settings.uiScale': 'Oberflächenskalierung',
+  'settings.uiScale.reset': 'Standard wiederherstellen',
+  'settings.uiScale.error': 'Die Skalierung konnte nicht angewendet oder gespeichert werden. Bitte erneut versuchen.',
   'settings.appearance': 'Darstellung',
   'settings.wallpaper': 'Hintergrund',
   'settings.terminal': 'Terminal',

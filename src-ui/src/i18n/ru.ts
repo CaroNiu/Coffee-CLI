@@ -99,6 +99,10 @@ export const ru = {
 
   // Settings modal (titlebar gear)
   'settings.title': 'Настройки',
+  'settings.general': 'Общие',
+  'settings.uiScale': 'Масштаб интерфейса',
+  'settings.uiScale.reset': 'По умолчанию',
+  'settings.uiScale.error': 'Не удалось применить или сохранить масштаб. Повторите попытку.',
   'settings.appearance': 'Оформление',
   'settings.wallpaper': 'Обои',
   'settings.terminal': 'Терминал',

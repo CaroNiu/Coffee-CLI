@@ -101,6 +101,10 @@ export const vi = {
 
   // Settings modal (titlebar gear)
   'settings.title': 'Cài đặt',
+  'settings.general': 'Chung',
+  'settings.uiScale': 'Tỷ lệ giao diện',
+  'settings.uiScale.reset': 'Khôi phục mặc định',
+  'settings.uiScale.error': 'Không thể áp dụng hoặc lưu tỷ lệ. Vui lòng thử lại.',
   'settings.appearance': 'Giao diện',
   'settings.wallpaper': 'Hình nền',
   'settings.terminal': 'Terminal',
