@@ -1,49 +1,54 @@
 <details open>
 <summary><b>🇨🇳 简体中文</b></summary>
 
-### Coffee CLI v3.6.5 · 更顺畅的字符流互动
+### Coffee CLI v3.6.6 · 界面缩放与统一滑杆
 
-- **每次切换标签，字符流都会回应。** 修复在已有工具标签之间切换时，互动可能被卡顿退避暂停的问题；无需先打开新标签，切换即可重新触发波纹，同时保留后台暂停和帧率限制。
-- **消息渠道默认值更贴近语言习惯。** 简体、繁体中文默认微信，其他界面语言默认 Telegram，左下角未连接提示与设置页初始选择保持一致。已连接时显示真实渠道状态，并保留手动选择。
+- **新增通用设置。** 界面缩放与任务形态集中到设置第一项，支持 70%～150% 缩放、恢复默认和重启记忆。
+- **滑杆更清晰、更跟手。** 界面缩放与壁纸透明度采用统一的刻度和实心圆钮。缩放拖动时预览比例，松手后生效；壁纸透明度实时变化，减少重复更新。
+- **长提示词按序分块发送。** 合入社区贡献 #153，发送时保护 emoji 边界，写入失败时不自动提交。
 
 </details>
 
 <details>
 <summary><b>🇬🇧 English</b></summary>
 
-### Coffee CLI v3.6.5 · Smoother Character Flow Interaction
+### Coffee CLI v3.6.6 · Interface Scale and Shared Sliders
 
-- **Character Flow responds to every tab switch.** Switching between existing tool tabs now restarts the ripple immediately, even after rendering load has paused the ambient animation. Opening a new tab first is no longer needed. Background pausing and frame limits remain.
-- **Messaging defaults follow your interface language.** Simplified and Traditional Chinese default to WeChat; other languages default to Telegram in the disconnected sidebar prompt and initial channel selection. Connected channels retain their actual status, and manual selections are preserved.
+- **New General settings.** Interface scale and task style share the first settings section. Choose 70%–150%, restore the default, and keep the preference after restarting.
+- **Clearer, smoother sliders.** Interface scale and wallpaper opacity share tick marks and solid thumbs. Scale previews while dragging and applies on release; opacity updates live with fewer redundant updates.
+- **Ordered chunks for long prompts.** Includes community contribution #153, preserving emoji boundaries and preventing automatic submission after a write error.
 
 </details>
 
 <details>
 <summary><b>🇹🇼 繁體中文</b></summary>
 
-### Coffee CLI v3.6.5 · 更順暢的字元流互動
+### Coffee CLI v3.6.6 · 介面縮放與統一滑桿
 
-- **每次切換分頁，字元流都會回應。** 修正在既有工具分頁之間切換時，互動可能因效能退避而暫停的問題；不必先開啟新分頁，切換即可重新觸發波紋，同時保留背景暫停與影格率限制。
-- **訊息管道預設值更貼近語言習慣。** 簡體、繁體中文預設微信，其他介面語言預設 Telegram，左下角未連線提示與設定頁初始選擇保持一致。已連線時顯示實際管道狀態，並保留手動選擇。
+- **新增通用設定。** 介面縮放與任務形態集中到設定第一項，支援 70%～150% 縮放、恢復預設及重新啟動後保留偏好。
+- **滑桿更清楚、更跟手。** 介面縮放與桌布透明度共用刻度與實心圓鈕。縮放拖曳時預覽比例，放開後生效；透明度即時變化，減少重複更新。
+- **長提示詞依序分塊傳送。** 納入社群貢獻 #153，保護 emoji 邊界，寫入失敗時不自動提交。
 
 </details>
 
 <details>
 <summary><b>🇯🇵 日本語</b></summary>
 
-### Coffee CLI v3.6.5 · よりスムーズな文字の流れ
+### Coffee CLI v3.6.6 · 表示倍率と共通スライダー
 
-- **タブを切り替えるたびに背景が反応。** 描画負荷によって背景アニメーションが一時停止した後でも、既存のツールタブ間の切り替えで波紋がすぐに再開します。先に新しいタブを開く必要はありません。バックグラウンドでの一時停止とフレームレート制限は維持します。
-- **メッセージ連携の初期値が表示言語に対応。** 簡体字・繁体字中国語では WeChat、その他の言語では Telegram を、未接続時のサイドバー表示と設定画面の初期選択に使用します。接続済みの連携先は実際の状態を表示し、手動選択も保持します。
+- **一般設定を追加。** 設定の先頭に表示倍率とタスク表示をまとめました。70%～150% に変更でき、既定値への復元と再起動後の保持に対応します。
+- **見やすく操作しやすいスライダー。** 表示倍率と壁紙の不透明度で目盛りとシンプルな丸いつまみを統一しました。表示倍率はドラッグ中に数値をプレビューし、指を離すと適用します。不透明度は即座に反映し、重複更新を抑えます。
+- **長いプロンプトを順番に分割送信。** コミュニティの貢献 #153 を取り込み、emoji の境界を保持し、書き込み失敗時の自動送信を防ぎます。
 
 </details>
 
 <details>
 <summary><b>🇰🇷 한국어</b></summary>
 
-### Coffee CLI v3.6.5 · 더 부드러운 문자 흐름 상호작용
+### Coffee CLI v3.6.6 · 화면 배율과 공통 슬라이더
 
-- **탭을 전환할 때마다 배경이 반응합니다.** 렌더링 부하로 배경 애니메이션이 일시 중지된 뒤에도 기존 도구 탭 사이를 전환하면 파동이 즉시 다시 시작됩니다. 먼저 새 탭을 열 필요가 없습니다. 백그라운드 일시 중지와 프레임 속도 제한은 유지됩니다.
-- **메시지 채널 기본값이 인터페이스 언어를 따릅니다.** 중국어 간체·번체는 WeChat, 다른 언어는 Telegram을 미연결 사이드바 안내와 설정 화면의 초기 선택으로 사용합니다. 연결된 채널은 실제 상태를 표시하고 수동 선택도 유지합니다.
+- **일반 설정 추가.** 설정 첫 항목에 화면 배율과 작업 표시 방식을 모았습니다. 70%~150% 조정, 기본값 복원, 재시작 후 설정 유지를 지원합니다.
+- **더 명확하고 부드러운 슬라이더.** 화면 배율과 배경화면 불투명도에 눈금과 단색 원형 손잡이를 통일했습니다. 배율은 드래그 중 값을 미리 보고 놓으면 적용됩니다. 불투명도는 즉시 반영하며 중복 업데이트를 줄였습니다.
+- **긴 프롬프트를 순서대로 나누어 전송.** 커뮤니티 기여 #153을 포함하여 emoji 경계를 유지하고 쓰기 실패 후 자동 제출을 방지합니다.
 
 </details>
