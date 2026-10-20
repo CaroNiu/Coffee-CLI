@@ -1,0 +1,23 @@
+src-ui/scripts/run-terminal-control-test.mjs
+  0a5244f220cdb8d4 17-18,26,28,34,36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "24067b52c80798f7ae45725b15cfec5c461406c1",
+  "prompts": {
+    "0a5244f220cdb8d4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c871d009-74e9-4ed1-8b7f-1400e16875a6",
+        "model": "glm-5.3-flash"
+      },
+      "human_author": "JMS\\caro.niu",
+      "messages": [],
+      "total_additions": 1036,
+      "total_deletions": 624,
+      "accepted_lines": 342,
+      "overriden_lines": 0
+    }
+  }
+}
