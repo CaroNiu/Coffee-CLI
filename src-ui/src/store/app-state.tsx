@@ -278,13 +278,11 @@ export interface AppState {
   // persisted (it depends on files open at the time).
   diffSelection: DiffSelection | null;
   diffMode: 'overlay' | 'tab';
-  /** Read-only Markdown document opened from Explorer. Mutually exclusive
-   *  with diffSelection so the shared content-tab focus flag is unambiguous. */
-  previewSelection: FilePreviewSelection | null;
-  /// True while a center content tab (diff or Markdown preview) is the active
-  /// surface. Clicking any terminal tab clears it (folded into
-  /// SET_ACTIVE_TERMINAL). Lets the content tab coexist with terminal tabs the
-  /// user can switch back to.
+  /// True while the center diff tab is the active surface (clicked in the tab
+  /// strip). Clicking any terminal tab clears it (folded into SET_ACTIVE_TERMINAL).
+  /// Lets the diff tab coexist in the strip with terminal tabs the user can
+  /// switch back to, without diffMode flipping (mode = which surface the diff
+  /// renders on; this = which tab is focused right now).
   diffTabActive: boolean;
 }
 
@@ -300,10 +298,6 @@ export interface DiffSelection {
   commitHash?: string;
   added?: number;
   deleted?: number;
-}
-
-export interface FilePreviewSelection {
-  path: string;
 }
 
 // ─── Tab tool predicates ────────────────────────────────────────────────────
@@ -393,8 +387,6 @@ type Action =
   | { type: 'CLEAR_DIFF' }
   | { type: 'SET_DIFF_MODE'; mode: 'overlay' | 'tab' }
   | { type: 'SET_DIFF_TAB_ACTIVE'; active: boolean }
-  | { type: 'OPEN_FILE_PREVIEW'; path: string }
-  | { type: 'CLOSE_FILE_PREVIEW' }
   | { type: 'OPEN_AGENT_PAGE'; page: AgentPage }
   | { type: 'CLOSE_AGENT_PAGE'; page: AgentPage };
 
@@ -714,7 +706,6 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         diffSelection: action.selection,
-        previewSelection: null,
         agentPageActive: state.diffMode === 'tab' ? null : state.agentPageActive,
         diffTabActive: state.diffMode === 'tab' ? true : state.diffTabActive,
       };
@@ -731,18 +722,6 @@ function reducer(state: AppState, action: Action): AppState {
     }
     case 'SET_DIFF_TAB_ACTIVE':
       return { ...state, diffTabActive: action.active, agentPageActive: action.active ? null : state.agentPageActive };
-    case 'OPEN_FILE_PREVIEW':
-      // A document preview always opens as a center tab. Clear any diff so
-      // the shared "content tab active" flag can never highlight two tabs.
-      return {
-        ...state,
-        previewSelection: { path: action.path },
-        diffSelection: null,
-        diffTabActive: true,
-        agentPageActive: null,
-      };
-    case 'CLOSE_FILE_PREVIEW':
-      return { ...state, previewSelection: null, diffTabActive: false };
     case 'OPEN_AGENT_PAGE':
       return {
         ...state,
@@ -985,7 +964,6 @@ function getInitialState(): AppState {
     taskViewMode,
     diffSelection: null,
     diffMode,
-    previewSelection: null,
     diffTabActive: false,
     agentPages: [],
     agentPageActive: null,
