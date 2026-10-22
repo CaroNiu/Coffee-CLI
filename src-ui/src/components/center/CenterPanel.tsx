@@ -10,6 +10,7 @@ import { ToolConfigModal } from './ToolConfigModal';
 import { ContributionHeatmap } from './ContributionHeatmap';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { DiffPanel } from '../right/DiffPanel';
+import { MarkdownPreview } from './MarkdownPreview';
 import { getTabOrder, supportsAgentStatus, useAppState, type ToolType } from '../../store/app-state';
 import { isFrostShape } from '../../lib/personalization';
 import { supportsConversationTool } from '../../lib/chat-tools';
@@ -504,10 +505,12 @@ export function CenterPanel() {
   const t = useT();
   const terminals = state.terminals;
   const activeTerminalId = state.activeTerminalId;
-  // Diff tab surface: visible only in tab mode with a selection. The diff
-  // chrome-tab sits in the strip beside terminal tabs; diffTabActive tracks
-  // whether it (not a terminal tab) is the focused surface.
+  // File-content tab surface: a diff is visible only in tab mode, while a
+  // Markdown document preview is always a center tab. They are mutually
+  // exclusive in state; diffTabActive tracks whether either content tab (not
+  // a terminal tab) is the focused surface.
   const diffTabVisible = state.diffMode === 'tab' && state.diffSelection !== null;
+  const previewTabVisible = state.previewSelection !== null;
   const diffTabActive = state.diffTabActive;
   const agentPageActive = state.agentPageActive;
   // Diff tab title = basename of the selected file (mirrors DiffPanel's own
@@ -517,6 +520,10 @@ export function CenterPanel() {
     const p = state.diffSelection?.path ?? '';
     return p.replace(/\\/g, '/').split('/').pop() || p || (t('task.tab.changes') || 'Diff');
   }, [state.diffSelection?.path, t]);
+  const previewTabTitle = useMemo(() => {
+    const p = state.previewSelection?.path ?? '';
+    return p.replace(/\\/g, '/').split('/').pop() || p || (t('preview.title') || 'Preview');
+  }, [state.previewSelection?.path, t]);
 
   const [toolsInstalled, setToolsInstalled] = useState<Record<string, boolean>>({});
   // Per-tool launch override modal (gear icon → opens settings for that tool).
@@ -1459,6 +1466,32 @@ export function CenterPanel() {
           </div>
         )}
 
+        {previewTabVisible && (
+          <div
+            className={`chrome-tab ${diffTabActive ? 'active' : ''}`}
+            onClick={() => dispatch({ type: 'SET_DIFF_TAB_ACTIVE', active: true })}
+          >
+            <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <path d="M8 13h6M8 17h8"/>
+            </svg>
+            <span className="tab-title" style={{ flex: '0 1 auto', minWidth: 0, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{previewTabTitle}</span>
+            <div className="tab-actions tab-actions--close-only">
+              <button
+                className="tab-close-btn"
+                aria-label={t('preview.close') || 'Close preview'}
+                onClick={(e) => { e.stopPropagation(); dispatch({ type: 'CLOSE_FILE_PREVIEW' }); }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
         <button className="chrome-tab-new" onClick={handleAddTab}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
         </button>
@@ -1592,6 +1625,12 @@ export function CenterPanel() {
               added={state.diffSelection.added}
               deleted={state.diffSelection.deleted}
             />
+          </div>
+        )}
+
+        {previewTabVisible && diffTabActive && state.previewSelection && (
+          <div className="terminal-wrapper" style={{ display: 'flex', width: '100%', height: '100%', position: 'relative' }}>
+            <MarkdownPreview path={state.previewSelection.path} />
           </div>
         )}
 

@@ -10,6 +10,7 @@ import { isMaskTintTheme } from '../../lib/personalization';
 import { ScrollPanel } from '../common/ScrollPanel';
 import { clipboardWrite } from '../../lib/clipboard';
 import { beginExplorerDrag } from '../../lib/explorer-drag';
+import { isMarkdownFile } from '../../lib/file-types';
 import { useFileStats, useDirtyDirs } from '../../lib/git-status';
 import { refreshHistory } from '../../lib/history-cache';
 import { commands, onSelfUpdateProgress } from '../../tauri';
@@ -54,6 +55,7 @@ function dispatchFsRefresh(dirPath: string) {
 
 export function ContextMenu({ menu, onClose }: { menu: CtxMenuState; onClose: () => void }) {
   const t = useT();
+  const { dispatch } = useAppState();
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -133,9 +135,9 @@ export function ContextMenu({ menu, onClose }: { menu: CtxMenuState; onClose: ()
   };
 
   // Hand the path off to the OS default opener — Notepad / browser / image
-  // viewer / file manager, whichever the user already configured. We don't
-  // ship in-app previewers (memory: "no in-app file viewers"), so this is
-  // the user's only one-click path from Explorer to the file's content.
+  // viewer / file manager, whichever the user already configured. Markdown
+  // documents have their own in-app read-only preview action above; all
+  // other file types retain the OS association behavior.
   const handleOpen = async () => {
     onClose();
     try {
@@ -145,11 +147,17 @@ export function ContextMenu({ menu, onClose }: { menu: CtxMenuState; onClose: ()
     }
   };
 
+  const handlePreviewMarkdown = () => {
+    onClose();
+    dispatch({ type: 'OPEN_FILE_PREVIEW', path: menu.absolutePath });
+  };
+
   const canPaste = !!fsClipboard;
+  const canPreviewMarkdown = !menu.isDir && isMarkdownFile(menu.absolutePath);
 
   // Smart menu positioning to prevent off-screen clipping
   const MENU_WIDTH = 220;
-  const MENU_HEIGHT = 320; // Safe upper bound for full ctx menu
+  const MENU_HEIGHT = 360; // Safe upper bound for full ctx menu
 
   const isBottomOverflow = menu.y + MENU_HEIGHT > window.innerHeight;
   const isRightOverflow = menu.x + MENU_WIDTH > window.innerWidth;
@@ -166,7 +174,16 @@ export function ContextMenu({ menu, onClose }: { menu: CtxMenuState; onClose: ()
 
   return createPortal(
     <div className="ctx-menu" ref={menuRef} style={style}>
-      {/* Primary action: open in OS default — most-used, sits at the top */}
+      {canPreviewMarkdown && (
+        <button className="ctx-menu-item" onClick={handlePreviewMarkdown}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/>
+            <circle cx="12" cy="12" r="2.5"/>
+          </svg>
+          {t('menu.preview_markdown')}
+        </button>
+      )}
+      {/* Open in the OS default application. */}
       <button className="ctx-menu-item" onClick={handleOpen}>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M15 3h6v6"/>
@@ -466,7 +483,7 @@ function BrowserFileNode({ entry, parentDirPath, onCtxMenu }: {
   parentDirPath: string;
   onCtxMenu: (menu: CtxMenuState) => void;
 }) {
-  const { state: { iconTheme } } = useAppState();
+  const { state: { iconTheme }, dispatch } = useAppState();
   const fileStats = useFileStats();
   const stats = fileStats?.get(normPath(entry.path));
   const [renaming, setRenaming] = useState(false);
@@ -504,11 +521,18 @@ function BrowserFileNode({ entry, parentDirPath, onCtxMenu }: {
     beginExplorerDrag(entry.path, e);
   };
 
+  const handleDoubleClick = () => {
+    if (!renaming && isMarkdownFile(entry.path)) {
+      dispatch({ type: 'OPEN_FILE_PREVIEW', path: entry.path });
+    }
+  };
+
   return (
     <div
       className={`tree-file ${renaming ? 'renaming' : ''}`}
       onContextMenu={handleCtxMenu}
       onMouseDown={onFileMouseDown}
+      onDoubleClick={handleDoubleClick}
     >
       <span className="tree-icon">
         <ThemedIcon

@@ -1,0 +1,266 @@
+.markdown-preview {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg-terminal);
+  color: var(--text-1);
+}
+
+/* Some shape themes intentionally strip backgrounds from center-panel
+ * descendants. A document surface needs its own opaque reading background,
+ * matching the DiffPanel's explicit opt-out from those global rules. */
+:is([data-shape="glass"], [data-shape="carbon"], [data-shape="monogram"]) .panel-center .markdown-preview {
+  background: var(--bg-terminal) !important;
+}
+
+.markdown-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+  padding: 6px 14px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+  flex-shrink: 0;
+}
+
+.markdown-preview-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.markdown-preview-view-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-app) 78%, transparent);
+  flex-shrink: 0;
+}
+
+.markdown-preview-view-switch button {
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-3, var(--text-2));
+  font-family: var(--font);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.markdown-preview-view-switch button:hover {
+  color: var(--text-1);
+}
+
+.markdown-preview-view-switch button.active {
+  background: var(--surface-hover, rgba(127, 127, 127, 0.14));
+  color: var(--text-1);
+}
+
+.markdown-preview-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.markdown-preview-body::-webkit-scrollbar {
+  display: block !important;
+  width: 10px !important;
+  height: 10px !important;
+  background: transparent !important;
+}
+
+.markdown-preview-body::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  background-clip: padding-box;
+}
+
+.markdown-preview-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 24px;
+  box-sizing: border-box;
+  color: var(--text-3, var(--text-2));
+  font-size: 12px;
+}
+
+.markdown-preview-document {
+  width: min(900px, calc(100% - 64px));
+  margin: 0 auto;
+  padding: 28px 0 72px;
+  color: var(--text-1);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.72;
+  overflow-wrap: anywhere;
+}
+
+.markdown-preview-document .md-body > :first-child {
+  margin-top: 0;
+}
+
+.markdown-preview-document .md-body > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-preview-document h1,
+.markdown-preview-document h2,
+.markdown-preview-document h3,
+.markdown-preview-document h4,
+.markdown-preview-document h5,
+.markdown-preview-document h6 {
+  margin: 1.5em 0 0.55em;
+  color: var(--text-1);
+  line-height: 1.25;
+  font-weight: 650;
+}
+
+.markdown-preview-document h1 {
+  padding-bottom: 0.35em;
+  border-bottom: 1px solid var(--border);
+  font-size: 2em;
+}
+
+.markdown-preview-document h2 {
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border);
+  font-size: 1.5em;
+}
+
+.markdown-preview-document h3 { font-size: 1.25em; }
+.markdown-preview-document h4 { font-size: 1.08em; }
+
+.markdown-preview-document p,
+.markdown-preview-document ul,
+.markdown-preview-document ol,
+.markdown-preview-document blockquote,
+.markdown-preview-document table,
+.markdown-preview-document pre {
+  margin: 0 0 1em;
+}
+
+.markdown-preview-document ul,
+.markdown-preview-document ol {
+  padding-left: 1.7em;
+}
+
+.markdown-preview-document li + li {
+  margin-top: 0.25em;
+}
+
+.markdown-preview-document blockquote {
+  padding: 0.1em 1em;
+  border-left: 3px solid color-mix(in srgb, var(--accent) 65%, var(--border));
+  color: var(--text-2);
+  background: color-mix(in srgb, var(--bg-panel) 70%, transparent);
+}
+
+.markdown-preview-document a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.markdown-preview-document a:hover {
+  text-decoration: underline;
+}
+
+.markdown-preview-document hr {
+  height: 1px;
+  margin: 2em 0;
+  border: 0;
+  background: var(--border);
+}
+
+.markdown-preview-document table {
+  display: block;
+  max-width: 100%;
+  overflow: auto;
+  border-collapse: collapse;
+}
+
+.markdown-preview-document th,
+.markdown-preview-document td {
+  padding: 6px 11px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.markdown-preview-document th {
+  background: var(--bg-panel);
+  font-weight: 650;
+}
+
+.markdown-preview-document :not(pre) > code {
+  padding: 0.15em 0.36em;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-panel);
+  font-family: ui-monospace, "SF Mono", Consolas, "Liberation Mono", monospace;
+  font-size: 0.9em;
+}
+
+.markdown-preview-document img {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-preview-document .md-inline-code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--bg-hover);
+  font-family: var(--term-font, monospace);
+}
+
+.markdown-preview-document .md-code {
+  overflow-x: auto;
+  margin: 12px 0;
+  padding: 13px 15px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  font-family: var(--term-font, monospace);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.markdown-preview-document .md-code-line {
+  min-height: 1.55em;
+}
+
+.markdown-preview-source {
+  min-width: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 18px 24px 64px;
+  box-sizing: border-box;
+  color: var(--text-1);
+  font-family: ui-monospace, "SF Mono", Consolas, "Liberation Mono", monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre;
+  tab-size: 2;
+}
+
+@media (max-width: 720px) {
+  .markdown-preview-document {
+    width: calc(100% - 36px);
+    padding-top: 20px;
+  }
+}

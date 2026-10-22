@@ -15,7 +15,9 @@ import { diffLines } from 'diff';
 import { commands } from '../../tauri';
 import { useT } from '../../i18n/useT';
 import { useDataAttr } from '../../lib/use-data-attr';
+import { isMarkdownFile } from '../../lib/file-types';
 import { tokenizeFile, getShikiTheme, type LineTokens } from '../../lib/shiki';
+import { MarkdownContent } from '../center/MarkdownContent';
 import './DiffPanel.css';
 
 type DiffLine = {
@@ -43,7 +45,7 @@ type DiffResult =
   | { state: 'loading' }
   | { state: 'error'; reason: string }
   | { state: 'too_large'; added: number; deleted: number }
-  | { state: 'ok'; rows: DiffRow[]; added: number; deleted: number };
+  | { state: 'ok'; rows: DiffRow[]; added: number; deleted: number; newText: string };
 
 // Render guards. Past these a per-line diff is both unhelpful and a
 // main-thread hazard: computeUnifiedDiff allocates one object per line and
@@ -111,6 +113,9 @@ export function DiffPanel({ path, repoRoot, rel, kind, commitHash, onClose, mode
   const t = useT();
   const dataMode = useDataAttr('data-mode');
   const [result, setResult] = useState<DiffResult>({ state: 'loading' });
+  const markdown = useMemo(() => isMarkdownFile(path), [path]);
+  const [showMarkdownPreview, setShowMarkdownPreview] = useState(markdown);
+  useEffect(() => { setShowMarkdownPreview(markdown); }, [markdown, path]);
   // `expanded` (tab mode) is the legacy name kept locally so the keyboard +
   // sizing logic below reads as before; the prop surface is `mode`.
   const expanded = mode === 'tab';
@@ -258,7 +263,7 @@ export function DiffPanel({ path, repoRoot, rel, kind, commitHash, onClose, mode
         // from the full flat list above.
         const rows = collapseToHunks(tokenized);
         previousText = { oldText, newText };
-        setResult({ state: 'ok', rows, added: addedLines, deleted: deletedLines });
+        setResult({ state: 'ok', rows, added: addedLines, deleted: deletedLines, newText });
       } catch {
         if (cancelled || refreshPending) return;
         previousText = null;
@@ -311,6 +316,17 @@ export function DiffPanel({ path, repoRoot, rel, kind, commitHash, onClose, mode
         <span className="diff-header-path">{path}</span>
       )}
       <div className="diff-header-actions">
+        {markdown && (
+          <button
+            type="button"
+            className={`diff-header-btn diff-preview-toggle${showMarkdownPreview ? ' active' : ''}`}
+            onClick={() => setShowMarkdownPreview(value => !value)}
+            aria-pressed={showMarkdownPreview}
+            title={showMarkdownPreview ? t('diff.diff') : t('diff.preview')}
+          >
+            {showMarkdownPreview ? t('diff.diff') : t('diff.preview')}
+          </button>
+        )}
         {expanded ? (
           // Tab mode: fold back to the bottom-right overlay. The glyph is an
           // outer frame with a filled inner box pinned to the bottom-right —
@@ -401,10 +417,15 @@ export function DiffPanel({ path, repoRoot, rel, kind, commitHash, onClose, mode
             </div>
           </div>
         )}
-        {result.state === 'ok' && result.added === 0 && result.deleted === 0 && (
+        {result.state === 'ok' && markdown && showMarkdownPreview && (
+          <div className="diff-markdown-preview">
+            <MarkdownContent content={result.newText} />
+          </div>
+        )}
+        {result.state === 'ok' && !showMarkdownPreview && result.added === 0 && result.deleted === 0 && (
           <div className="diff-empty">{t('diff.no_changes') || 'No changes'}</div>
         )}
-        {result.state === 'ok' && (result.added > 0 || result.deleted > 0) && (
+        {result.state === 'ok' && !showMarkdownPreview && (result.added > 0 || result.deleted > 0) && (
           <pre className="diff-pre">
             {result.rows.map(row => {
               if (row.type === 'line') return renderDiffLine(row.line);
