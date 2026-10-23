@@ -18,10 +18,6 @@ export function supportsEnhancedTool(tool: ToolType | null | undefined): boolean
   return Boolean(tool && ENHANCED_TOOLS.has(tool));
 }
 
-export function supportsConversationTool(tool: ToolType | null | undefined): boolean {
-  return supportsEnhancedTool(tool);
-}
-
 /** Only hide xterm's cursor when the upstream TUI is verified to paint its own. */
 export function usesSelfRenderedCaret(tool: ToolType | null | undefined): boolean {
   return Boolean(tool && SELF_RENDERED_CARET_TOOLS.has(tool));

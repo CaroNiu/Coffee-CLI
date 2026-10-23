@@ -25,6 +25,21 @@
   z-index: 5;
 }
 
+.diff-open-external {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--shape-radius-btn);
+  background: var(--bg-hover);
+  color: var(--text-1);
+  font: inherit;
+  cursor: pointer;
+}
+
+.diff-preview-message {
+  flex-direction: column;
+  gap: 12px;
+}
+
 /* Full-window overlay (from clicking ⤢ on the half-paper). Backdrop
  * captures pointer events behind it so user can only act on diff or
  * dismiss. z-index well above Gambit, below context menus. */
@@ -99,24 +114,10 @@
   box-shadow: none;
 }
 
-/* Glass shape opt-out — global.css:1218-1224 nukes background +
- * border-color on every .panel-right descendant div via a giant
- * :not() exception list. Diff content NEEDS opacity to stay readable
- * (syntax-highlighted code through 24px backdrop blur is unreadable),
- * so reassert the panel's solid surface here. !important required
- * because the global rule uses !important. Same intent as the other
- * exception entries (gambit, tool-config-modal, etc.) — content
- * viewers need their own surface, only chrome carriers go transparent.
- *
- * Specificity note: the global rule selector
- *   `[data-shape="glass"] .panel-right :is(div,...):not(.list,...)`
- * has specificity (0,3,1). To win, my override needs at least (0,3,2)
- * or (0,4,0). Adding `.panel-right` as an ancestor brings me to
- * (0,4,0), enough to beat global cleanly. Half-mode .diff-panel lives
- * inside .panel-right so this works; the expanded modal portal'd to
- * body has NO .panel-right ancestor, so the global rule doesn't match
- * it either — the simple `.diff-panel--expanded` override suffices. */
-[data-shape="glass"] .panel-right .diff-panel {
+/* Transparent shapes clear descendant surfaces with specificity (0,3,1).
+ * The changes container gives this overlay (0,4,0), so its opaque theme
+ * background covers the file list and wallpaper behind the code. */
+:is([data-shape="glass"], [data-shape="carbon"], [data-shape="monogram"]) .panel-right .changes-fullview > .diff-panel {
   background: var(--bg-panel) !important;
   border-color: var(--border) !important;
 }

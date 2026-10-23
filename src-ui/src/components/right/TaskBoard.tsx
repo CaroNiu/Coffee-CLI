@@ -4,7 +4,6 @@ import { useAppState } from '../../store/app-state';
 import { isTauri, commands } from '../../tauri';
 import { getTabActions } from '../../lib/tab-actions';
 import './TaskBoard.css';
-import { ChangesBoard } from './ChangesBoard';
 import { TaskNoteView } from './TaskNoteView';
 import { TaskPromptView } from './TaskPromptView';
 import { TaskEmptyState } from './TaskEmptyState';
@@ -81,35 +80,6 @@ export function TaskBoard() {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  // Persist last-selected tab so a returning user resumes where they left off.
-  // First-time users land on Tasks. Legacy 'sessions' value (history moved to
-  // the left Explorer panel) collapses to Tasks default.
-  const [activeTab, setActiveTab] = useState<'tasks' | 'changes'>(() => {
-    try {
-      const saved = localStorage.getItem('cc-right-tab');
-      if (saved === 'tasks' || saved === 'changes') return saved;
-    } catch { /* Best-effort operation; failure is non-fatal. */ }
-    return 'tasks';
-  });
-  useEffect(() => {
-    try { localStorage.setItem('cc-right-tab', activeTab); } catch { /* Best-effort operation; failure is non-fatal. */ }
-  }, [activeTab]);
-
-  // Selection lives at the AppState tier now (diffSelection), so a detour to
-  // the center diff tab — which unmounts ChangesBoard — doesn't drop it.
-  // ChangesBoard still takes a selKey string for row highlighting; we derive it
-  // from diffSelection so the two stay in sync. Committed rows use a 3-segment
-  // form (`committed\x00<hash>\x00<path>`) so two session commits touching the
-  // SAME file keep distinct keys (else collapse leaves stale/duplicate rows).
-  // Must mirror ChangesBoard's committed-file key encoder exactly.
-  const diffSelection = state.diffSelection;
-  const diffMode = state.diffMode;
-  const selectedChangePath = diffSelection
-    ? diffSelection.kind === 'committed'
-      ? `committed\x00${diffSelection.commitHash ?? ''}\x00${diffSelection.path}`
-      : `${diffSelection.kind}\x00${diffSelection.path}`
-    : null;
 
   // Inline title editing
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -630,18 +600,6 @@ export function TaskBoard() {
 
   return (
     <div className={`task-board${__IS_LINUX__ ? ' task-board--static' : ''}`}>
-      {/* ── Tabs Header ── */}
-      <div className="right-tabs" style={{ position: 'relative' }}>
-        <button className={`right-tab ${activeTab === 'tasks' ? 'active' : ''}`} onClick={() => setActiveTab('tasks')}>
-          {t('task.tab.tasks') || 'Tasks'}
-        </button>
-        <button className={`right-tab ${activeTab === 'changes' ? 'active' : ''}`} onClick={() => setActiveTab('changes')}>
-          {t('task.tab.changes') || 'Changes'}
-        </button>
-      </div>
-
-      {activeTab === 'tasks' && (
-        <>
           {viewMode === 'note' ? (
             <TaskNoteView
               tasks={tasks}
@@ -856,16 +814,6 @@ export function TaskBoard() {
           </div>
         </button>
       </div>
-
-      </>
-    )}
-
-    {activeTab === 'changes' && (
-      <ChangesBoard
-        selectedPath={selectedChangePath}
-        diffMode={diffMode}
-      />
-    )}
 
     {ctxMenuEl}
     </div>

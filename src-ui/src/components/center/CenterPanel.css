@@ -1,3 +1,8 @@
+.panel-center, .chrome-tabs-header, .gambit, .claude-control-menu, .folder-menu {
+  --font: var(--font-nav);
+  font-family: var(--font);
+}
+
 .main-content {
   flex: 1;
   min-height: 0;
@@ -78,28 +83,6 @@
 .chrome-tab.dragging {
   z-index: 5;
   transition: none;
-}
-
-.chrome-tab-new {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-2);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  margin-left: 4px;
-  align-self: center;
-  flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
-}
-
-.chrome-tab-new:hover {
-  background: var(--bg-hover);
-  color: var(--text-1);
 }
 
 /* ─── Tab Actions (Status Dots ↔ Close Button Overlay) ─── */
@@ -242,13 +225,7 @@
 }
 
 .terminal-mode-surface {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  flex-direction: column;
-}
-
-.conversation-mode-surface {
+  display: flex;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -459,7 +436,7 @@
   z-index: 100;
 }
 
-/* Card + folder button share a group wrapper */
+/* Tool card wrapper */
 .launchpad-card-group {
   display: flex;
   flex-direction: row;
@@ -482,7 +459,7 @@
    `overflow:hidden + border-radius` clip, leaking past the rounded
    corners — visible as 4 sharp corner residues on Soft (16px) and
    as a colored blur fringe on the inner card's exposed left edge
-   (the right edge is shielded by .launchpad-folder-btn). Same fix
+   (the right edge is occupied by the mode indicator). Same fix
    pattern as [data-shape="glass"] in global.css. */
 .launchpad-has-bg .launchpad-card-group {
   background: rgba(18, 18, 24, 0.52);
@@ -522,29 +499,19 @@
   min-width: 0;
 }
 
-/* Folder button — pinned to right side of card */
-.launchpad-folder-btn {
-  margin-left: auto;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  padding: 4px;
-  cursor: pointer;
-  /* Theme-accent colored — follows each theme like the heatmap's bright
-     cells, so it's clearly visible and on-palette. Was --text-3 @ opacity
-     0.18, so dim that users didn't notice the open-folder affordance and
-     kept asking how to set the directory. */
-  color: var(--accent);
-  opacity: 0.9;
-  transition: opacity 0.15s;
-}
-
-.launchpad-folder-btn:hover {
-  opacity: 1;
-}
+.launchpad-directory { display:flex; align-items:center; gap:6px; width:100%; min-width:0; padding:0; border:0; border-radius:var(--shape-radius-btn,5px); background:transparent; color:var(--accent); font:14px/1.65 var(--font); text-align:left; }
+.launchpad-directory:hover { background:var(--bg-hover); }
+.launchpad-directory svg { display:block; flex-shrink:0; }
+.launchpad-card .launchpad-directory span { min-width:0; overflow:hidden; text-overflow:ellipsis; font:inherit; color:inherit; }
+.launchpad-directory:disabled { opacity:.45; }
+.launchpad-card:has(.launchpad-directory) > .launchpad-icon { transform:translateY(-2px); }
+.launchpad-card .launchpad-mode-icon { display:flex; align-items:center; justify-content:center; align-self:center; flex:0 0 auto; margin-left:auto; padding:4px; border:0; border-radius:var(--shape-radius-btn,5px); background:transparent; color:var(--text-3); }
+.launchpad-card .launchpad-mode-icon.is-switchable { color:var(--accent); }
+/* Keep mode icons slightly smaller than the tool logos, with 4px hit padding. */
+.launchpad-mode-icon svg { display:block; width:36px; height:36px; flex-shrink:0; }
+.launchpad-mode-icon.is-switchable:hover { color:var(--accent); background:var(--bg-hover); }
+.launchpad-mode-icon.is-switchable:focus-visible, .launchpad-directory:focus-visible { outline:1px solid var(--accent); outline-offset:-1px; }
+.launchpad-mode-icon:disabled { opacity:.45; }
 
 /* Recent-folders dropdown (opened from a tool card's folder icon).
    Same opaque-bg recipe as .term-ctx-menu so it reads solid across every
@@ -614,19 +581,6 @@
 }
 .folder-menu-item .folder-menu-del svg { opacity: 1; color: inherit; }
 
-.launchpad-folder-btn svg {
-  /* Fluid with the card: full 28px at normal widths, down to 22px on
-     narrow windows so the button stays affordable (name ellipsizes first,
-     the folder affordance never gets overlapped). */
-  width: clamp(22px, 2vw, 28px);
-  height: clamp(22px, 2vw, 28px);
-  flex-shrink: 0;
-}
-
-.launchpad-card-disabled .launchpad-folder-btn {
-  pointer-events: none;
-}
-
 /* (Per-tool launch settings now live on the Library cards, not on
    the main launchpad — gear is a one-time setup affordance, not a
    recurring action like the folder picker. See .library-gear-btn.) */
@@ -674,11 +628,10 @@
 .launchpad-card-info {
   display: flex;
   flex-direction: column;
+  flex: 1;
   gap: 3px;
   min-width: 0;
-  /* Clip the name when the card gets too narrow — the span below
-     ellipsizes instead of painting over the folder button (narrow-window
-     overlap fix). */
+  /* Keep the title and directory clear of the mode icon on narrow cards. */
   overflow: hidden;
 }
 
@@ -690,27 +643,12 @@
 }
 
 /* Agent name: ellipsize when the card is squeezed instead of overflowing
-   onto the folder button. The terminal card's inline-flex name (with the
+   onto the mode icon. The terminal card's inline-flex name (with the
    remote-link icon) only clips — flex items can't ellipsize — which is
    fine for its short CJK label. */
 .launchpad-card-info > span:first-child {
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.launchpad-card-cwd {
-  /* Keep the remembered workspace readable at a glance, matching the
-     secondary metadata used by the session list in the left rail. */
-  font-size: 12px !important;
-  font-weight: 500 !important;
-  color: var(--text-2) !important;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  /* Shrink with the card (was a fixed 160px that could out-wide a narrow
-     card and overflow). */
-  max-width: 100%;
-  letter-spacing: 0.3px;
 }
 
 /* (folder button is now a transparent overlay — no per-shape overrides needed) */

@@ -25,7 +25,7 @@ const context = {
   useAppState: () => ({ state, dispatch: action => { state = reducer(state, action); } }),
   useAppDispatch: () => context.useAppState().dispatch,
   useCallback: fn => fn, useEffect: fn => effects.push(fn), useT: () => key => key,
-  useClaudeSession: () => ({ busy: false }), getToolIcon: () => '', supportsConversationTool: () => false,
+  useClaudeSession: () => ({ busy: false }), getToolIcon: () => '',
   schemeLabels: () => ({ left: 'Alt+Q', gambit: 'Alt+W', right: 'Alt+E' }),
   React: { createElement: (type, props, ...children) => ({ type, props, children }) },
   Gambit: 'gambit', IS_MACOS: false,
@@ -76,7 +76,7 @@ assert.equal(host(), null, 'native Claude terminal can keep Gambit closed');
 assert.equal(toggle().props.disabled, false);
 toggle().props.onClick();
 assert.equal(host().props.claude, false, 'native Claude uses ordinary terminal compose controls');
-assert.equal(host().props.canUseChat, false, 'native Claude does not restore the retired bubble view');
+assert.equal(Object.hasOwn(host().props, 'canUseChat'), false, 'native Claude has no retired view switch');
 console.log('OK: native Claude terminal retains its ordinary composer controls and toggle');
 assert.equal(await host().props.onSend('/plan keep this native'), true);
 assert.equal(terminalSends[0].text, '/plan keep this native');
@@ -93,3 +93,16 @@ for (const mode of ['conversation', 'terminal']) {
   assert.equal(restarted.terminals[0].claudeMode, mode, 'reconnect retains the tab mode');
 }
 console.log('OK: both launch modes route prompts to the correct backend and retain mode on restart');
+
+for (const tool of ['codex', 'kimicode', 'qwen', 'opencode', 'terminal']) {
+  state = { terminals: [{ id: tool, tool, viewMode: 'chat' }], activeTerminalId: tool, gambitOpen: true };
+  const composer = host();
+  assert.equal(composer.props.claude, false);
+  assert.equal(Object.hasOwn(composer.props, 'canUseChat'), false);
+  assert.equal(Object.hasOwn(composer.props, 'onViewModeChange'), false);
+  const before = terminalSends.length;
+  assert.equal(await composer.props.onSend('CLI prompt'), true);
+  assert.equal(terminalSends.length, before + 1);
+  assert.equal(terminalSends.at(-1).id, tool);
+}
+console.log('OK: Codex/Kimi/other tools always send to CLI, with no legacy view controls even for stale chat state');

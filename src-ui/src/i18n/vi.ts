@@ -2,6 +2,13 @@ import type { I18nKey } from './en';
 
 export const vi = {
   'app.title': 'Coffee CLI',
+  'explorer.new_session': 'Phiên mới',
+  'history.search': 'Tìm kiếm',
+  'history.search_title': 'Tìm phiên hoặc không gian làm việc',
+  'history.list': 'Danh sách phiên',
+  'history.projects': 'Dự án',
+  'history.search_hint': '↑↓ Chọn · Enter Mở · Esc Đóng',
+  'history.close_search': 'Đóng tìm kiếm',
   // Explorer
   'explorer.tab.workspace': 'Không gian làm việc',
   'explorer.tab.history': 'Phiên',
@@ -80,6 +87,10 @@ export const vi = {
   'changes.committed': 'Đã commit',
   'changes.uncommitted': 'Chưa commit',
   'changes.untracked': 'Chưa theo dõi',
+  'file.preview_unavailable': 'Không thể xem trước tệp này dưới dạng văn bản.',
+  'file.preview_too_large': 'Tệp quá lớn để xem trước.',
+  'file.open_external': 'Mở bằng ứng dụng hệ thống',
+  'file.empty': 'Tệp trống',
   'diff.loading': 'Đang tải…',
   'diff.error': 'Không thể tải diff',
   'diff.no_changes': 'Không có thay đổi',
@@ -364,7 +375,6 @@ Xóa tờ ghi chú này khi bạn sẵn sàng và bắt đầu tác vụ đầu 
   'claude.error.request_failed': 'Yêu cầu Claude thất bại. Vui lòng thử lại.',
   'claude.error.process_exited': 'Claude đã thoát. Vui lòng kết nối lại.',
   'claude.error.settings_readback': 'Claude đã nhận cài đặt nhưng không đọc lại được. Vui lòng kết nối lại.\n{detail}',
-  'claude.welcome': 'Thời gian cùng Coffee và Claude',
   'claude.command.model': 'Đổi mô hình',
   'claude.command.permissions': 'Đổi chế độ quyền',
   'claude.command.plan': 'Khảo sát và lập kế hoạch trước khi sửa',

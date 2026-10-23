@@ -344,8 +344,6 @@ interface TierTerminalProps {
   theme: ThemeColor;
   lang: string;
   isActive: boolean;
-  /** The same PTY is projected through ConversationView while xterm is hidden. */
-  conversationActive?: boolean;
   toolData?: string;
   folderPath?: string | null;
   /** Resume token for "Continue this session" — when set, the mount
@@ -375,7 +373,7 @@ interface RemoteTerminalConfig {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 function TierTerminalImpl({
-  sessionId, tool, toolName, theme, lang, isActive, conversationActive = false,
+  sessionId, tool, toolName, theme, lang, isActive,
   toolData, folderPath, resumeToken, strictCwd, hasBg, bgUrl, bgType, termColorScheme, termFont,
 }: TierTerminalProps) {
   const selfRenderedCaret = usesSelfRenderedCaret(tool);
@@ -387,15 +385,13 @@ function TierTerminalImpl({
   // Output handlers need current sibling-pane state, but rendering already
   // receives its state through props. Avoid subscribing every hidden terminal.
   const appStateRef = useAppStateRef();
-  const projectionActiveRef = useRef(isActive || conversationActive);
-  projectionActiveRef.current = isActive || conversationActive;
+  const foregroundActiveRef = useRef(isActive);
+  foregroundActiveRef.current = isActive;
 
-  // TierTerminal is the single owner of backend activity cadence. In chat
-  // mode xterm is intentionally non-intersecting, but its PTY is still the
-  // visible conversation's event source and must remain at foreground speed.
+  // Keep the active terminal at foreground output cadence.
   useEffect(() => {
-    commands.setSessionActive(sessionId, isActive || conversationActive).catch(() => {});
-  }, [sessionId, isActive, conversationActive]);
+    commands.setSessionActive(sessionId, isActive).catch(() => {});
+  }, [sessionId, isActive]);
 
   const termRef  = useRef<HTMLDivElement>(null);
   // Frozen helper-textarea position held for the lifetime of an IME
@@ -1360,26 +1356,6 @@ function TierTerminalImpl({
       unlisteners.push(() => clearTerminalInteraction(sessionId));
     }
 
-    let lastNativeAction = { fingerprint: '', switchedAt: 0 };
-    const requestTerminalForNativeAction = (fingerprint: string) => {
-      const now = Date.now();
-      // Native Action Required titles blink repeatedly. Also let a user
-      // deliberately switch back to chat without an immediate bounce.
-      if (lastNativeAction.fingerprint === fingerprint && now - lastNativeAction.switchedAt < 30_000) {
-        return;
-      }
-      lastNativeAction = { fingerprint, switchedAt: now };
-      // Give the rendered-screen parser one frame to publish the bubble card.
-      // If this tool version changed and no verified grammar matches, retain
-      // the old terminal fallback so the user can still answer natively.
-      window.setTimeout(() => {
-        if (hasTerminalInteraction(sessionId)) return;
-        const session = appStateRef.current.terminals.find(item => item.id === sessionId);
-        if (session?.viewMode !== 'chat') return;
-        dispatch({ type: 'SET_SESSION_VIEW', id: sessionId, viewMode: 'terminal' });
-      }, 180);
-    };
-
     // Tool sets its own tab title via OSC 0/2 (e.g. Claude Code's conversation
     // summary) → xterm fires onTitleChange → mirror it to the tab title.
     // Claude, Codex and OMP carry their authoritative activity state in the
@@ -1398,9 +1374,6 @@ function TierTerminalImpl({
         const parsed = parseCodexTerminalTitle(title);
         displayTitle = parsed.displayTitle;
         publishNativeStatus(parsed.status);
-        if (parsed.status === 'wait_input') {
-          requestTerminalForNativeAction('native:codex:action-required');
-        }
       } else if (tool === 'opencode') {
         const parsed = parseOpenCodeTerminalTitle(title);
         if (parsed) {
@@ -1651,7 +1624,7 @@ function TierTerminalImpl({
             // A queued intersecting entry may predate a rapid switch away.
             // Never recreate a renderer for a tab that is already hidden.
             const visible = termRef.current !== null && termRef.current.offsetParent !== null && entries.some((e) => e.isIntersecting);
-            const backendActive = visible || projectionActiveRef.current;
+            const backendActive = visible || foregroundActiveRef.current;
             commands.setSessionActive(sessionId, backendActive).catch(() => {});
             outputScheduler.setActive(sessionId, visible);
             if (visible) {

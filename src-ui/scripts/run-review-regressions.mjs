@@ -97,7 +97,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   visit(tree); assert.ok(callback);
   const history = [], cleared = [], failed = [];
   const context = {
-    useCallback: fn => fn, draft: 'original prompt', running: false,
+    useCallback: fn => fn, draft: 'original prompt', running: false, claude: false,
     sendingRef: { current: false }, latestDraftRef: { current: 'original prompt' }, historyCursorRef: { current: null },
     onSend: async () => true, onDraftChange: text => cleared.push(text),
     pushGambitHistory: text => history.push(text), setSendFailed: value => failed.push(value), setSendEmpty() {},
@@ -267,91 +267,6 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   console.log('OK: Agent unique-id navigation, streaming reading position, Markdown copy feedback, and older-history anchors');
 }
 
-// A mode switch must hide the conversation, not remove its React subtree.
-// Otherwise both the reading position and measured virtual row heights reset.
-{
-  const tree = source('components/center/CenterPanel.tsx');
-  let surface;
-  function visit(node) {
-    if (ts.isJsxElement(node) && node.openingElement.attributes.properties.some(attribute =>
-      ts.isJsxAttribute(attribute) && attribute.name.getText(tree) === 'className'
-      && attribute.initializer?.getText(tree) === '"conversation-mode-surface"')) {
-      surface = node;
-    }
-    ts.forEachChild(node, visit);
-  }
-  visit(tree);
-  assert.ok(surface);
-  let branch = surface.parent;
-  while (ts.isParenthesizedExpression(branch)) branch = branch.parent;
-  assert.ok(ts.isBinaryExpression(branch));
-  const condition = branch.left.getText(tree);
-  const tab = { tool: 'codex', viewMode: 'chat', chatPending: null };
-  const mounted = () => evaluate(condition, { t: tab, supportsConversationTool: () => true });
-  assert.ok(mounted());
-  tab.viewMode = 'terminal';
-  assert.ok(mounted(), 'switching to an idle terminal must retain the conversation subtree');
-
-  let opened;
-  const render = vm.runInNewContext(ts.transpileModule(
-    `${declaration('components/center/ConversationView.tsx', 'ConversationViewImpl')}; ConversationViewImpl`,
-    { compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React } },
-  ).outputText, {
-    useState(initial) {
-      opened ??= initial;
-      return [opened, value => { opened = value; }];
-    },
-    React: { createElement: (type, props) => ({ type, props }) },
-    ConversationContent: 'content',
-  });
-  assert.equal(render({ isVisible: false }), null, 'unused terminal tabs do not mount chat content');
-  const content = render({ isVisible: true });
-  assert.ok(content);
-  for (let i = 0; i < 3; i++) {
-    assert.equal(render({ isVisible: false }).type, content.type, 'keep the same child type while hidden');
-    assert.equal(render({ isVisible: true }).type, content.type);
-  }
-  opened = undefined;
-  assert.equal(render({ isVisible: false }), null, 'a fresh session starts unmounted');
-  assert.ok(render({ isVisible: false, pending: { text: 'test' } }), 'pending chat still mounts in terminal mode');
-
-  let activity;
-  function findActivity(node) {
-    if (ts.isJsxAttribute(node) && node.name.getText(tree) === 'isActive') activity = node.initializer.expression;
-    ts.forEachChild(node, findActivity);
-  }
-  findActivity(surface);
-  tab.id = 'test';
-  const active = (agentPageActive = null) => evaluate(activity.getText(tree), { t: tab, activeTerminalId: 'test', diffTabActive: false, agentPageActive });
-  assert.equal(active(), false, 'hidden idle chat does not poll');
-  tab.chatPending = { text: 'test' };
-  assert.equal(active(), true, 'pending chat can still resolve while hidden');
-  tab.chatPending = null;
-  tab.viewMode = 'chat';
-  assert.equal(active(), true);
-  assert.equal(active('agent'), false, 'Agent page pauses the hidden CLI conversation poll');
-  assert.equal(active('config'), false, 'configuration page pauses the hidden CLI conversation poll');
-  console.log('OK: conversation mode retention, lazy mount, session reset, and hidden polling');
-
-  const fillViewport = effect('components/center/ConversationView.tsx', 'element.scrollHeight <= element.clientHeight + 80');
-  let loads = 0;
-  const scroll = { clientHeight: 0, scrollHeight: 0 };
-  const checkViewport = () => evaluate(`(${fillViewport})()`, {
-    source: {}, hasOlderRef: { current: true }, scrollRef: { current: scroll },
-    loadOlderRef: { current: () => { loads++; } },
-    window: { requestAnimationFrame(callback) { callback(); return 1; }, cancelAnimationFrame() {} },
-  });
-  checkViewport();
-  assert.equal(loads, 0, 'a hidden conversation must not drain older history');
-  scroll.clientHeight = 600;
-  scroll.scrollHeight = 400;
-  checkViewport();
-  assert.equal(loads, 1, 'a revealed short conversation still fills its viewport');
-  scroll.scrollHeight = 1000;
-  checkViewport();
-  assert.equal(loads, 1, 'a full viewport needs no additional history');
-}
-
 function deferred() {
   let resolve, reject;
   const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
@@ -377,13 +292,6 @@ assert.equal(split.terminals[2].folderPath, '/C');
 assert.equal(split.terminals[2].multiAgent.panes[0], state.terminals[2].multiAgent.panes[0]);
 assert.equal(split.terminals[2].multiAgent.panes[1].folderPath, '/two/new');
 
-const normalize = evaluate(`${declaration('components/center/ConversationView.tsx', 'normalizedPath')}; normalizedPath`);
-assert.notEqual(normalize('/work/Project'), normalize('/work/project'));
-assert.equal(normalize('C:\\Work\\Project\\'), normalize('c:/work/project'));
-assert.equal(normalize('C:\\'), normalize('c:/'));
-assert.equal(normalize('\\\\Host\\Share\\Project'), normalize('//host/share/project'));
-assert.equal(normalize('/work/Project/.claude/worktrees/task'), '/work/Project');
-
 // Cleanup during both async import and listen() registration, including StrictMode remounts.
 for (const [file, fragment] of [
   ['components/right/TaskBoard.tsx', "'tasks-changed'"],
@@ -395,6 +303,7 @@ for (const [file, fragment] of [
     const body = effect(file, fragment).replace("import('@tauri-apps/api/event')", 'Promise.resolve(eventModule)');
     const cleanup = evaluate(`(${body})()`, {
       isTauri: true, commands: { takePendingLaunch: async () => null },
+      coldLaunchRef: { current: null },
       eventModule: { listen: () => { created++; return registration.promise; } },
     });
     if (duringListen) await tick();
@@ -431,7 +340,7 @@ let poll, timer, output, tokenizations = 0, reads = 0, fileText = 'first', failu
 const diffCallbacks = new Map();
 const diffEffect = effect('components/right/DiffPanel.tsx', 'const load = async');
 const cleanupDiff = evaluate(`(${diffEffect})()`, {
-  path: '/repo/a.txt', repoRoot: '/repo', rel: 'a.txt', kind: 'untracked', commitHash: undefined,
+  path: '/repo/a.txt', repoRoot: '/repo', rel: 'a.txt', kind: 'untracked', fileSize: undefined, commitHash: undefined,
   dataMode: 'dark', badgeRef: { current: { added: 1, deleted: 0 } },
   DIFF_MAX_CHANGED_LINES: 5000, DIFF_MAX_BYTES: 1_000_000,
   setResult: value => { output = value; },
@@ -469,6 +378,48 @@ pendingRead = deferred(); poll(); cleanupDiff();
 pendingRead.resolve('late result'); await tick();
 assert.equal(output.rows[0].text, 'second');
 console.log('OK: background cwd, split ownership, path case, late listeners, Explorer races, and live Diff refresh');
+
+// Explorer previews use the same loading lifecycle, without Git or diff folds.
+{
+  let text = 'hello', result, refreshFile, refreshTimer, fileReads = 0;
+  const mountPreview = (fileSize = 5) => evaluate(`(${diffEffect})()`, {
+    path: '/repo/a.txt', repoRoot: '/repo', rel: 'a.txt', kind: 'file', fileSize,
+    commitHash: undefined, dataMode: 'dark', badgeRef: { current: { added: 0, deleted: 0 } },
+    DIFF_MAX_CHANGED_LINES: 3, DIFF_MAX_BYTES: 10000,
+    setResult: value => { result = value; },
+    commands: { readTextFile: async () => { fileReads++; return text; } },
+    computeUnifiedDiff: () => { throw new Error('preview must not compute a diff'); },
+    collapseToHunks: () => { throw new Error('preview must not fold file contents'); },
+    getShikiTheme: value => value, tokenizeFile: async () => null,
+    document: { visibilityState: 'visible' }, TextEncoder,
+    window: {
+      setInterval: () => 1, clearInterval() {},
+      addEventListener: (_name, callback) => { refreshFile = callback; }, removeEventListener() {},
+    },
+    setTimeout: callback => { refreshTimer = callback; return 1; }, clearTimeout() {},
+  });
+  const reload = async value => {
+    text = value;
+    refreshFile({ detail: { dirPath: '/repo' } });
+    refreshTimer(); await tick();
+  };
+  const closePreview = mountPreview(); await tick();
+  assert.equal(result.rows[0].line.kind, 'eq');
+  assert.equal(result.rows[0].line.text, 'hello');
+  await reload('1\n2\n3\n4');
+  assert.equal(result.state, 'too_large');
+  await reload('hello');
+  assert.equal(result.state, 'ok', 'shrinking back to the previous contents must recover from the line limit');
+  await reload('');
+  assert.equal(result.state, 'ok'); assert.equal(result.rows.length, 0, 'empty file is a successful preview');
+  await reload(null); assert.equal(result.state, 'error', 'binary or unreadable text is not an empty file');
+  closePreview();
+  const before = fileReads, closeLarge = mountPreview(10001); await tick();
+  assert.equal(result.state, 'too_large');
+  assert.equal(fileReads, before, 'Explorer size hint rejects large files before reading');
+  closeLarge();
+  console.log('OK: full neutral file previews, empty/binary files, size guards and recovery after shrinking');
+}
 
 // Every saved launchpad pin must have a visible switch, including Cline.
 const centerTree = source('components/center/CenterPanel.tsx');
@@ -532,7 +483,7 @@ console.log('OK: Cline selection and toggling, retired pins, catalog consistency
 const manualLaunches = [];
 const selectTool = evaluate(pinDeclarations.get('selectTool').initializer.getText(centerTree), {
   activeTerminalId: 'launchpad', dispatch: action => manualLaunches.push(action),
-  setLastCwdByTool() {}, pushRecentFolder() {},
+  setLastCwdByTool() {}, pushRecentFolder() {}, claudeLaunchMode: 'conversation',
 });
 selectTool('claude', undefined, 'E:\\tmp');
 assert.equal(manualLaunches.length, 1);
@@ -546,15 +497,16 @@ console.log('OK: actual tool-card folder selection uses the same launch action a
 // must open its Agent page, while native history still resumes a real CLI tab.
 {
   const tree = source('components/right/HistoryBoard.tsx');
-  let handler, filter, merge;
+  let handler, filter, merge, matches;
   function visit(node) {
     if (ts.isVariableDeclaration(node) && node.name.getText(tree) === 'handleViewHistory') handler = node.initializer.getText(tree);
     if (ts.isVariableDeclaration(node) && node.name.getText(tree) === 'matchedSessions') filter = node.initializer.getText(tree);
     if (ts.isVariableDeclaration(node) && node.name.getText(tree) === 'baseSessions') merge = node.initializer.getText(tree);
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === 'matchesQuery') matches = node.initializer.getText(tree);
     ts.forEachChild(node, visit);
   }
   visit(tree);
-  assert.ok(handler); assert.ok(filter); assert.ok(merge);
+  assert.ok(handler); assert.ok(filter); assert.ok(merge); assert.ok(matches);
   const newest = Date.UTC(2026, 9, 10, 13, 15);
   const nativeSessions = Array.from({ length: 35 }, (_, index) => ({
     id: `native-${index}`, name: `CLI history ${index}`, tool: 'claude', cwd: 'E:\\tmp',
@@ -576,10 +528,12 @@ console.log('OK: actual tool-card folder selection uses the same launch action a
   assert.equal(coffee.turn_count, 2);
   assert.equal(coffee.cwd, '');
   assert.equal(coffee.session_token, null);
-  const allHistories = evaluate(filter, {
-    useMemo: callback => callback(), baseSessions: merged, hidden: new Set(), pinned: new Set(),
-    activeProject: null, debouncedQuery: '', renamed: {}, agentConversations,
+  const matchesQuery = evaluate(matches, {
+    useCallback: callback => callback, renamed: {},
     projectName: () => '', getToolName: tool => tool,
+  });
+  const allHistories = evaluate(filter, {
+    useMemo: callback => callback(), availableSessions: merged, debouncedQuery: '', matchesQuery,
   });
   assert.equal(allHistories.length, 38);
   assert.equal(allHistories.slice(0, 30).some(session => session.id === coffee.id), true, 'All projects must include the directoryless Agent conversation on its first page');
@@ -587,17 +541,15 @@ console.log('OK: actual tool-card folder selection uses the same launch action a
   const click = evaluate(`const click = ${handler}; click`, {
     dispatch: action => actions.push(action), setAgentError() {},
     openAgentConversation: async id => opened.push(id), crypto: { randomUUID: () => 'native-tab' },
+    isTauri: false, state: { terminals: [] },
   });
-  click(coffee);
+  await click(coffee);
   assert.deepEqual(opened, ['coffee-history']);
   assert.deepEqual(actions.map(action => action.type), ['OPEN_AGENT_PAGE']);
-  click({ id: 'claude-history', tool: 'claude', cwd: 'E:\\tmp', session_token: 'native-resume' });
-  assert.deepEqual(actions.slice(1).map(action => action.type), ['ADD_TERMINAL', 'SET_ACTIVE_TERMINAL']);
+  await click({ id: 'claude-history', tool: 'claude', cwd: 'E:\\tmp', session_token: 'native-resume' });
+  assert.deepEqual(actions.slice(1).map(action => action.type), ['ADD_TERMINAL']);
   const filtered = evaluate(filter, {
-    useMemo: callback => callback(), baseSessions: [coffee], hidden: new Set(), pinned: new Set(),
-    activeProject: 'coffee-agent', debouncedQuery: 'Coffee Agent', renamed: {},
-    agentConversations: [{ id: coffee.id, source: '微信' }],
-    projectName: () => '', getToolName: tool => tool,
+    useMemo: callback => callback(), availableSessions: [coffee], debouncedQuery: 'Coffee Agent', matchesQuery,
   });
   assert.equal(filtered.length, 1);
   console.log('OK: mixed timestamps show Coffee history on the first page, reopen the Agent, and preserve native CLI resume');

@@ -20,7 +20,7 @@ import { useCallback, useEffect } from 'react';
 import { useAppState, isSplitTool, paneSessionId, matchHotkeyScheme } from '../../store/app-state';
 import { submitTerminalPrompt } from '../../lib/terminal-control';
 import { getFocusedPane } from '../../lib/pane-focus';
-import { isClaudeConversation, supportsConversationTool } from '../../lib/chat-tools';
+import { isClaudeConversation } from '../../lib/chat-tools';
 import { getToolIcon } from './CenterPanel';
 import { Gambit } from './Gambit';
 import { controlClaude, sendClaudeMessage, useClaudeSession } from '../../lib/claude-session';
@@ -73,8 +73,6 @@ export function ActiveGambit() {
   // Gambit target chip reads as "tool + target" (mirrors the tab's
   // icon+name pairing). null session → undefined → Gambit hides the icon.
   const toolIcon = activeSession ? getToolIcon(activeSession.tool) : undefined;
-  const canUseChat = activeSession?.tool !== 'claude' && supportsConversationTool(activeSession?.tool);
-  const viewMode = canUseChat ? (activeSession?.viewMode ?? 'terminal') : 'terminal';
 
   const handleDraftChange = useCallback((draft: string) => {
     if (!activeId) return;
@@ -120,18 +118,8 @@ export function ActiveGambit() {
       if (!paneIdx) return false;
       targetId = paneSessionId(activeId, paneIdx, 'split');
     }
-    let sent = false;
-    try { await submitTerminalPrompt(targetId, text); sent = true; } catch { return false; }
-    if (sent && !isSplitTool(tool) && canUseChat) {
-      dispatch({ type: 'SET_CHAT_PENDING', id: activeId, pending: { text, sentAt: Date.now() } });
-    }
-    return sent;
-  }, [activeId, activeSession?.tool, isClaude, canUseChat, dispatch]);
-
-  const handleViewModeChange = useCallback((next: 'terminal' | 'chat') => {
-    if (!activeId || (next === 'chat' && !canUseChat)) return;
-    dispatch({ type: 'SET_SESSION_VIEW', id: activeId, viewMode: next });
-  }, [activeId, canUseChat, dispatch]);
+    try { await submitTerminalPrompt(targetId, text); return true; } catch { return false; }
+  }, [activeId, activeSession?.tool, isClaude]);
 
   // Global open/close hotkey (settings → 妙手). Registered in the CAPTURE
   // phase on document so it fires BEFORE the focused xterm's own keydown —
@@ -185,9 +173,6 @@ export function ActiveGambit() {
       draft={gambitDraft}
       workspaceName={workspaceName}
       toolIcon={toolIcon}
-      canUseChat={canUseChat}
-      viewMode={viewMode}
-      onViewModeChange={handleViewModeChange}
       onDraftChange={handleDraftChange}
       onClose={handleClose}
       onSend={handleSend}

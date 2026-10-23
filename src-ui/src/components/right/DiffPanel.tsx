@@ -81,8 +81,10 @@ interface DiffPanelProps {
   /** Which group the row belongs to — picks the old/new git specs:
    *  - 'uncommitted' → old `HEAD:rel`,   new = working file (HEAD↔worktree)
    *  - 'untracked'   → old `""`,          new = working file (no git blob)
-   *  - 'committed'   → old `HEAD~1:rel`,  new = `HEAD:rel` (last commit's diff) */
-  kind: 'uncommitted' | 'untracked' | 'committed';
+   *  - 'committed'   → old `HEAD~1:rel`,  new = `HEAD:rel` (last commit's diff)
+   *  - 'file'        → complete working file, without a git baseline */
+  kind: 'uncommitted' | 'untracked' | 'committed' | 'file';
+  fileSize?: number;
   /** Commit hash to diff against for `kind === 'committed'` (default HEAD).
    *  A session commit passes its hash so the diff is <hash>~1↔<hash> instead
    *  of HEAD~1↔HEAD. */
@@ -107,7 +109,7 @@ interface DiffPanelProps {
   deleted?: number;
 }
 
-export function DiffPanel({ path, repoRoot, rel, kind, commitHash, onClose, mode, onToggleExpanded, heightPercent, added, deleted }: DiffPanelProps) {
+export function DiffPanel({ path, repoRoot, rel, kind, fileSize, commitHash, onClose, mode, onToggleExpanded, heightPercent, added, deleted }: DiffPanelProps) {
   const t = useT();
   const dataMode = useDataAttr('data-mode');
   const [result, setResult] = useState<DiffResult>({ state: 'loading' });
@@ -178,7 +180,7 @@ export function DiffPanel({ path, repoRoot, rel, kind, commitHash, onClose, mode
       loading = true;
       const { added: badgeAdded, deleted: badgeDeleted } = badgeRef.current;
       try {
-        if (badgeAdded + badgeDeleted > DIFF_MAX_CHANGED_LINES) {
+        if (badgeAdded + badgeDeleted > DIFF_MAX_CHANGED_LINES || (kind === 'file' && (fileSize ?? 0) > DIFF_MAX_BYTES)) {
           oversized = true;
           previousText = null;
           setResult({ state: 'too_large', added: badgeAdded, deleted: badgeDeleted });
@@ -193,7 +195,12 @@ export function DiffPanel({ path, repoRoot, rel, kind, commitHash, onClose, mode
         // HEAD~1) → empty side → all-additions.
         let oldText: string;
         let newText: string;
-        if (kind === 'untracked') {
+        if (kind === 'file') {
+          oldText = '';
+          const text = await commands.readTextFile(path);
+          if (text === null) throw new Error('File is not readable text');
+          newText = text;
+        } else if (kind === 'untracked') {
           oldText = '';
           newText = (await commands.readTextFile(path)) ?? '';
         } else if (kind === 'committed') {
@@ -230,7 +237,17 @@ export function DiffPanel({ path, repoRoot, rel, kind, commitHash, onClose, mode
         }
         oversized = false;
 
-        const lines = computeUnifiedDiff(oldText, newText);
+        // File previews show every line in its ordinary syntax colors, with
+        // no diff markers or folded unchanged sections.
+        const lines: DiffLine[] = kind === 'file'
+          ? (newText ? newText.replace(/\r\n/g, '\n').split('\n').map((text, i) => ({ kind: 'eq', text, lineNum: i + 1, tokens: null })) : [])
+          : computeUnifiedDiff(oldText, newText);
+        if (kind === 'file' && lines.length > DIFF_MAX_CHANGED_LINES) {
+          oversized = true;
+          previousText = null;
+          setResult({ state: 'too_large', added: 0, deleted: 0 });
+          return;
+        }
         // Renderer-side counts (order-sensitive jsdiff), distinct from the
         // Rust badge props of the same name — name them apart to avoid
         // shadowing those props.
@@ -242,7 +259,7 @@ export function DiffPanel({ path, repoRoot, rel, kind, commitHash, onClose, mode
         // every file open — single-shot avoids that.
         const theme = getShikiTheme(dataMode);
         const [oldTokens, newTokens] = await Promise.all([
-          tokenizeFile(oldText, path, theme),
+          kind === 'file' ? Promise.resolve(null) : tokenizeFile(oldText, path, theme),
           tokenizeFile(newText, path, theme),
         ]);
         if (cancelled || refreshPending) return;
@@ -256,7 +273,9 @@ export function DiffPanel({ path, repoRoot, rel, kind, commitHash, onClose, mode
 
         // Fold unchanged runs into gaps for rendering; counts stay sourced
         // from the full flat list above.
-        const rows = collapseToHunks(tokenized);
+        const rows: DiffRow[] = kind === 'file'
+          ? tokenized.map(line => ({ type: 'line', line }))
+          : collapseToHunks(tokenized);
         previousText = { oldText, newText };
         setResult({ state: 'ok', rows, added: addedLines, deleted: deletedLines });
       } catch {
@@ -294,9 +313,14 @@ export function DiffPanel({ path, repoRoot, rel, kind, commitHash, onClose, mode
       window.clearInterval(poll);
       window.removeEventListener('fs-refresh', refresh);
     };
-  }, [path, repoRoot, rel, kind, commitHash, dataMode]);
+  }, [path, repoRoot, rel, kind, fileSize, commitHash, dataMode]);
 
   const basename = useMemo(() => path.replace(/\\/g, '/').split('/').pop() || path, [path]);
+  const openExternal = (
+    <button type="button" className="diff-open-external" onClick={() => { void commands.openUrl(path).catch(console.error); }}>
+      {t('file.open_external')}
+    </button>
+  );
 
   const header = (
     <div className="diff-header">
@@ -321,7 +345,7 @@ export function DiffPanel({ path, repoRoot, rel, kind, commitHash, onClose, mode
             type="button"
             className="diff-header-btn"
             onClick={onToggleExpanded}
-            aria-label="Fold diff back to panel"
+            aria-label={kind === 'file' ? 'Fold file back to panel' : 'Fold diff back to panel'}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -339,7 +363,7 @@ export function DiffPanel({ path, repoRoot, rel, kind, commitHash, onClose, mode
               type="button"
               className="diff-header-btn"
               onClick={onToggleExpanded}
-              aria-label="Expand diff to tab"
+              aria-label={kind === 'file' ? 'Expand file to tab' : 'Expand diff to tab'}
             >
               {/* Outer frame + centered vertical bar — the bar reads as the
                   center tab column the diff expands into (taller than wide =
@@ -354,7 +378,7 @@ export function DiffPanel({ path, repoRoot, rel, kind, commitHash, onClose, mode
               type="button"
               className="diff-header-btn"
               onClick={onClose}
-              aria-label="Close diff"
+              aria-label={kind === 'file' ? 'Close file' : 'Close diff'}
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"/>
@@ -388,23 +412,27 @@ export function DiffPanel({ path, repoRoot, rel, kind, commitHash, onClose, mode
           <div className="diff-empty">{t('diff.loading') || 'Loading…'}</div>
         )}
         {result.state === 'error' && (
-          <div className="diff-empty">{t('diff.error') || 'Failed to load diff'}</div>
+          <div className="diff-empty diff-preview-message">
+            {t(kind === 'file' ? 'file.preview_unavailable' : 'diff.error')}
+            {kind === 'file' && openExternal}
+          </div>
         )}
         {result.state === 'too_large' && (
           <div className="diff-toolarge">
             <div className="diff-toolarge-msg">
-              {t('diff.too_large') || 'File too large to show inline diff'}
+              {t(kind === 'file' ? 'file.preview_too_large' : 'diff.too_large')}
             </div>
-            <div className="diff-toolarge-stats">
+            {kind !== 'file' && <div className="diff-toolarge-stats">
               <span className="diff-add">+{result.added}</span>
               <span className="diff-del">-{result.deleted}</span>
-            </div>
+            </div>}
+            {kind === 'file' && openExternal}
           </div>
         )}
-        {result.state === 'ok' && result.added === 0 && result.deleted === 0 && (
-          <div className="diff-empty">{t('diff.no_changes') || 'No changes'}</div>
+        {result.state === 'ok' && (kind === 'file' ? result.rows.length === 0 : result.added === 0 && result.deleted === 0) && (
+          <div className="diff-empty">{t(kind === 'file' ? 'file.empty' : 'diff.no_changes')}</div>
         )}
-        {result.state === 'ok' && (result.added > 0 || result.deleted > 0) && (
+        {result.state === 'ok' && (kind === 'file' || result.added > 0 || result.deleted > 0) && (
           <pre className="diff-pre">
             {result.rows.map(row => {
               if (row.type === 'line') return renderDiffLine(row.line);

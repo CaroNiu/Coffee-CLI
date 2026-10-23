@@ -4,9 +4,8 @@ import { focusTerminal } from '../../lib/focus-registry';
 import { onWindowForeground } from '../../lib/window-focus-filter';
 import { TierTerminal } from './TierTerminal';
 import { AgentPages } from '../agent/AgentPages';
-import { ConversationView } from './ConversationView';
 import { ClaudeConversation } from './ClaudeConversation';
-import { ClaudeLaunchMode } from './ClaudeLaunchMode';
+import { LaunchModeControl } from './LaunchModeControl';
 import { FourSplitGrid } from './FourSplitGrid';
 import { ToolConfigModal } from './ToolConfigModal';
 import { ContributionHeatmap } from './ContributionHeatmap';
@@ -14,7 +13,7 @@ import { ErrorBoundary } from '../common/ErrorBoundary';
 import { DiffPanel } from '../right/DiffPanel';
 import { getTabOrder, supportsAgentStatus, useAppState, type ClaudeMode, type ToolType } from '../../store/app-state';
 import { isFrostShape } from '../../lib/personalization';
-import { isClaudeConversation, supportsConversationTool } from '../../lib/chat-tools';
+import { isClaudeConversation } from '../../lib/chat-tools';
 
 // Dropdown shown when a tool card's folder icon is clicked: the globally
 // recent project folders (any tool that used one) + "Open folder…" last.
@@ -925,19 +924,23 @@ export function CenterPanel() {
 
 
 
-  const handleAddTab = () => {
-    dispatch({
-      type: 'ADD_TERMINAL',
-      session: { id: crypto.randomUUID(), tool: null, folderPath: null }
-    });
-  };
+  // The sidebar opens the tool selector without adding an empty titlebar tab.
+  useEffect(() => {
+    const openNewSession = () => {
+      setShowLibrary(false);
+      const idle = terminals.find(session => session.tool === null);
+      if (idle) dispatch({ type: 'SET_ACTIVE_TERMINAL', id: idle.id });
+      else dispatch({ type: 'ADD_TERMINAL', session: { id: crypto.randomUUID(), tool: null, folderPath: null } });
+    };
+    window.addEventListener('coffee-new-session', openNewSession);
+    return () => window.removeEventListener('coffee-new-session', openNewSession);
+  }, [terminals, dispatch]);
 
   // External launch (`coffee-cli launch --tool <id> [--cwd <dir>]`) — reached
   // from the cold-start drain (takePendingLaunch) and the warm-start
   // single-instance forward ('launch-request' event). Reuses an idle
   // launchpad tab when one exists so the agent never hijacks a tab that
-  // already runs a session; otherwise opens a fresh tab (no cap — matches
-  // the + button, which is also uncapped so launcher scripts never stall).
+  // already runs a session; otherwise opens a fresh session without a cap.
   const launchCtxRef = useRef({ terminals, activeTerminalId });
   const coldLaunchRef = useRef<ReturnType<typeof commands.takePendingLaunch> | null>(null);
   useEffect(() => { launchCtxRef.current = { terminals, activeTerminalId }; });
@@ -1361,12 +1364,12 @@ export function CenterPanel() {
   return (
     <>
       {tabSlot && createPortal(
-      <div ref={tabsHeaderRef} className="chrome-tabs-header" data-count={terminals.filter(s => !s.isHidden || s.id === activeTerminalId).length + state.agentPages.length}>
+      <div ref={tabsHeaderRef} className="chrome-tabs-header" data-count={terminals.filter(s => s.tool !== null && (!s.isHidden || s.id === activeTerminalId)).length + state.agentPages.length}>
         {(() => {
           const sessions = new Map(terminals.map(session => [session.id, session]));
           const visibleTabs = getTabOrder(state).filter(id => {
             const session = sessions.get(id);
-            return !session || !session.isHidden || id === activeTerminalId;
+            return !session || session.tool !== null && (!session.isHidden || id === activeTerminalId);
           });
           return visibleTabs.map((tabId, visibleIndex) => {
           const isDragging = tabDrag?.tabId === tabId;
@@ -1478,9 +1481,6 @@ export function CenterPanel() {
           </div>
         )}
 
-        <button className="chrome-tab-new" onClick={handleAddTab}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-        </button>
       </div>,
       tabSlot)}
       <div className="main-content">
@@ -1539,7 +1539,7 @@ export function CenterPanel() {
               />
             ) : (
               <>
-                <div className="terminal-mode-surface" style={{ display: supportsConversationTool(t.tool) && t.viewMode === 'chat' ? 'none' : 'flex' }}>
+                <div className="terminal-mode-surface">
                   <ErrorBoundary key={`err-${t.id}-${t.restartKey || 0}`} fallbackLabel="Tier Terminal Error">
                     <TierTerminal
                       key={`tier-${t.id}-${t.restartKey || 0}`}
@@ -1548,58 +1548,19 @@ export function CenterPanel() {
                       toolName={AGENT_CATALOG.find(a => a.key === t.tool)?.label}
                       theme={state.currentTheme}
                       lang={state.currentLang}
-                      isActive={t.id === activeTerminalId && !diffTabActive && !agentPageActive && (!supportsConversationTool(t.tool) || t.viewMode !== 'chat')}
-                      conversationActive={t.id === activeTerminalId && !diffTabActive && !agentPageActive && supportsConversationTool(t.tool) && t.viewMode === 'chat'}
+                      isActive={t.id === activeTerminalId && !diffTabActive && !agentPageActive}
                       toolData={t.toolData}
                       folderPath={t.folderPath}
                       resumeToken={t.resumeToken}
                       strictCwd={t.strictCwd}
-                      hasBg={hasBg && (!supportsConversationTool(t.tool) || t.viewMode !== 'chat')}
-                      bgUrl={supportsConversationTool(t.tool) && t.viewMode === 'chat' ? '' : bgUrl}
+                      hasBg={hasBg}
+                      bgUrl={bgUrl}
                       bgType={bgType}
                       termColorScheme={state.termColorScheme}
                       termFont={state.termFont}
                     />
                   </ErrorBoundary>
                 </div>
-                {t.tool !== 'claude' && supportsConversationTool(t.tool) && (
-                  <div
-                    className="conversation-mode-surface"
-                    style={{ display: t.viewMode === 'chat' ? 'flex' : 'none' }}
-                  >
-                    <ErrorBoundary fallbackLabel="Conversation Error">
-                      <ConversationView
-                        key={`conversation-${t.id}-${t.tool}-${t.folderPath ?? ''}-${t.resumeToken ?? ''}-${t.startedAt ?? 0}-${t.restartKey ?? 0}`}
-                        sessionId={t.id}
-                        tool={t.tool}
-                        folderPath={t.folderPath}
-                        resumeToken={t.resumeToken}
-                        startedAt={t.startedAt}
-                        pending={t.chatPending}
-                        agentStatus={t.agentStatus}
-                        isActive={t.id === activeTerminalId && !diffTabActive && !agentPageActive && (t.viewMode === 'chat' || Boolean(t.chatPending))}
-                        isVisible={t.viewMode === 'chat'}
-                        onPendingResolved={() => dispatch({ type: 'SET_CHAT_PENDING', id: t.id })}
-                        onPasteToDraft={(text) => dispatch({ type: 'APPEND_GAMBIT_DRAFT', id: t.id, text })}
-                        hasBg={hasBg && t.viewMode === 'chat'}
-                        bgUrl={t.viewMode === 'chat' ? bgUrl : ''}
-                        bgType={bgType}
-                        competingBindings={state.terminals
-                          .filter(other =>
-                            other.id !== t.id &&
-                            other.tool === t.tool &&
-                            Boolean(other.chatPending) &&
-                            (other.folderPath ?? '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase() ===
-                              (t.folderPath ?? '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
-                          )
-                          .map(other => ({
-                            startedAt: other.startedAt,
-                            sentAt: other.chatPending?.sentAt,
-                          }))}
-                      />
-                    </ErrorBoundary>
-                  </div>
-                )}
               </>
             )}
           </div>
@@ -1616,6 +1577,7 @@ export function CenterPanel() {
               repoRoot={state.diffSelection.repoRoot}
               rel={state.diffSelection.rel}
               kind={state.diffSelection.kind}
+              fileSize={state.diffSelection.fileSize}
               commitHash={state.diffSelection.commitHash}
               onClose={() => dispatch({ type: 'CLEAR_DIFF' })}
               onToggleExpanded={() => dispatch({ type: 'SET_DIFF_MODE', mode: 'overlay' })}
@@ -1640,7 +1602,7 @@ export function CenterPanel() {
                   : <img src={bgUrl} alt="" onError={() => { setBgUrl(''); }} />}
               </div>
             )}
-            {/* Close button removed: handles via Tab bar */}
+            {/* The sidebar opens this selector without a titlebar tab. */}
             <div className="launchpad-slider-viewport">
               <div className={`launchpad-slider-track ${showLibrary ? 'slide-to-library' : ''}`}>
 
@@ -1674,7 +1636,7 @@ export function CenterPanel() {
                                   className="launchpad-card"
                                   onClick={(event) => {
                                     if (disabled) return;
-                                    if (tool.key === 'claude' && !lastCwdByTool.claude) { openToolFolderMenu(tool.key, event.currentTarget); return; }
+                                    if (tool.requiresCwd && !lastCwdByTool[tool.key!]) { openToolFolderMenu(tool.key, event.currentTarget); return; }
                                     // The "Coffee 101" card (key kept as
                                     // 'installer' for backward compat with
                                     // pinned-state in localStorage) is no
@@ -1695,7 +1657,7 @@ export function CenterPanel() {
                                   }}
                                 >
                                   <div className="launchpad-icon">{tool.icon}</div>
-                                  <div className={`launchpad-card-info${tool.key === 'claude' ? ' launchpad-card-info--claude' : ''}`}>
+                                  <div className="launchpad-card-info">
                                     <span style={isTerminal ? { display: 'inline-flex', alignItems: 'center', gap: '6px' } : undefined}>
                                       {tool.label}
                                       {isTerminal && (
@@ -1711,27 +1673,12 @@ export function CenterPanel() {
                                         </span>
                                       )}
                                     </span>
-                                    {tool.key === 'claude' ? <button type="button" className="claude-launch-directory" disabled={disabled} aria-label={lastCwdByTool.claude || t('claude.launch.choose_directory')} onClick={event => { event.stopPropagation(); openToolFolderMenu(tool.key, event.currentTarget); }}>
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
-                                        <span>{lastCwdByTool.claude ? formatCwd(lastCwdByTool.claude) : t('claude.launch.choose_directory')}</span>
-                                    </button> : tool.requiresCwd && lastCwdByTool[tool.key!] && (
-                                      <span className="launchpad-card-cwd">
-                                        {formatCwd(lastCwdByTool[tool.key!])}
-                                      </span>
-                                    )}
+                                    {tool.requiresCwd && <button type="button" className="launchpad-directory" disabled={disabled} aria-label={lastCwdByTool[tool.key!] || t('claude.launch.choose_directory')} onClick={event => { event.stopPropagation(); openToolFolderMenu(tool.key, event.currentTarget); }}>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></svg>
+                                        <span>{lastCwdByTool[tool.key!] ? formatCwd(lastCwdByTool[tool.key!]) : t('claude.launch.choose_directory')}</span>
+                                    </button>}
                                   </div>
-                                  {tool.key === 'claude' && <ClaudeLaunchMode value={claudeLaunchMode} disabled={disabled} onChange={changeClaudeLaunchMode} />}
-                                  {tool.key !== 'claude' && tool.requiresCwd && (
-                                    <div className="launchpad-folder-btn" onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (disabled) return;
-                                      openToolFolderMenu(tool.key!, e.currentTarget);
-                                    }}>
-                                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                                      </svg>
-                                    </div>
-                                  )}
+                                  {tool.type === 'ai-cli' && <LaunchModeControl value={tool.key === 'claude' ? claudeLaunchMode : 'terminal'} disabled={disabled} onChange={tool.key === 'claude' ? changeClaudeLaunchMode : undefined} />}
                                 </div>
                               </div>
                             );

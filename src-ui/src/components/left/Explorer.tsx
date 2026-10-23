@@ -15,6 +15,7 @@ import { refreshHistory } from '../../lib/history-cache';
 import { commands, onSelfUpdateProgress } from '../../tauri';
 import type { DirEntryInfo } from '../../tauri';
 import { HistoryBoard } from '../right/HistoryBoard';
+import { TaskBoard } from '../right/TaskBoard';
 import './Explorer.css';
 
 // Snapshot lifecycle and the `+N -M` map live in lib/file-stats.tsx so the
@@ -132,10 +133,7 @@ export function ContextMenu({ menu, onClose }: { menu: CtxMenuState; onClose: ()
     }
   };
 
-  // Hand the path off to the OS default opener — Notepad / browser / image
-  // viewer / file manager, whichever the user already configured. We don't
-  // ship in-app previewers (memory: "no in-app file viewers"), so this is
-  // the user's only one-click path from Explorer to the file's content.
+  // The context menu keeps the OS default opener alongside in-app preview.
   const handleOpen = async () => {
     onClose();
     try {
@@ -466,7 +464,7 @@ function BrowserFileNode({ entry, parentDirPath, onCtxMenu }: {
   parentDirPath: string;
   onCtxMenu: (menu: CtxMenuState) => void;
 }) {
-  const { state: { iconTheme } } = useAppState();
+  const { state: { iconTheme }, dispatch } = useAppState();
   const fileStats = useFileStats();
   const stats = fileStats?.get(normPath(entry.path));
   const [renaming, setRenaming] = useState(false);
@@ -507,6 +505,13 @@ function BrowserFileNode({ entry, parentDirPath, onCtxMenu }: {
   return (
     <div
       className={`tree-file ${renaming ? 'renaming' : ''}`}
+      onClick={() => {
+        if (renaming) return;
+        dispatch({ type: 'SET_DIFF_SELECTION', selection: {
+          path: entry.path, repoRoot: parentDirPath, folderPath: parentDirPath,
+          rel: entry.name, kind: 'file', fileSize: entry.size,
+        } });
+      }}
       onContextMenu={handleCtxMenu}
       onMouseDown={onFileMouseDown}
     >
@@ -655,13 +660,13 @@ export function Explorer() {
     }
   }, [installing]);
 
-  // Persist last-selected left tab, same pattern as TaskBoard's right tab.
-  const [activeTab, setActiveTab] = useState<'workspace' | 'history'>(() => {
+  // Keep the last-selected view across panel collapse and application restarts.
+  const [activeTab, setActiveTab] = useState<'history' | 'workspace' | 'tasks'>(() => {
     try {
       const saved = localStorage.getItem('cc-left-tab');
-      if (saved === 'workspace' || saved === 'history') return saved;
+      if (saved === 'workspace' || saved === 'history' || saved === 'tasks') return saved;
     } catch { /* Best-effort operation; failure is non-fatal. */ }
-    return 'workspace';
+    return 'history';
   });
   useEffect(() => {
     try { localStorage.setItem('cc-left-tab', activeTab); } catch { /* Best-effort operation; failure is non-fatal. */ }
@@ -829,17 +834,35 @@ export function Explorer() {
       )}
 
       <div className="explorer-tabs">
-        <button
-          className={`explorer-tab ${activeTab === 'workspace' ? 'active' : ''}`}
-          onClick={() => setActiveTab('workspace')}
-        >
-          {t('explorer.tab.workspace')}
+        <button className="explorer-new-session" onClick={() => window.dispatchEvent(new Event('coffee-new-session'))}>
+          {/* Lucide square-pen; license in /icons/LICENSE-lucide.txt. */}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z" /></svg>
+          <span>{t('explorer.new_session')}</span>
         </button>
         <button
           className={`explorer-tab ${activeTab === 'history' ? 'active' : ''}`}
+          aria-label={t('explorer.tab.history')}
+          aria-pressed={activeTab === 'history'}
           onClick={() => { setActiveTab('history'); refreshHistory(); }}
         >
-          {t('explorer.tab.history')}
+          {/* Lucide history, folder and square-check; see /icons/LICENSE-lucide.txt. */}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l4 2" /></svg>
+        </button>
+        <button
+          className={`explorer-tab ${activeTab === 'workspace' ? 'active' : ''}`}
+          aria-label={t('explorer.tab.workspace')}
+          aria-pressed={activeTab === 'workspace'}
+          onClick={() => setActiveTab('workspace')}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></svg>
+        </button>
+        <button
+          className={`explorer-tab ${activeTab === 'tasks' ? 'active' : ''}`}
+          aria-label={t('task.tab.tasks')}
+          aria-pressed={activeTab === 'tasks'}
+          onClick={() => setActiveTab('tasks')}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="m9 12 2 2 4-4" /></svg>
         </button>
       </div>
 
@@ -861,7 +884,9 @@ export function Explorer() {
 
       {/* File list Content */}
       <div className="panel-content explorer-content">
-        {activeTab === 'history' ? (
+        {/* Keep task editors and their persistence mounted across tab switches. */}
+        <div className="explorer-task-host" hidden={activeTab !== 'tasks'}><TaskBoard /></div>
+        {activeTab === 'tasks' ? null : activeTab === 'history' ? (
           // HistoryBoard returns a fragment and was originally hosted inside
           // .task-board which provided the 16px gutter. In Explorer's flex
           // shell that padding doesn't exist, so we wrap to restore it.

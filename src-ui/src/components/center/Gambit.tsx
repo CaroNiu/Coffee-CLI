@@ -54,9 +54,6 @@ interface GambitProps {
    *  left of the target name so the chip reads as "tool + target",
    *  mirroring the tab's icon+name pairing. undefined hides the icon. */
   toolIcon?: React.ReactNode;
-  canUseChat: boolean;
-  viewMode: 'terminal' | 'chat';
-  onViewModeChange: (mode: 'terminal' | 'chat') => void;
 }
 
 // Matches any absolute image path inside the compose draft — both our
@@ -114,9 +111,6 @@ function GambitImpl({
   rightPanelHidden,
   workspaceName,
   toolIcon,
-  canUseChat,
-  viewMode,
-  onViewModeChange,
 }: GambitProps) {
   const t = useT();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -779,36 +773,7 @@ function GambitImpl({
             {t('gambit.send_empty_hint')}
           </span>
         )}
-        {canUseChat && !claude && (
-          <div
-            className="gambit-view-toggle"
-            data-view-mode={viewMode}
-            role="group"
-            aria-label="View mode"
-          >
-            <button
-              className="gambit-view-toggle-btn"
-              aria-label="Conversation view"
-              aria-pressed={viewMode === 'chat'}
-              onClick={() => onViewModeChange('chat')}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M21 15a4 4 0 0 1-4 4H8l-5 3 1.7-5.1A7 7 0 0 1 3 12V8a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-              </svg>
-            </button>
-            <button
-              className="gambit-view-toggle-btn"
-              aria-label="Terminal view"
-              aria-pressed={viewMode === 'terminal'}
-              onClick={() => onViewModeChange('terminal')}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <polyline points="4 7 9 12 4 17" />
-                <line x1="12" y1="17" x2="20" y2="17" />
-              </svg>
-            </button>
-          </div>
-        )}
+
         <button
           className={`gambit-send${sendFailed ? ' gambit-send--failed' : ''}${!running && !draft.trim() ? ' gambit-send--empty' : ''}`}
           aria-label={t(running && (!claude || !draft.trim()) ? 'gambit.stop' : 'gambit.send')}

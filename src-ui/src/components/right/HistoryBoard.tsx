@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useState, useEffect, useMemo, useRef, useSyncExternalStore, useId, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useT } from '../../i18n/useT';
 import { useAppState, type ToolType } from '../../store/app-state';
-import { isTauri } from '../../tauri';
+import { commands, isTauri } from '../../tauri';
 import type { SavedSession } from '../../tauri';
 import { getToolDisplayName } from '../../lib/tool-info';
 import { useAgentClient, openAgentConversation, refreshAgentConversations } from '../../lib/agent-client';
@@ -124,15 +124,10 @@ const projectName = (cwd: string, tool: string) => {
   return getToolName(tool);
 };
 
-// Normalize a recorded cwd for grouping: trim trailing slashes and unify
-// separators. Deliberately NOT case-folded — Linux paths are case-sensitive.
-const normCwd = (cwd: string) => cwd.replace(/[\\/]+$/, '').replace(/\//g, '\\');
-
-// Last path segment of either separator flavor.
-const pathBasename = (p: string) => {
-  const trimmed = p.replace(/[\\/]+$/, '');
-  const idx = Math.max(trimmed.lastIndexOf('\\'), trimmed.lastIndexOf('/'));
-  return idx >= 0 ? trimmed.slice(idx + 1) : trimmed;
+// Windows drive paths ignore case; Unix paths retain their case-sensitive identity.
+const normCwd = (cwd: string) => {
+  const normalized = cwd.replace(/[\\/]+$/, '').replace(/\//g, '\\');
+  return /^[a-z]:\\/i.test(normalized) ? normalized.toLowerCase() : normalized;
 };
 
 export function HistoryBoard() {
@@ -172,62 +167,44 @@ export function HistoryBoard() {
   // flag is set on Escape so onBlur knows to skip the save. Reset each edit.
   const cancelRenameRef = useRef(false);
   const [ctxMenu, setCtxMenu] = useState<SessionCtxMenuState | null>(null);
+  const [preview, setPreview] = useState<{ key: string; left: number; top: number } | null>(null);
+  const previewId = useId();
+  useEffect(() => {
+    if (!preview) return;
+    const close = () => setPreview(null);
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') close(); };
+    document.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    window.addEventListener('blur', close);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('blur', close);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [preview]);
   useEffect(() => { prefetchHistory(); refreshAgentConversations().catch(() => {}); }, []);
   const isLoading = isTauri && (status === 'idle' || status === 'loading') && cachedSessions.length === 0 && agentConversations.length === 0;
 
   const [sessionSearchQuery, setSessionSearchQuery] = useState('');
-  // Project (workspace) filter dropdown: which cwd's sessions to show
-  // (null = all). The option list is derived from the *visible* (unhidden)
-  // data so its counts always match what the list would show.
-  const [activeProject, setActiveProject] = useState<string | null>(null);
-  // The filter is a themed dropdown (NOT a native <select> — that can't be
-  // themed, and can't even open while a terminal is active because the
-  // global focus enforcer steals focus back; see FontPicker.tsx). React-
-  // state controlled + portaled to body like FontPicker's.
-  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
-  const [filterMenuPos, setFilterMenuPos] = useState<{ left: number; top: number; width: number } | null>(null);
-  const filterTriggerRef = useRef<HTMLButtonElement>(null);
-
-  const toggleFilterMenu = () => {
-    if (filterMenuOpen) { setFilterMenuOpen(false); return; }
-    const r = filterTriggerRef.current?.getBoundingClientRect();
-    if (r) {
-      // Right-align to the trigger — the menu is wider than the button and
-      // the trigger hugs the rail's right edge.
-      const width = Math.max(r.width, 180);
-      setFilterMenuPos({ left: r.right - width, top: r.bottom + 4, width });
-    }
-    setFilterMenuOpen(true);
-  };
-
-  // Keep the portaled menu glued to its trigger on scroll/resize (it's
-  // fixed-positioned; same pattern as FontPicker).
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchSelection, setSearchSelection] = useState(0);
+  const searchDialogRef = useRef<HTMLDialogElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchResultsRef = useRef<HTMLDivElement>(null);
+  const searchId = useId();
+  const [layout, setLayout] = useState<'list' | 'projects'>(() => {
+    try { return localStorage.getItem('cc-history-layout') === 'projects' ? 'projects' : 'list'; } catch { return 'list'; }
+  });
+  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set());
+  useEffect(() => { try { localStorage.setItem('cc-history-layout', layout); } catch { /* Storage unavailable. */ } }, [layout]);
   useEffect(() => {
-    if (!filterMenuOpen) return;
-    const reposition = () => {
-      const r = filterTriggerRef.current?.getBoundingClientRect();
-      if (r) {
-        const width = Math.max(r.width, 180);
-        setFilterMenuPos({ left: r.right - width, top: r.bottom + 4, width });
-      }
-    };
-    window.addEventListener('scroll', reposition, true);
-    window.addEventListener('resize', reposition);
-    return () => {
-      window.removeEventListener('scroll', reposition, true);
-      window.removeEventListener('resize', reposition);
-    };
-  }, [filterMenuOpen]);
-  // Escape closes the portaled filter menu — same dismissal UX as the right-
-  // click menu and the rename input.
-  useEffect(() => {
-    if (!filterMenuOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFilterMenuOpen(false); };
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('keydown', onKey); };
-  }, [filterMenuOpen]);
-  // Right-click cut/copy/paste/select menu for the search box (same one
-  // Gambit/terminal/task-list use).
+    const dialog = searchDialogRef.current;
+    if (!dialog) return;
+    if (searchOpen) { dialog.showModal(); searchInputRef.current?.focus(); }
+    else if (dialog.open) dialog.close();
+  }, [searchOpen]);
   const { menu: ctxMenuEl, openMenu: openCtxMenu } = useTextContextMenu();
 
   // Memoize baseSessions on cachedSessions so the filter useMemo below doesn't
@@ -244,229 +221,121 @@ export function HistoryBoard() {
     saved_at: new Date(conversation.updatedAt).toISOString(), turn_count: conversation.messageCount,
   }))]), [nativeSessions, agentConversations]);
 
-  // Project (workspace) filter: which cwd's sessions to show (null = all).
-  // Keyed by normalized cwd (trailing slashes trimmed, separators unified —
-  // no case-folding: Linux paths are case-sensitive).
-  // OpenClaw is excluded: it has no user-project concept — every session's
-  // cwd is its own internal `~/.openclaw/workspace`, so it would form one
-  // meaningless bucket that all OpenClaw sessions collapse into. It still
-  // shows in the flat list (and under "all"); it just never contributes a
-  // selectable project bucket.
-  const projectCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    // Display form of each normalized key: first-seen original cwd wins.
-    const display = new Map<string, string>();
-    for (const s of baseSessions) {
-      if (s.tool === 'openclaw') continue;
-      const raw = (s.cwd ?? '').trim();
-      if (!raw || hidden.has(`${s.tool ?? ''}:${s.id}`)) continue;
-      const key = normCwd(raw);
-      if (!display.has(key)) display.set(key, raw.replace(/[\\/]+$/, ''));
-      counts.set(key, (counts.get(key) ?? 0) + 1);
+  const availableSessions = useMemo(() => {
+    const list = baseSessions.filter(session => !hidden.has(`${session.tool ?? ''}:${session.id}`));
+    if (!pinned.size) return list;
+    return list.sort((a, b) => Number(pinned.has(`${b.tool ?? ''}:${b.id}`)) - Number(pinned.has(`${a.tool ?? ''}:${a.id}`)));
+  }, [baseSessions, hidden, pinned]);
+  const projects = useMemo(() => {
+    const groups = new Map<string, { key: string; name: string; cwd: string; sessions: SavedSession[] }>();
+    for (const session of availableSessions) {
+      const cwd = session.tool === 'openclaw' ? '' : (session.cwd ?? '').trim();
+      const key = cwd ? 'cwd:' + normCwd(cwd) : 'tool:' + session.tool;
+      let group = groups.get(key);
+      if (!group) {
+        group = { key, name: session.tool === 'coffee-agent' ? 'Coffee Agent' : projectName(cwd, session.tool), cwd, sessions: [] };
+        groups.set(key, group);
+      }
+      group.sessions.push(session);
     }
-    return [...counts.entries()]
-      .map(([key, count]) => ({ key, cwd: display.get(key)!, count }))
-      .sort((a, b) => b.count - a.count);
-  }, [baseSessions, hidden]);
+    const all = [...groups.values()];
+    const names = new Map<string, number>();
+    for (const group of all) names.set(group.name, (names.get(group.name) ?? 0) + 1);
+    for (const group of all) {
+      if (group.cwd && (names.get(group.name) ?? 0) > 1) {
+        // Full paths distinguish identically named folders under different parents.
+        group.name = group.cwd;
+      }
+    }
+    return all;
+  }, [availableSessions]);
+  const rows = useMemo(() => layout === 'list'
+    ? availableSessions.map(session => ({ kind: 'session' as const, session, grouped: false }))
+    : projects.flatMap(group => [
+      { kind: 'project' as const, group },
+      ...(collapsedProjects.has(group.key) ? [] : group.sessions.map(session => ({ kind: 'session' as const, session, grouped: true }))),
+    ] as Array<{ kind: 'project'; group: typeof group } | { kind: 'session'; session: SavedSession; grouped: boolean }>), [layout, availableSessions, projects, collapsedProjects]);
 
-  // Basename collisions (two different parents both named "coffee") get the
-  // parent dir appended in the menu label so they're tellable apart.
-  const projectLabel = useMemo(() => {
-    const baseCount = new Map<string, number>();
-    for (const p of projectCounts) {
-      const base = pathBasename(p.cwd);
-      baseCount.set(base, (baseCount.get(base) ?? 0) + 1);
-    }
-    return (cwd: string): string => {
-      const base = pathBasename(cwd);
-      if ((baseCount.get(base) ?? 0) <= 1) return base;
-      const parent = pathBasename(cwd.slice(0, cwd.length - base.length).replace(/[\\/]+$/, ''));
-      return parent ? `${base} — ${parent}` : base;
-    };
-  }, [projectCounts]);
-
-  // Same auto-reset discipline as the agent filter. Also closes the portaled
-  // menu if the trigger is about to unmount: soft-deleting sessions down to
-  // <2 projects makes projectCounts.length drop below the render threshold,
-  // the trigger vanishes, and the fixed-position menu would otherwise strand
-  // at stale screen coordinates.
-  /* eslint-disable react-hooks/set-state-in-effect -- Invalid filter selections are reset when the available project set changes. */
-  useEffect(() => {
-    if (projectCounts.length < 2 && agentConversations.length === 0 && filterMenuOpen) {
-      setFilterMenuOpen(false);
-    }
-    if (activeProject && activeProject !== 'coffee-agent' && !projectCounts.some(p => p.key === activeProject)) {
-      setActiveProject(null);
-    }
-  }, [projectCounts, activeProject, filterMenuOpen, agentConversations.length]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  // Debounce the raw query so fast typing doesn't re-filter the full session
-  // list on every keystroke (history-cache can hold thousands of sessions —
-  // a per-key full scan stutters). 150ms is short enough to feel instant and
-  // long enough to coalesce a burst of keystrokes into one filter pass.
+  // Search works across titles, tools and full project paths, independently of the sidebar view.
+  const matchesQuery = useCallback((session: SavedSession, query: string) => {
+    const q = query.trim().replace(/\s+/g, ' ').toLowerCase();
+    const name = renamed[`${session.tool ?? ''}:${session.id}`] ?? session.name ?? '';
+    const tool = session.tool === 'coffee-agent' ? 'Coffee Agent' : getToolName(session.tool);
+    return [name, session.tool === 'openclaw' ? '' : session.cwd ?? '', projectName(session.cwd ?? '', session.tool), tool].some(value => value.toLowerCase().includes(q));
+  }, [renamed]);
   const [debouncedQuery, setDebouncedQuery] = useState('');
   useEffect(() => {
-    const h = setTimeout(() => setDebouncedQuery(sessionSearchQuery), 150);
-    return () => clearTimeout(h);
+    const timer = setTimeout(() => setDebouncedQuery(sessionSearchQuery), 150);
+    return () => clearTimeout(timer);
   }, [sessionSearchQuery]);
-
-  // Normalize once: trim + collapse runs of whitespace + lowercase. Empty after
-  // normalization means "no query → show all". Matching against projectName(cwd)
-  // too so a user can find a project's sessions by typing its folder name — the
-  // folder is already printed on every card, so this is the one search
-  // dimension the flat time-sorted list genuinely earns. The tool display name
-  // is matched as well ("kimi" surfaces all Kimi Code sessions) — the chip row
-  // below covers mouse users, this covers keyboard users. All fields are
-  // null-guarded: legacy sessions can carry a blank cwd (projectName then
-  // falls back to the tool display name).
-  const matchedSessions = useMemo(() => {
-    // Hide filter first so soft-deleted sessions never take a visible slot or
-    // count toward load-more paging.
-    let list = baseSessions;
-    if (hidden.size > 0) {
-      list = list.filter(s => !hidden.has(`${s.tool ?? ''}:${s.id}`));
-    }
-    // Project (cwd) filter — AND semantics with the text query below.
-    if (activeProject) {
-      list = activeProject === 'coffee-agent' ? list.filter(s => s.tool === 'coffee-agent') : list.filter(s => !!s.cwd && normCwd(s.cwd) === activeProject);
-    }
-    const q = debouncedQuery.trim().replace(/\s+/g, ' ').toLowerCase();
-    if (q) {
-      list = list.filter(s => {
-        const name = (renamed[`${s.tool ?? ''}:${s.id}`] ?? s.name ?? '').toLowerCase();
-        const proj = projectName(s.cwd ?? '', s.tool ?? '').toLowerCase();
-        const tool = s.tool === 'coffee-agent' ? 'coffee agent' : getToolName(s.tool ?? '').toLowerCase();
-        return name.includes(q) || proj.includes(q) || tool.includes(q);
-      });
-    }
-    // Pinned (置顶) sessions sort to the top. history-cache already returns
-    // saved_at desc, so a stable sort on the pinned flag keeps that order
-    // within each group. Skipped entirely when nothing is pinned.
-    if (pinned.size > 0) {
-      list = [...list].sort((a, b) => {
-        const pa = pinned.has(`${a.tool ?? ''}:${a.id}`) ? 1 : 0;
-        const pb = pinned.has(`${b.tool ?? ''}:${b.id}`) ? 1 : 0;
-        return pb - pa;
-      });
-    }
-    return list;
-  }, [baseSessions, debouncedQuery, hidden, pinned, activeProject, renamed]);
-
-  // Progressive render: data is already fully in memory (history-cache reads
-  // every jsonl on startup), so "load more" is just rendering more rows.
-  // IntersectionObserver on a bottom sentinel bumps visibleCount when it
-  // scrolls into view. Reset to PAGE on the debounced query landing — keying
-  // on the raw query would reset mid-burst while results haven't changed yet,
-  // making the list flap; the debounced value only moves when results actually
-  // change.
+  const matchedSessions = useMemo(() => availableSessions.filter(session => matchesQuery(session, debouncedQuery)), [availableSessions, debouncedQuery, matchesQuery]);
   const PAGE = 30;
   const [visibleCount, setVisibleCount] = useState(PAGE);
-  /* eslint-disable-next-line react-hooks/set-state-in-effect -- A changed query/filter starts a new pagination window. */
-  useEffect(() => { setVisibleCount(PAGE); }, [debouncedQuery, activeProject]);
-  const filteredSessions = matchedSessions.slice(0, visibleCount);
-  const hasMore = matchedSessions.length > visibleCount;
+  const [searchCount, setSearchCount] = useState(PAGE);
+  const filteredRows = rows.slice(0, visibleCount);
+  const searchResults = searchOpen ? matchedSessions.slice(0, searchCount) : [];
+  const selectedSearchIndex = Math.min(searchSelection, Math.max(0, searchResults.length - 1));
+  const hasMore = rows.length > visibleCount;
+  const searchHasMore = matchedSessions.length > searchCount;
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const searchSentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!hasMore) return;
-    const el = sentinelRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver(entries => {
-      if (entries.some(e => e.isIntersecting)) {
-        setVisibleCount(c => c + PAGE);
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) if (entry.isIntersecting) {
+        if (entry.target === sentinelRef.current) setVisibleCount(count => count + PAGE);
+        else setSearchCount(count => count + PAGE);
       }
-    }, { rootMargin: '200px' });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [hasMore]);
+    }, { rootMargin: '100px' });
+    if (hasMore && sentinelRef.current) observer.observe(sentinelRef.current);
+    if (searchOpen && searchHasMore && searchSentinelRef.current) observer.observe(searchSentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, searchOpen, searchHasMore, debouncedQuery]);
+  useEffect(() => {
+    if (searchOpen) searchResultsRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [searchOpen, selectedSearchIndex, debouncedQuery]);
+  const openSearch = () => {
+    setPreview(null); setSessionSearchQuery(''); setDebouncedQuery(''); setSearchSelection(0); setSearchCount(PAGE); setSearchOpen(true);
+  };
+  const openSearchResult = (session: SavedSession) => { searchDialogRef.current?.close(); handleViewHistory(session); };
 
   // Enter inline-rename mode on a card (invoked from the context menu).
   const startRename = (saved: SavedSession) => {
+    setPreview(null);
     const k = `${saved.tool ?? ''}:${saved.id}`;
     cancelRenameRef.current = false;
     setRenamingKey(k);
     setRenameValue(renamed[k] ?? saved.name ?? '');
   };
 
-  const handleViewHistory = (saved: SavedSession) => {
+  const handleViewHistory = async (saved: SavedSession) => {
+    setAgentError('');
     if (saved.tool === 'coffee-agent') {
-      setAgentError('');
       dispatch({ type: 'OPEN_AGENT_PAGE', page: 'agent' });
       openAgentConversation(saved.id).catch(error => setAgentError(String(error)));
       return;
     }
-    // Click = resume directly. The old flow opened an intermediate read-only
-    // preview and made the user click "Continue this session"
-    // inside it; that intermediate step was slower than just resuming —
-    // claude --resume loads its own TUI history faster than the bubble
-    // view renders, and the extra tab was one more concept to navigate.
-    // Now a click stages a real terminal tab with resumeToken;
-    // TierTerminal's mount effect spawns `<tool> --resume <token>` in
-    // saved.cwd. Sessions without a token (legacy / unresolved cwd) are
-    // silently skipped — nothing to resume.
     if (!saved.session_token) return;
+    // Fresh CLI tabs may already own this conversation without a resumeToken
+    // in UI state. Read only authoritative native IDs, never guess by cwd.
+    if (isTauri && !state.terminals.some(session => session.tool === saved.tool && session.resumeToken === saved.session_token)) {
+      try {
+        await Promise.all(state.terminals.filter(session => session.tool === saved.tool && !session.resumeToken && !session.multiAgent).map(async session => {
+          const token = await commands.getTerminalSessionToken(session.id);
+          if (token) dispatch({ type: 'SET_SESSION_TOKEN', id: session.id, token });
+        }));
+      } catch (error) {
+        setAgentError(String(error));
+        return;
+      }
+    }
     const targetId = crypto.randomUUID();
     dispatch({
       type: 'ADD_TERMINAL',
       session: { id: targetId, tool: saved.tool as ToolType, folderPath: saved.cwd, resumeToken: saved.session_token }
     });
-    dispatch({ type: 'SET_ACTIVE_TERMINAL', id: targetId });
   };
 
-  return (
-    <>
-      <div className="agent-session-search-row">
-        <div className="agent-session-search-wrap">
-          <svg className="agent-session-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <input
-            type="text"
-            className="agent-session-search"
-            placeholder={t('task.search_sessions') || 'Search sessions...'}
-            value={sessionSearchQuery}
-            onChange={e => setSessionSearchQuery(e.target.value)}
-            onContextMenu={(e) => openCtxMenu(e, setSessionSearchQuery)}
-          />
-        </div>
-        {/* Project (workspace) filter dropdown, keyed by normalized cwd.
-            Only worth the control when 2+ distinct projects exist. Shows the
-            active project's folder icon + name. */}
-        {(projectCounts.length >= 2 || agentConversations.length > 0) && (
-          <button
-            ref={filterTriggerRef}
-            type="button"
-            className={`history-tool-filter-trigger${activeProject ? ' active' : ''}`}
-            onClick={toggleFilterMenu}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-            </svg>
-            <span className="history-tool-filter-label">
-              {activeProject === 'coffee-agent' ? 'Coffee Agent' : activeProject
-                ? projectLabel(projectCounts.find(p => p.key === activeProject)?.cwd ?? '')
-                : (t('task.filter_all_projects') || 'All projects')}
-            </span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </button>
-        )}
-      </div>
-      {agentError && <p className="agent-feedback error" role="alert">{agentError}</p>}
-      <div className="task-list" style={{ marginTop: '0', paddingBottom: '20px' }}>
-      {isLoading && Array.from({ length: 6 }).map((_, i) => (
-        <div key={`skel-${i}`} className="history-card history-card-skeleton" aria-hidden="true">
-          <div className="history-card-content">
-            <span className="skeleton-bar skeleton-bar-title" />
-            <div className="history-card-meta">
-              <span className="skeleton-bar skeleton-bar-meta" />
-            </div>
-          </div>
-        </div>
-      ))}
-      {!isLoading && filteredSessions.map(session => {
+  const renderSession = (session: SavedSession, grouped = false) => {
         // Parse saved_at carefully to handle unix ms strings or invalid SystemTime strings
         let savedMs = Date.parse(session.saved_at);
         if (isNaN(savedMs)) {
@@ -506,11 +375,20 @@ export function HistoryBoard() {
         return (
           <div
             key={`${sessionKey}:${session.file_path ?? session.saved_at}`}
-            className={`history-card${session.tool === 'coffee-agent' && session.id === activeAgentConversation && state.agentPageActive === 'agent' ? ' history-card-active' : ''}`}
-            onClick={() => handleViewHistory(session)}
+            className={`history-card${grouped ? ' history-card-grouped' : ''}${session.tool === 'coffee-agent' && session.id === activeAgentConversation && state.agentPageActive === 'agent' ? ' history-card-active' : ''}`}
+            aria-describedby={preview?.key === sessionKey ? previewId : undefined}
+            onMouseEnter={(event) => {
+              if (isRenaming || ctxMenu || searchOpen) return;
+              const rect = event.currentTarget.getBoundingClientRect();
+              const width = Math.min(320, window.innerWidth - 16);
+              setPreview({ key: sessionKey, left: Math.max(8, Math.min(rect.right + 8, window.innerWidth - width - 8)), top: Math.max(8, Math.min(rect.top + (rect.height - 72) / 2, window.innerHeight - 80)) });
+            }}
+            onMouseLeave={() => setPreview(null)}
+            onClick={() => { setPreview(null); handleViewHistory(session); }}
             onContextMenu={(e) => {
               e.preventDefault();
               e.stopPropagation();
+              setPreview(null);
               if (session.tool === 'coffee-agent') return;
               setCtxMenu({ session, x: e.clientX, y: e.clientY });
             }}
@@ -560,6 +438,7 @@ export function HistoryBoard() {
                       aria-label={t('menu.delete')}
                       onClick={(e) => {
                         e.stopPropagation();
+                        setPreview(null);
                         hideSession(session.tool ?? '', session.id);
                       }}
                     >
@@ -573,16 +452,50 @@ export function HistoryBoard() {
                   </>
                 )}
               </div>
+            </div>
+            {preview?.key === sessionKey && !isRenaming && createPortal(<div id={previewId} className="history-card-preview" role="tooltip" style={{ left: preview.left, top: preview.top }}>
+              <div className="history-card-preview-title">{displayName}</div>
               <div className="history-card-meta">
                 <span className="history-card-tool-wrap">
                   {session.tool !== 'coffee-agent' && getToolIcon(session.tool)}
                   <span className="history-card-meta-text">{session.tool === 'coffee-agent' ? 'Coffee Agent' : projectName(session.cwd, session.tool)} &middot; {dateStr} {session.turn_count ? ` · ${(t('task.messages') || '{count} messages').replace('{count}', session.turn_count.toString())}` : ''}</span>
                 </span>
               </div>
-            </div>
+            </div>, document.body)}
           </div>
         );
-      })}
+  };
+
+  return (
+    <>
+      <button type="button" className="history-search-trigger" onClick={openSearch}>
+        {/* Lucide search; license in /icons/LICENSE-lucide.txt. */}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34" /><circle cx="11" cy="11" r="8" /></svg>
+        <span>{t('history.search')}</span>
+      </button>
+      <button type="button" className="history-layout-toggle" aria-label={t(layout === 'list' ? 'history.projects' : 'history.list')} aria-pressed={layout === 'projects'} onClick={() => { setPreview(null); setLayout(layout === 'list' ? 'projects' : 'list'); setVisibleCount(PAGE); }}>
+        <span>{t(layout === 'list' ? 'history.list' : 'history.projects')}</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{layout === 'list' ? <><path d="M3 7h6l2 3h10v10H3z" /><path d="M7 3h6l2 3h6" /></> : <><path d="M8 6h13M8 12h13M8 18h13" /><path d="M3 6h.01M3 12h.01M3 18h.01" /></>}</svg>
+      </button>
+      {agentError && <p className="agent-feedback error" role="alert">{agentError}</p>}
+      <div className="task-list history-session-list" style={{ marginTop: '0', paddingBottom: '20px' }}>
+      {isLoading && Array.from({ length: 6 }).map((_, i) => (
+        <div key={`skel-${i}`} className="history-card history-card-skeleton" aria-hidden="true">
+          <div className="history-card-content">
+            <span className="skeleton-bar skeleton-bar-title" />
+          </div>
+        </div>
+      ))}
+      {!isLoading && filteredRows.map(row => row.kind === 'session' ? renderSession(row.session, row.grouped) : (
+        <button type="button" key={row.group.key} className="history-project-row" aria-expanded={!collapsedProjects.has(row.group.key)} onClick={() => {
+          setPreview(null);
+          setCollapsedProjects(current => { const next = new Set(current); if (next.has(row.group.key)) next.delete(row.group.key); else next.add(row.group.key); return next; });
+        }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
+          <span>{row.group.name}</span>
+          <svg className="history-project-chevron" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m5 3 5 5-5 5" /></svg>
+        </button>
+      ))}
 
       {hasMore && (
         <>
@@ -596,9 +509,6 @@ export function HistoryBoard() {
             <div key={`load-skel-${i}`} className="history-card history-card-skeleton" aria-hidden="true">
               <div className="history-card-content">
                 <span className="skeleton-bar skeleton-bar-title" />
-                <div className="history-card-meta">
-                  <span className="skeleton-bar skeleton-bar-meta" />
-                </div>
               </div>
             </div>
           ))}
@@ -606,49 +516,40 @@ export function HistoryBoard() {
         </>
       )}
 
-      {!isLoading && filteredSessions.length === 0 && (
+      {!isLoading && availableSessions.length === 0 && (
         <div className="task-empty">
           <div className="task-empty-text">{t('menu.no_recent') || 'No recent sessions'}</div>
         </div>
       )}
     </div>
-    {filterMenuOpen && filterMenuPos && createPortal(
-      <>
-        <div className="history-tool-filter-backdrop" onClick={() => setFilterMenuOpen(false)} />
-        <div
-          className="history-tool-filter-menu"
-          style={{ position: 'fixed', left: filterMenuPos.left, top: filterMenuPos.top, width: filterMenuPos.width }}
-        >
-          <button
-            type="button"
-            className={`history-tool-filter-opt${activeProject === null ? ' active' : ''}`}
-            onClick={() => { setActiveProject(null); setFilterMenuOpen(false); }}
-          >
-            <span className="history-tool-filter-opt-name">{t('task.filter_all_projects') || 'All projects'}</span>
-            <span className="history-tool-filter-count">{baseSessions.reduce((n, s) => (hidden.has(`${s.tool ?? ''}:${s.id}`) ? n : n + 1), 0)}</span>
-          </button>
-          {projectCounts.map((p) => (
-            <button
-              type="button"
-              key={p.key}
-              className={`history-tool-filter-opt${activeProject === p.key ? ' active' : ''}`}
-              onClick={() => { setActiveProject(activeProject === p.key ? null : p.key); setFilterMenuOpen(false); }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-              </svg>
-              <span className="history-tool-filter-opt-name">{projectLabel(p.cwd)}</span>
-              <span className="history-tool-filter-count">{p.count}</span>
-            </button>
-          ))}
-          {agentConversations.length > 0 && <button type="button" className={`history-tool-filter-opt${activeProject === 'coffee-agent' ? ' active' : ''}`} onClick={() => { setActiveProject('coffee-agent'); setFilterMenuOpen(false); }}>
-            <span className="history-tool-filter-opt-name">Coffee Agent</span>
-            <span className="history-tool-filter-count">{baseSessions.filter(s => s.tool === 'coffee-agent' && !hidden.has(`coffee-agent:${s.id}`)).length}</span>
-          </button>}
-        </div>
-      </>,
-      document.body
-    )}
+    {createPortal(<dialog className="history-search-dialog" ref={searchDialogRef} aria-labelledby={searchId} onKeyDown={event => event.stopPropagation()} onClose={() => setSearchOpen(false)} onMouseDown={event => {
+      if (event.target !== event.currentTarget) return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) event.currentTarget.close();
+    }}>
+      <header className="history-search-header"><h2 id={searchId}>{t('history.search_title')}</h2><button type="button" aria-label={t('history.close_search')} onClick={() => searchDialogRef.current?.close()}><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="m3 3 10 10M3 13 13 3" /></svg></button></header>
+      <div className="agent-session-search-wrap">
+        <svg className="agent-session-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7.5" /><path d="m16 16 5 5" /></svg>
+        <input ref={searchInputRef} className="agent-session-search" role="combobox" aria-label={t('history.search_title')} aria-autocomplete="list" aria-expanded={searchOpen} aria-controls={searchId + '-results'} aria-activedescendant={searchResults.length ? searchId + '-result-' + selectedSearchIndex : undefined} placeholder={t('history.search_title')} value={sessionSearchQuery} onChange={event => { setSessionSearchQuery(event.target.value); setSearchSelection(0); setSearchCount(PAGE); }} onContextMenu={event => openCtxMenu(event, setSessionSearchQuery)} onKeyDown={event => {
+          if (event.nativeEvent.isComposing) return;
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setSearchSelection(index => Math.max(0, Math.min(searchResults.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))); }
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            const selected = sessionSearchQuery === debouncedQuery ? searchResults[selectedSearchIndex] : availableSessions.find(session => matchesQuery(session, sessionSearchQuery));
+            if (selected) openSearchResult(selected);
+          }
+        }} />
+      </div>
+      <div className="history-search-results" id={searchId + '-results'} ref={searchResultsRef} role="listbox" aria-label={t('explorer.tab.history')}>
+        {searchResults.map((session, index) => <button type="button" tabIndex={-1} key={session.tool + ':' + session.id} id={searchId + '-result-' + index} className="history-search-result" role="option" aria-selected={selectedSearchIndex === index} onMouseEnter={() => setSearchSelection(index)} onClick={() => openSearchResult(session)}>
+          {session.tool !== 'coffee-agent' && getToolIcon(session.tool)}
+          <span><strong>{renamed[session.tool + ':' + session.id] ?? session.name}</strong><small>{session.tool === 'coffee-agent' ? 'Coffee Agent' : projectName(session.cwd ?? '', session.tool)}</small></span>
+        </button>)}
+        {searchHasMore && <div ref={searchSentinelRef} className="history-search-sentinel" />}
+        {!searchResults.length && <div className="history-search-empty"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7.5" /><path d="m16 16 5 5" /></svg><span>{t(isLoading ? 'diff.loading' : 'menu.no_recent')}</span></div>}
+      </div>
+      <footer className="history-search-footer">{t('history.search_hint')}</footer>
+    </dialog>, document.body)}
     {ctxMenu && <SessionContextMenu menu={ctxMenu} onClose={() => setCtxMenu(null)} onRename={startRename} />}
     {ctxMenuEl}
   </>

@@ -1,3 +1,4 @@
+/* Shared message, Markdown and navigation styles for Coffee Agent and Claude desktop. */
 .conversation-view {
   flex: 1;
   min-width: 0;
@@ -88,7 +89,7 @@
   overflow: visible;
 }
 
-/* Gambit is an app-level fixed overlay, while ConversationView remains full
+/* Gambit is an app-level fixed overlay, while the conversation remains full
    height so its wallpaper can continue behind the dock. Match the navigation
    rail's positioning area to the already-shrunk .conversation-scroll viewport
    instead of centring it across the obscured full-height outer view. The CSS

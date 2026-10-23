@@ -65,10 +65,11 @@ function fixture(order = ['one', 'two', 'agent:config', 'agent:agent']) {
   };
   const listeners = new Map(), actions = [], dragFrames = [];
   const dispatch = action => { actions.push(native(action)); state = stateApi.reducer(state, action); };
-  const visible = () => Array.from(stateApi.getTabOrder(state)).filter(id => {
-    const terminal = state.terminals.find(tab => tab.id === id);
-    return !terminal || !terminal.isHidden || id === state.activeTerminalId;
-  });
+  const visible = () => Array.from(vm.runInNewContext(compile(callback('visibleTabs')), {
+    getTabOrder: stateApi.getTabOrder, state,
+    sessions: new Map(state.terminals.map(session => [session.id, session])),
+    activeTerminalId: state.activeTerminalId,
+  }));
   const context = {
     dispatch, tabDrag: null, tabDragSuppressClickRef: { current: false },
     tabsHeaderRef: { current: { querySelectorAll(selector) {
@@ -178,4 +179,89 @@ test('close, reopen, new launch and terminal restart preserve remaining mixed or
   assert.equal(new Set(f.visible()).size, f.visible().length);
 });
 
-console.log(`\n${passed} shared tab pointer-drag tests passed.`);
+test('tool selection stays outside the strip and becomes a real tab only after launch', () => {
+  const f = fixture();
+  f.dispatch({ type: 'ADD_TERMINAL', session: { id: 'home', tool: null, folderPath: null } });
+  assert.equal(f.visible().includes('home'), false);
+  f.down('agent:config'); f.move(-100); f.up(-100);
+  assert.deepEqual(f.visible(), ['agent:config', 'one', 'two', 'agent:agent']);
+  assert.equal(f.state.activeTerminalId, 'home', 'reordering does not switch away from the selector');
+  f.dispatch({ type: 'LAUNCH_TERMINAL_TOOL', id: 'home', tool: 'claude', cwd: 'D:\\test' });
+  assert.equal(f.visible().at(-1), 'home');
+  assert.equal(f.state.terminals.find(session => session.id === 'one').tool, 'claude');
+});
+
+test('closing the final session leaves an untabbed tool selector', () => {
+  const f = fixture();
+  for (const page of ['agent', 'config']) f.dispatch({ type: 'CLOSE_AGENT_PAGE', page });
+  for (const id of ['one', 'two']) f.dispatch({ type: 'REMOVE_TERMINAL', id });
+  assert.deepEqual(f.visible(), []);
+  assert.equal(f.state.terminals.find(session => session.id === f.state.activeTerminalId).tool, null);
+});
+
+test('closing a session selects a remaining real tab before the idle selector', () => {
+  const f = fixture();
+  f.dispatch({ type: 'ADD_TERMINAL', session: { id: 'home', tool: null, folderPath: null } });
+  f.dispatch({ type: 'SET_ACTIVE_TERMINAL', id: 'two' });
+  f.dispatch({ type: 'REMOVE_TERMINAL', id: 'two' });
+  assert.equal(f.state.activeTerminalId, 'one');
+  assert.equal(f.visible().includes('home'), false);
+});
+
+test('new session reuses the selector, clears Library and keeps running tabs', () => {
+  const f = fixture();
+  let libraryOpen = true;
+  const open = () => vm.runInNewContext(compile(`(${callback('openNewSession')})()`), {
+    terminals: f.state.terminals, dispatch: f.dispatch,
+    crypto: { randomUUID: () => 'new-home' }, setShowLibrary: value => { libraryOpen = value; },
+  });
+  f.dispatch({ type: 'OPEN_AGENT_PAGE', page: 'agent' });
+  open();
+  assert.equal(libraryOpen, false);
+  assert.equal(f.state.agentPageActive, null);
+  assert.equal(f.state.activeTerminalId, 'new-home');
+  const sessions = f.state.terminals.length;
+  open();
+  assert.equal(f.state.terminals.length, sessions, 'repeated clicks reuse the idle selector');
+  assert.deepEqual(f.visible(), ['one', 'two', 'agent:config', 'agent:agent']);
+});
+
+test('Explorer preview opens on the right and follows the user surface choice without changing terminals', () => {
+  const f = fixture();
+  f.dispatch({ type: 'SET_DIFF_MODE', mode: 'overlay' });
+  f.dispatch({ type: 'OPEN_AGENT_PAGE', page: 'agent' });
+  f.dispatch({ type: 'TOGGLE_RIGHT_PANEL' });
+  const terminals = f.state.terminals;
+  const selection = { path: 'D:/Test/README.md', repoRoot: 'D:/Test', folderPath: 'D:/Test', rel: 'README.md', kind: 'file', fileSize: 120 };
+  f.dispatch({ type: 'SET_DIFF_SELECTION', selection });
+  assert.equal(f.state.diffMode, 'overlay');
+  assert.equal(f.state.diffTabActive, false);
+  assert.equal(f.state.agentPageActive, 'agent');
+  assert.equal(f.state.rightPanelHidden, false);
+  assert.equal(f.state.terminals, terminals);
+  f.dispatch({ type: 'SET_DIFF_MODE', mode: 'tab' });
+  assert.equal(f.state.diffTabActive, true);
+  assert.equal(f.state.agentPageActive, null);
+  f.dispatch({ type: 'SET_ACTIVE_TERMINAL', id: 'two' });
+  assert.equal(f.state.diffTabActive, false);
+  f.dispatch({ type: 'SET_DIFF_SELECTION', selection });
+  assert.equal(f.state.diffTabActive, true);
+  assert.equal(f.state.terminals, terminals);
+  f.dispatch({ type: 'TOGGLE_RIGHT_PANEL' });
+  f.dispatch({ type: 'SET_DIFF_MODE', mode: 'overlay' });
+  assert.equal(f.state.diffTabActive, false);
+  assert.equal(f.state.rightPanelHidden, false, 'fold back reveals the right panel');
+  f.dispatch({ type: 'CLEAR_DIFF' });
+  assert.equal(f.state.diffSelection, null);
+  assert.equal(f.state.activeTerminalId, 'two');
+});
+
+test('ordinary change selection keeps the overlay surface preference', () => {
+  const f = fixture();
+  f.dispatch({ type: 'SET_DIFF_MODE', mode: 'overlay' });
+  f.dispatch({ type: 'SET_DIFF_SELECTION', selection: { path: 'D:/Test/index.ts', kind: 'uncommitted' } });
+  assert.equal(f.state.diffMode, 'overlay');
+  assert.equal(f.state.diffTabActive, false);
+});
+
+console.log(`\n${passed} shared tab, preview and new-session tests passed.`);

@@ -40,7 +40,7 @@ export interface ConversationNavigationProps {
 }
 
 /** Navigation owns every high-frequency hover/scroll state update. Keeping it
- * outside ConversationViewImpl prevents a tooltip move or active-line change
+ * outside the transcript prevents a tooltip move or active-line change
  * from reconciling the full Markdown transcript. Target positions are measured
  * only when layout changes; scrolling performs an O(log n) lookup over that
  * cache instead of getBoundingClientRect() on every user turn each frame. */

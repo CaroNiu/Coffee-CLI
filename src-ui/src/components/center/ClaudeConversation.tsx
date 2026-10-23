@@ -274,8 +274,15 @@ export function ClaudeConversation({ sessionId, cwd, resumeToken, isActive, bgUr
         {s.error && <div className="claude-session-error" role="alert">{s.errorKey ? t(s.errorKey, { detail: s.error }) : s.error}{!s.ready && <button className="claude-expand" onClick={() => dispatch({ type: 'RESTART_TERMINAL', id: sessionId, newId: crypto.randomUUID() })}>{t('claude.reconnect')}</button>}</div>}
         {empty && <div className="claude-empty">
           <span className="claude-empty-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: CLAWD_SVG }} />
-          <div className="claude-empty-title">{t('claude.welcome')}</div>
-          <div className="claude-empty-model">{model?.displayName || s.model}</div>
+          <div className="claude-empty-title" lang="en">Coffee and Claude time</div>
+          <div className="claude-empty-meta">
+            <span className="claude-empty-directory">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></svg>
+              <bdi dir="ltr">{cwd || '—'}</bdi>
+            </span>
+            <span className="claude-empty-separator" aria-hidden="true">·</span>
+            <span className="claude-empty-model" dir="ltr">{model?.resolvedModel || s.model}</span>
+          </div>
         </div>}
         {!s.messages.length && summary}
       </div>

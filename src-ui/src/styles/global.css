@@ -48,13 +48,18 @@
     font-display: swap;
 }
 
-/* ─── CJK rendering (no embedded font) ──
-   Mac → PingFang SC (built-in since 10.11). Windows → Microsoft YaHei
-   (built-in since Vista). Linux → distro Noto CJK / WenQuanYi. Bundling
-   our own 16 MB Noto OTF was redundant: every target OS already ships
-   a perfectly readable Chinese face, and the bundled font was never
-   reached on Mac (PingFang resolved earlier in the cascade) and just
-   duplicated YaHei on Windows. */
+/* Sidebar CJK font, bundled under SIL OFL 1.1; see /fonts/OFL-NotoSansSC.txt.
+   Native macOS faces precede it in --font-nav. */
+@font-face {
+    font-family: 'Coffee Navigation CJK';
+    src: url('/fonts/noto-sans-sc.woff2') format('woff2');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* Conversation CJK text keeps using OS fonts: PingFang on macOS,
+   Microsoft YaHei on Windows, and distro fonts on Linux. */
 
 /* ─── Brand Serif (splash-label "art font") ──
    Lora italic 500, Latin + Latin-Ext only (~36 KB total). Splash text is
@@ -194,6 +199,11 @@ textarea,
     --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
         'PingFang SC', 'PingFang TC', 'Hiragino Sans', 'Hiragino Sans GB', 'Apple SD Gothic Neo',
         'Microsoft YaHei', 'Microsoft JhengHei', 'Yu Gothic UI', 'Malgun Gothic',
+        Helvetica, Arial, sans-serif,
+        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+    --font-nav: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+        'PingFang SC', 'PingFang TC', 'Hiragino Sans', 'Hiragino Sans GB', 'Apple SD Gothic Neo',
+        'Coffee Navigation CJK', 'Microsoft YaHei', 'Microsoft JhengHei', 'Yu Gothic UI', 'Malgun Gothic',
         Helvetica, Arial, sans-serif,
         'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
     --font-serif: 'Lora', ui-serif, Georgia, Cambria, "Times New Roman",
@@ -1570,14 +1580,6 @@ body.gambit-docked .multi-agent-grid-standalone {
     padding-bottom: calc(var(--gambit-dock-h, 200px) + 16px);
 }
 
-/* Keep ConversationView full-height so its wallpaper continues through the
-   breathing gap and behind Gambit exactly like TierTerminal. Only shrink the
-   inner scroll owner: messages, clipping edge, and scrollbar stop above the
-   dock while the background layer remains visually continuous. */
-body.gambit-docked .conversation-scroll {
-    height: calc(100% - var(--gambit-dock-h, 200px) - 16px);
-}
-
 .tab-actions {
     margin-left: auto;
     display: flex;
@@ -1974,7 +1976,6 @@ html.is-windows[data-frost="frost"] #root {
 
 /* Glass tabs keep the brighter selected text against the translucent surface. */
 [data-shape="glass"] .chrome-tab.active,
-[data-shape="glass"] .right-tab.active,
 [data-shape="glass"] .explorer-tab.active {
     color: var(--text-1);
 }
@@ -2029,7 +2030,7 @@ html.is-windows[data-frost="frost"] #root {
    + outer drop shadow combo, so every floating overlay sits on
    the same Liquid-Glass tier above the panels. */
 [data-shape="glass"] .ctx-menu,
-[data-shape="glass"] .history-tool-filter-menu {
+[data-shape="glass"] .history-search-dialog {
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.14);
     backdrop-filter: var(--glass-blur);
@@ -2045,7 +2046,7 @@ html.is-windows[data-frost="frost"] #root {
    smoked theme fill). Give it the same smoked fill, kept on the glass tier
    with its frosted blur. Frost normalizes to data-shape="glass", so this
    covers frost too. */
-[data-shape="glass"] .history-tool-filter-menu {
+[data-shape="glass"] .history-search-dialog {
     background: color-mix(in oklab, var(--bg-app) 76%, transparent);
     background-image: none;
 }
@@ -2090,18 +2091,15 @@ html.is-windows[data-frost="frost"] #root {
     background: rgba(255, 255, 255, 0.06);
 }
 
-/* Left-panel controls in the transparent shapes — workspace dir button +
-   history search box + the directory-filter dropdown trigger next to the
-   search box. The nuclear layer-strip rule only targets div/section
+/* Workspace directory and search input in the transparent shapes.
+   The nuclear layer-strip rule only targets div/section
    descendants; inputs/buttons need an explicit material-aware surface. */
 :is([data-shape="glass"], [data-shape="carbon"], [data-shape="monogram"]) .workspace-dir-btn,
-:is([data-shape="glass"], [data-shape="carbon"], [data-shape="monogram"]) .agent-session-search,
-:is([data-shape="glass"], [data-shape="carbon"], [data-shape="monogram"]) .history-tool-filter-trigger {
+:is([data-shape="glass"], [data-shape="carbon"], [data-shape="monogram"]) .agent-session-search {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.10);
 }
 :is([data-shape="glass"], [data-shape="carbon"], [data-shape="monogram"]) .workspace-dir-btn:hover,
-:is([data-shape="glass"], [data-shape="carbon"], [data-shape="monogram"]) .history-tool-filter-trigger:hover,
 :is([data-shape="glass"], [data-shape="carbon"], [data-shape="monogram"]) .agent-session-search:focus {
     background: rgba(255, 255, 255, 0.06);
     border-color: rgba(255, 255, 255, 0.22);
@@ -2110,8 +2108,7 @@ html.is-windows[data-frost="frost"] #root {
 /* Glass and Frost use the exact material tier of the launchpad cards. Frost
    normalizes to data-shape="glass", so both stay translucent over wallpaper. */
 [data-shape="glass"] .workspace-dir-btn,
-[data-shape="glass"] .agent-session-search,
-[data-shape="glass"] .history-tool-filter-trigger {
+[data-shape="glass"] .agent-session-search {
     background: rgba(255, 255, 255, 0.04);
     backdrop-filter: blur(20px) saturate(160%);
     -webkit-backdrop-filter: blur(20px) saturate(160%);
@@ -2122,13 +2119,11 @@ html.is-windows[data-frost="frost"] #root {
 /* Carbon/Monogram use an opaque-looking painted material rather than blur;
    retain their warmer light-mode surface instead of applying glass frost. */
 [data-mode="light"]:is([data-shape="carbon"], [data-shape="monogram"]) .workspace-dir-btn,
-[data-mode="light"]:is([data-shape="carbon"], [data-shape="monogram"]) .agent-session-search,
-[data-mode="light"]:is([data-shape="carbon"], [data-shape="monogram"]) .history-tool-filter-trigger {
+[data-mode="light"]:is([data-shape="carbon"], [data-shape="monogram"]) .agent-session-search {
     background: color-mix(in oklab, var(--bg-card) 65%, transparent);
     border: 1px solid color-mix(in oklab, var(--border) 65%, transparent);
 }
 [data-mode="light"]:is([data-shape="carbon"], [data-shape="monogram"]) .workspace-dir-btn:hover,
-[data-mode="light"]:is([data-shape="carbon"], [data-shape="monogram"]) .history-tool-filter-trigger:hover,
 [data-mode="light"]:is([data-shape="carbon"], [data-shape="monogram"]) .agent-session-search:focus {
     background: color-mix(in oklab, var(--bg-card) 72%, transparent);
     border-color: color-mix(in oklab, var(--accent) 55%, transparent);
@@ -2162,20 +2157,6 @@ html.is-windows[data-frost="frost"] #root {
     box-shadow:
         inset 0 1px 0 0 rgba(255, 255, 255, 0.24),
         0 12px 40px rgba(0, 0, 0, 0.40);
-}
-
-/* Gambit's active view segment must remain glass as well. The base thumb
-   mixes accent into opaque --bg-panel, which is appropriate for solid
-   shapes but reads as a painted disk inside Glass/Frost. Frost normalizes to
-   data-shape="glass", so this one translucent accent wash covers both. */
-[data-shape="glass"] .gambit-view-toggle::before {
-    background: color-mix(in srgb, var(--accent) 28%, transparent);
-    backdrop-filter: blur(8px) saturate(150%);
-    -webkit-backdrop-filter: blur(8px) saturate(150%);
-    border: 1px solid rgba(255, 255, 255, 0.20);
-    box-shadow:
-        inset 0 1px 0 0 rgba(255, 255, 255, 0.28),
-        inset 0 -1px 0 0 rgba(0, 0, 0, 0.08);
 }
 
 /* Primary action dots (Gambit send ↑ + TaskBoard add +).
@@ -2286,20 +2267,12 @@ html.is-windows[data-frost="frost"] #root {
     border-bottom: 1px solid var(--border);
 }
 
-/* ─── Side panel tab rows (左 explorer-tabs / 右 right-tabs) ─────
-   Default in every other shape: no container at all (segmented strip
-   inherits panel bg, active tab = text color contrast only).
-   Panel shape is the lone exception — a "drawn-on-terminal" chrome
-   aesthetic that wants a visible bordered rectangle around the tabs,
-   like classic tmux / iTerm2 split panes. */
-[data-shape="panel"] .explorer-tabs,
-[data-shape="panel"] .right-tabs,
+/* Left navigation stays borderless; Panel settings retain their framed tabs. */
 [data-shape="panel"] .settings-mode-tabs {
     border: 1px solid var(--border);
 }
 
-[data-shape="panel"] .explorer-tab,
-[data-shape="panel"] .right-tab {
+[data-shape="panel"] .explorer-tab {
     padding: 8px 0;
     border-radius: 0;
 }
@@ -2311,14 +2284,11 @@ html.is-windows[data-frost="frost"] #root {
     border-radius: 0;
 }
 
-[data-shape="panel"] .explorer-tab + .explorer-tab,
-[data-shape="panel"] .right-tab + .right-tab,
 [data-shape="panel"] .settings-mode-tab + .settings-mode-tab {
     border-left: 1px solid var(--border);
 }
 
 [data-shape="panel"] .explorer-tab.active,
-[data-shape="panel"] .right-tab.active,
 [data-shape="panel"] .settings-mode-tab.active {
     background: var(--bg-hover);
     color: var(--text-1);
@@ -2520,8 +2490,8 @@ html.is-windows[data-frost="frost"] #root {
 [data-shape="monogram"] .ctx-menu,
 [data-shape="carbon"] .term-ctx-menu,
 [data-shape="monogram"] .term-ctx-menu,
-[data-shape="carbon"] .history-tool-filter-menu,
-[data-shape="monogram"] .history-tool-filter-menu {
+[data-shape="carbon"] .history-search-dialog,
+[data-shape="monogram"] .history-search-dialog {
     background-color: color-mix(in oklab, var(--bg-app) 76%, transparent) !important;
     background-image: none !important;
     border: 1px solid rgba(255, 255, 255, 0.1) !important;

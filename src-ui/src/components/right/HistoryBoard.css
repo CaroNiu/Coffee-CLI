@@ -5,21 +5,88 @@
    to "almost invisible" on the light theme since white-on-white has no
    contrast. */
 
-.history-card {
+.task-list.history-session-list { gap: 0; }
+
+.history-search-trigger, .history-layout-toggle, .history-project-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--shape-radius-btn, var(--radius-sm));
+  background: transparent;
+  color: var(--text-1);
+  font: 500 14px/18px var(--font, system-ui);
+  text-align: left;
+}
+.history-search-trigger { margin-bottom: 18px; }
+.history-search-trigger > svg { display: block; flex-shrink: 0; }
+.history-layout-toggle { justify-content: space-between; margin-bottom: 6px; color: var(--accent); font-size: 12px; }
+.history-search-trigger:hover, .history-layout-toggle:hover, .history-project-row:hover { background: var(--bg-hover); }
+.history-search-trigger:focus-visible, .history-layout-toggle:focus-visible, .history-project-row:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+.history-project-row { margin: 4px 0 2px; }
+.history-project-row > svg { flex-shrink: 0; }
+.history-project-row > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-project-row[aria-expanded="true"] .history-project-chevron { transform: rotate(90deg); }
+.history-session-list .history-card-grouped { margin-left: 22px; }
+
+.history-search-dialog {
+  --font: var(--font-nav);
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  width: min(640px, calc(100vw - 32px));
+  height: min(680px, calc(100dvh - 48px));
+  max-height: calc(100dvh - 48px);
+  box-sizing: border-box;
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--shape-radius-panel, 16px);
+  background-color: var(--bg-app);
+  background-image: linear-gradient(var(--bg-panel), var(--bg-panel));
+  color: var(--text-1);
+  box-shadow: 0 12px 48px #0004;
+  overflow: hidden;
+  font-family: var(--font, system-ui);
+}
+.history-search-dialog:not([open]) { display: none; }
+.history-search-dialog::backdrop { background: #0006; }
+.history-search-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 12px; }
+.history-search-header h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.history-search-header button { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--shape-radius-btn, 6px); background: transparent; color: var(--text-2); }
+.history-search-header button:hover { background: var(--bg-hover); color: var(--text-1); }
+.history-search-dialog .agent-session-search-wrap { flex-shrink: 0; margin: 0 20px 12px; }
+.history-search-dialog .agent-session-search { height: 38px; }
+.history-search-results { flex: 1; min-height: 0; overflow: auto; padding: 0 12px 12px; }
+.history-search-result { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px; border: 0; border-radius: var(--shape-radius-btn, 6px); background: transparent; color: var(--text-1); text-align: left; font: 13px/1.4 var(--font, system-ui); }
+.history-search-result:hover, .history-search-result[aria-selected="true"] { background: var(--bg-hover); }
+.history-search-result > :first-child:not(span) { width: 18px !important; height: 18px !important; }
+.history-search-result > span:last-child { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; }
+.history-search-result strong, .history-search-result small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-search-result strong { font-weight: 500; }
+.history-search-result small { color: var(--text-2); font-size: 12px; }
+.history-search-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 100%; min-height: 140px; color: var(--text-2); font-size: 13px; }
+.history-search-sentinel { height: 1px; }
+.history-search-footer { flex-shrink: 0; padding: 10px 20px; border-top: 1px solid var(--border); color: var(--text-2); font-size: 12px; }
+
+.history-session-list .history-card {
   position: relative;
-  padding: 14px 14px;
-  margin-bottom: 8px;
+  padding: 4px 10px;
+  margin-bottom: 2px;
   cursor: default !important;
-  background: var(--bg-card);
+  background: transparent;
   border-radius: var(--radius-sm);
   transition: background 0.2s;
 }
 
-.history-card:hover {
+.history-session-list .history-card:hover {
   background: var(--bg-hover);
 }
 
-.history-card-active { background: var(--bg-hover); }
+.history-session-list .history-card-active { background: var(--bg-hover); }
 
 /* Light palettes keep session rows flush with the rail until hover, then lift
    the active row onto the brighter workspace surface. This restores the same
@@ -46,23 +113,24 @@
   background: color-mix(in oklab, var(--bg-app) 78%, transparent) !important;
 }
 
-.history-card-content {
+.history-session-list .history-card-content {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
 }
 
 .history-card-title-row {
   display: flex;
   align-items: center;
+  min-height: 22px;
   min-width: 0;
 }
 
-.history-card-title {
+.history-session-list .history-card-title {
   display: block;
   flex: 1;
   min-width: 0;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-1);
   font-family: var(--font, system-ui);
   font-weight: 500;
@@ -109,6 +177,40 @@
   white-space: nowrap;
 }
 
+.history-card-preview {
+  --font: var(--font-nav);
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  width: 320px;
+  max-width: calc(100vw - 16px);
+  height: 72px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-app);
+  background-image: linear-gradient(var(--bg-panel), var(--bg-panel));
+  box-shadow: 0 1px 2px #0003, 0 6px 20px #0003;
+  color: var(--text-1);
+  pointer-events: none;
+}
+
+.history-card-preview-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 14px/1.4 var(--font, system-ui);
+}
+
+.history-card-preview .history-card-tool-wrap {
+  gap: 6px;
+  font-size: 12px;
+}
+
 /* Pinned (置顶) marker - a static pushpin icon on the right of the meta row,
    shown only on pinned cards. Non-interactive (pin/unpin lives in the right-
    click context menu); styled to match the meta row text so it reads as an
@@ -117,11 +219,16 @@
    Shimmer driven by --text-3 so the skeleton bars are visible against
    light AND dark cards. Pure white-rgba was invisible on the light theme. */
 .history-card-skeleton {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
   cursor: default !important;
   pointer-events: none;
   background: var(--bg-card);
   opacity: 0.6;
 }
+
+.history-card-skeleton .history-card-content { width: 100%; }
 
 .skeleton-bar {
   display: block;
@@ -141,20 +248,12 @@
   height: 13px;
 }
 
-.skeleton-bar-meta {
-  width: 40%;
-  height: 10px;
-}
-
 @keyframes history-skeleton-shimmer {
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
 
-/* Search box and the workspace-filter trigger must be the same height so
-   the rail's top edge reads as one line. Both pin a fixed height instead of
-   relying on content box (CJK glyphs lift the default line-height ~2px,
-   which makes the trigger taller than the input in zh-CN). */
+/* Fixed search input height keeps CJK and Latin layouts aligned. */
 :root {
   --history-search-h: 34px;
 }
@@ -196,97 +295,6 @@
 .agent-session-search:focus {
   background: var(--bg-hover);
   border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
-}
-
-/* ─── Agent filter dropdown ─── */
-/* Search row: the input takes the remaining width, the filter trigger hugs
-   the right edge. */
-.agent-session-search-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.agent-session-search-row .agent-session-search-wrap {
-  flex: 1;
-  margin-bottom: 0;
-}
-
-.history-tool-filter-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: var(--history-search-h);
-  box-sizing: border-box;
-  padding: 8px 10px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-2);
-  font-size: 13px;
-  font-family: var(--font, system-ui);
-  line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.history-tool-filter-label {
-  max-width: 72px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.history-tool-filter-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 999;
-}
-.history-tool-filter-menu {
-  /* Same opacity fix as Explorer's .ctx-menu — --bg-card is ~3% white in
-     dark themes, so a portaled menu floating over the session list reads
-     as transparent. Layer --bg-panel over --bg-app so Light theme's
-     translucent panel still reads opaque. Glass shape gets its frosted
-     look from the [data-shape="glass"] override in global.css. */
-  background-color: var(--bg-app);
-  background-image: linear-gradient(var(--bg-panel), var(--bg-panel));
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.20), 0 6px 20px rgba(0, 0, 0, 0.22);
-  padding: 4px;
-  z-index: 1000;
-  max-height: 320px;
-  overflow-y: auto;
-}
-.history-tool-filter-opt {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 10px;
-  background: none;
-  border: none;
-  border-radius: var(--radius-xs);
-  color: var(--text-1);
-  font-size: 12.5px;
-  font-family: var(--font, system-ui);
-  text-align: left;
-  cursor: pointer;
-}
-.history-tool-filter-opt:hover {
-  background: var(--bg-hover);
-}
-.history-tool-filter-opt.active {
-  color: var(--accent);
-}
-.history-tool-filter-opt-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.history-tool-filter-count {
-  color: var(--text-3);
-  font-size: 11px;
 }
 
 /* ─── Card delete button + inline rename ─── */
@@ -344,7 +352,7 @@
   padding: 0;
   margin: 0;
   color: var(--text-1);
-  font-size: 13px;
+  font-size: 14px;
   font-family: var(--font, system-ui);
   font-weight: 500;
   line-height: 1.4;

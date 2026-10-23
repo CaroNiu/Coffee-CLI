@@ -215,7 +215,6 @@ function AgentChatPage() {
       sendFailedHint={t('agent.chat.send_failed')}
       workspaceName="Coffee Agent"
       leftPanelHidden={state.leftPanelHidden} rightPanelHidden={state.rightPanelHidden}
-      canUseChat={false} viewMode="terminal" onViewModeChange={() => {}}
     />}
   </PageFrame>;
 }

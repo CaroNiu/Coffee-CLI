@@ -67,11 +67,11 @@ type RenderItem =
 
 // Selection is encoded as "<group-tag>\x00<abs-path>" so the same file
 // appearing in both Staged and Unstaged stays two distinct, separately
-// clickable rows. Parent (TaskBoard) treats the string as opaque.
+// clickable rows. Parent (RightPanel) treats the string as opaque.
 // Committed rows use a 3-segment form — "<tag>\x00<hash>\x00<path>" — so two
 // session commits that touch the SAME file stay distinct rows when both are
 // expanded (a 2-segment key would collide and leave stale/duplicated rows on
-// collapse). See TaskBoard's selectedChangePath for the matching encoder.
+// collapse). See RightPanel's selectedPath for the matching encoder.
 const selKey = (tag: string, path: string) => `${tag}\x00${path}`;
 
 // Relative time for a commit (epoch seconds) — Intl.RelativeTimeFormat yields
@@ -97,7 +97,7 @@ export function ChangesBoard({ selectedPath, diffMode }: ChangesBoardProps) {
   const activeFolderPath = resolveDiffContext(activeSession)?.folderPath ?? null;
   const changes = useGitStatus();
   // Drive git polling only while this panel is on screen — ChangesBoard
-  // unmounts when its tab is inactive, so this gates the expensive git query.
+  // unmounts when the right panel is hidden, gating the expensive git query.
   useGitPollingGate();
   const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -242,32 +242,41 @@ export function ChangesBoard({ selectedPath, diffMode }: ChangesBoardProps) {
     setInitializing(false);
   };
 
+  const preview = diffMode === 'overlay' && state.diffSelection && (
+    <>
+      <div className="diff-resize-handle" style={{ bottom: `${diffHeight}%` }} onPointerDown={startResize} aria-label="Resize diff" />
+      <DiffPanel
+        mode="overlay"
+        path={state.diffSelection.path}
+        repoRoot={state.diffSelection.repoRoot}
+        rel={state.diffSelection.rel}
+        kind={state.diffSelection.kind}
+        fileSize={state.diffSelection.fileSize}
+        commitHash={state.diffSelection.commitHash}
+        onClose={() => dispatch({ type: 'CLEAR_DIFF' })}
+        onToggleExpanded={() => dispatch({ type: 'SET_DIFF_MODE', mode: 'tab' })}
+        heightPercent={diffHeight}
+        added={state.diffSelection.added}
+        deleted={state.diffSelection.deleted}
+      />
+    </>
+  );
+
   // ── Prompt / empty states ────────────────────────────────────────────────
-  if (!changes) {
-    return <div className="task-empty"><div className="task-empty-text">{t('diff.loading') || 'Loading…'}</div></div>;
-  }
-  if (changes.state === 'no_git') {
+  if (!changes || changes.state !== 'ok') {
     return (
-      <div className="task-empty">
-        <div className="task-empty-text">
-          {t('changes.no_git') || 'Git is not installed — code diff, branches and other git features are unavailable.'}
+      <div className="changes-fullview" ref={containerRef}>
+        <div className="task-empty">
+          <div className="task-empty-text">
+            {t(!changes ? 'diff.loading' : changes.state === 'no_git' ? 'changes.no_git' : 'changes.not_repo')}
+          </div>
+          {changes?.state === 'not_repo' && activeFolderPath && (
+            <button className="changes-init-btn" onClick={handleInit} disabled={initializing}>
+              {t(initializing ? 'changes.initializing' : 'changes.init_here')}
+            </button>
+          )}
         </div>
-      </div>
-    );
-  }
-  if (changes.state === 'not_repo') {
-    return (
-      <div className="task-empty">
-        <div className="task-empty-text">
-          {t('changes.not_repo') || 'This folder is not a Git repository.'}
-        </div>
-        {activeFolderPath && (
-          <button className="changes-init-btn" onClick={handleInit} disabled={initializing}>
-            {initializing
-              ? (t('changes.initializing') || 'Initializing…')
-              : (t('changes.init_here') || 'Initialize Git here')}
-          </button>
-        )}
+        {preview}
       </div>
     );
   }
@@ -280,10 +289,6 @@ export function ChangesBoard({ selectedPath, diffMode }: ChangesBoardProps) {
   let totalDeleted = 0;
   for (const e of changes.uncommitted) { totalAdded += e.added; totalDeleted += e.deleted; }
   for (const e of changes.untracked) { totalAdded += e.added; totalDeleted += e.deleted; }
-
-  // The resize handle sits at the overlay's top edge. In tab mode the overlay
-  // isn't rendered here (the diff lives in the center tab), so hide the handle.
-  const handleStyle = diffMode === 'tab' ? { display: 'none' as const } : { bottom: `${diffHeight}%` };
 
   return (
     <div className="changes-fullview" ref={containerRef}>
@@ -384,26 +389,9 @@ export function ChangesBoard({ selectedPath, diffMode }: ChangesBoardProps) {
           {visibleCount < items.length && <div ref={sentinelRef} className="changes-sentinel" aria-hidden="true" />}
         </div>
       </ScrollPanel>
-      {diffMode === 'overlay' && state.diffSelection && (
-        <>
-          <div className="diff-resize-handle" style={handleStyle} onPointerDown={startResize} aria-label="Resize diff" />
-          <DiffPanel
-            mode="overlay"
-            path={state.diffSelection.path}
-            repoRoot={state.diffSelection.repoRoot}
-            rel={state.diffSelection.rel}
-            kind={state.diffSelection.kind}
-            commitHash={state.diffSelection.commitHash}
-            onClose={() => dispatch({ type: 'CLEAR_DIFF' })}
-            onToggleExpanded={() => dispatch({ type: 'SET_DIFF_MODE', mode: 'tab' })}
-            heightPercent={diffHeight}
-            added={state.diffSelection.added}
-            deleted={state.diffSelection.deleted}
-          />
-        </>
-      )}
        </>
       )}
+      {preview}
       {ctxMenu && <ContextMenu menu={ctxMenu} onClose={() => setCtxMenu(null)} />}
     </div>
   );

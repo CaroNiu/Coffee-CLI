@@ -15,7 +15,7 @@
  *
  * Run with `node scripts/run-terminal-interaction-test.mjs` (esbuild-based).
  */
-import { supportsConversationTool, usesSelfRenderedCaret } from './chat-tools';
+import { usesSelfRenderedCaret } from './chat-tools';
 import { supportsAgentStatus, supportsNativeAgentStatus } from '../store/app-state';
 import { parseOmpTerminalTitle } from './omp-terminal-title';
 import type { Terminal } from '@xterm/xterm';
@@ -580,12 +580,10 @@ export function main(): void {
   equal(supportsNativeAgentStatus('opencode'), false, 'stock OpenCode titles are not state');
   for (const tool of terminalOnlyTools) {
     equal(supportsTerminalInteraction(tool), false, `${tool}: Coffee interaction disabled`);
-    equal(supportsConversationTool(tool), false, `${tool}: conversation mode disabled`);
     equal(parseTerminalInteraction(bashPermission, tool), null, `${tool}: selectors stay native`);
   }
   for (const tool of ['claude', 'codex', 'kimicode'] as const) {
     equal(supportsTerminalInteraction(tool), true, `${tool}: Coffee interaction enabled`);
-    equal(supportsConversationTool(tool), true, `${tool}: conversation mode enabled`);
     equal(usesSelfRenderedCaret(tool), true, `${tool}: upstream TUI owns its caret`);
   }
   for (const tool of ['qwen', 'antigravity', 'terminal', 'remote', null] as const) {

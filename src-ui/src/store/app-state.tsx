@@ -176,11 +176,6 @@ export interface TerminalSession {
   isHidden?: boolean;
   agentStatus?: AgentStatus;
   gambitDraft?: string;    // Unsent textarea content, preserved across tab switches
-  /** Per-tab center surface. The PTY stays mounted while chat is visible so
-   *  switching views never interrupts the running CLI or loses output. */
-  viewMode?: 'terminal' | 'chat';
-  /** Optimistic prompt shown before the CLI has flushed it to native history. */
-  chatPending?: { text: string; sentAt: number };
   /** Local launch timestamp used to reject older history files when binding
    *  a live conversation to this terminal tab. */
   startedAt?: number;
@@ -296,7 +291,8 @@ export interface DiffSelection {
   folderPath: string;   // active terminal tab's cwd at snapshot time (tab title only)
   path: string;         // absolute on-disk path
   rel: string;          // repo-relative path for git specs
-  kind: 'uncommitted' | 'untracked' | 'committed';
+  kind: 'uncommitted' | 'untracked' | 'committed' | 'file';
+  fileSize?: number;    // Explorer's size hint, before reading a file preview
   commitHash?: string;
   added?: number;
   deleted?: number;
@@ -374,9 +370,7 @@ type Action =
   | { type: 'SET_TITLEBAR_TOGGLE_DISPLAY'; value: TitlebarToggleDisplay }
   | { type: 'SET_GAMBIT_DRAFT'; id: string; draft: string }
   | { type: 'APPEND_GAMBIT_DRAFT'; id: string; text: string }
-  | { type: 'SET_SESSION_VIEW'; id: string; viewMode: 'terminal' | 'chat' }
   | { type: 'SET_SESSION_TOKEN'; id: string; token: string }
-  | { type: 'SET_CHAT_PENDING'; id: string; pending?: { text: string; sentAt: number } }
   | { type: 'SET_PANE_TOOL'; tabId: string; paneIdx: number; tool: ToolType; toolData?: string; folderPath?: string | null }
   | { type: 'SET_PANE_SENTINEL'; tabId: string; paneIdx: number; enabled: boolean }
   | { type: 'SET_PANE_COMPLETION'; tabId: string; paneIdx: number; ts: number }
@@ -460,6 +454,17 @@ function reducer(state: AppState, action: Action): AppState {
     case 'SET_LANG':
       return { ...state, currentLang: action.lang };
     case 'ADD_TERMINAL': {
+      // Resolve against current state so rapid history clicks cannot start
+      // multiple writers for the same native conversation.
+      const existing = action.session.resumeToken && state.terminals.find(t =>
+        t.tool === action.session.tool && t.resumeToken === action.session.resumeToken);
+      if (existing) return {
+        ...state,
+        terminals: existing.isHidden ? state.terminals.map(t => t.id === existing.id ? { ...t, isHidden: false } : t) : state.terminals,
+        activeTerminalId: existing.id,
+        agentPageActive: null,
+        diffTabActive: false,
+      };
       const session = action.session.tool && !action.session.startedAt
         ? { ...action.session, startedAt: Date.now() }
         : action.session;
@@ -479,7 +484,7 @@ function reducer(state: AppState, action: Action): AppState {
         folderPath: action.cwd ?? previous?.folderPath ?? null,
         toolData: action.toolData, resumeToken: action.resumeToken, strictCwd: action.strictCwd,
         claudeMode: action.tool === 'claude' ? action.claudeMode ?? 'conversation' : undefined,
-        toolTitle: undefined, agentStatus: undefined, viewMode: 'terminal', chatPending: undefined, startedAt: Date.now(),
+        toolTitle: undefined, agentStatus: undefined, startedAt: Date.now(),
       };
       if (action.cwd) {
         try { localStorage.setItem('cc-folder', action.cwd); } catch { /* Best-effort operation; failure is non-fatal. */ }
@@ -501,7 +506,8 @@ function reducer(state: AppState, action: Action): AppState {
         newTerminals = [{ id: defaultId, tool: null, folderPath }];
         newActiveId = defaultId;
       } else if (state.activeTerminalId === action.id) {
-         newActiveId = newTerminals[newTerminals.length - 1].id;
+         // The tool selector has no visible tab; prefer another real session.
+         newActiveId = (newTerminals.filter(session => session.tool !== null).at(-1) ?? newTerminals[newTerminals.length - 1]).id;
       }
       return { ...state, terminals: newTerminals, activeTerminalId: newActiveId, tabOrder: getTabOrder(state).filter(id => id !== action.id) };
     }
@@ -531,7 +537,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'SET_TERMINAL_TOOL':
       return {
         ...state,
-        terminals: state.terminals.map(t => t.id === action.id ? { ...t, tool: action.tool, claudeMode: action.tool === 'claude' ? action.claudeMode ?? 'conversation' : undefined, toolData: action.toolData, resumeToken: action.resumeToken, toolTitle: undefined, agentStatus: undefined, viewMode: 'terminal', chatPending: undefined, startedAt: Date.now() } : t)
+        terminals: state.terminals.map(t => t.id === action.id ? { ...t, tool: action.tool, claudeMode: action.tool === 'claude' ? action.claudeMode ?? 'conversation' : undefined, toolData: action.toolData, resumeToken: action.resumeToken, toolTitle: undefined, agentStatus: undefined, startedAt: Date.now() } : t)
       };
     case 'SET_TERMINAL_HIDDEN':
       return {
@@ -542,7 +548,7 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         terminals: state.terminals.map(t =>
-          t.id === action.id ? { ...t, id: action.newId, toolTitle: undefined, agentStatus: undefined, chatPending: undefined, startedAt: Date.now() } : t
+          t.id === action.id ? { ...t, id: action.newId, toolTitle: undefined, agentStatus: undefined, startedAt: Date.now() } : t
         ),
         tabOrder: getTabOrder(state).map(id => id === action.id ? action.newId : id),
         activeTerminalId: state.activeTerminalId === action.id ? action.newId : state.activeTerminalId
@@ -605,16 +611,6 @@ function reducer(state: AppState, action: Action): AppState {
       };
     case 'SET_SESSION_TOKEN':
       return { ...state, terminals: state.terminals.map(t => t.id === action.id && t.resumeToken !== action.token ? { ...t, resumeToken: action.token } : t) };
-    case 'SET_SESSION_VIEW':
-      return {
-        ...state,
-        terminals: state.terminals.map(t => t.id === action.id ? { ...t, viewMode: action.viewMode } : t),
-      };
-    case 'SET_CHAT_PENDING':
-      return {
-        ...state,
-        terminals: state.terminals.map(t => t.id === action.id ? { ...t, chatPending: action.pending } : t),
-      };
     case 'SET_PANE_TOOL': {
       // Seed a MultiAgentState lazily on the first pane selection so
       // quadrant tabs don't need a separate enable-step — point of entry
@@ -713,6 +709,7 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         diffSelection: action.selection,
+        rightPanelHidden: state.diffMode === 'overlay' ? false : state.rightPanelHidden,
         agentPageActive: state.diffMode === 'tab' ? null : state.agentPageActive,
         diffTabActive: state.diffMode === 'tab' ? true : state.diffTabActive,
       };
@@ -725,7 +722,7 @@ function reducer(state: AppState, action: Action): AppState {
       try { localStorage.setItem('cc-diff-mode', action.mode); } catch { /* Best-effort operation; failure is non-fatal. */ }
       // Entering tab mode focuses the diff tab; leaving blurs it. Keeps the
       // active-surface tracking in lockstep with the surface the diff is on.
-      return { ...state, diffMode: action.mode, diffTabActive: action.mode === 'tab', agentPageActive: action.mode === 'tab' ? null : state.agentPageActive };
+      return { ...state, diffMode: action.mode, rightPanelHidden: action.mode === 'overlay' ? false : state.rightPanelHidden, diffTabActive: action.mode === 'tab', agentPageActive: action.mode === 'tab' ? null : state.agentPageActive };
     }
     case 'SET_DIFF_TAB_ACTIVE':
       return { ...state, diffTabActive: action.active, agentPageActive: action.active ? null : state.agentPageActive };

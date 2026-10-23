@@ -8,7 +8,7 @@ export interface TermContextMenuState {
   hasSelection: boolean;
 }
 
-/** Shared read-only surface menu used by both xterm and ConversationView. */
+/** Read-only surface menu used by xterm. */
 export function TermContextMenu({ menu, onClose, onCopy, onPaste, onSelectAll }: {
   menu: TermContextMenuState;
   onClose: () => void;
