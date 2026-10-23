@@ -10,12 +10,12 @@ import { isMaskTintTheme } from '../../lib/personalization';
 import { ScrollPanel } from '../common/ScrollPanel';
 import { clipboardWrite } from '../../lib/clipboard';
 import { beginExplorerDrag } from '../../lib/explorer-drag';
+import { getFileIconSrc } from '../../lib/file-icons';
 import { useFileStats, useDirtyDirs } from '../../lib/git-status';
 import { refreshHistory } from '../../lib/history-cache';
 import { commands, onSelfUpdateProgress } from '../../tauri';
 import type { DirEntryInfo } from '../../tauri';
 import { HistoryBoard } from '../right/HistoryBoard';
-import { TaskBoard } from '../right/TaskBoard';
 import './Explorer.css';
 
 // Snapshot lifecycle and the `+N -M` map live in lib/file-stats.tsx so the
@@ -267,14 +267,10 @@ function getIconPath(theme: IconTheme, name: string): string {
   return `/icons/themes/${theme}/${name}`;
 }
 
-function getFileIconSrc(ext: string, theme: IconTheme): string {
-  return `/icons/themes/${theme}/${getFileIcon(ext)}`;
-}
-
 /** Renders a theme icon. For mask-tint themes, uses a <span> with mask-image
  *  so `background-color: var(--accent)` paints the silhouette. For color
  *  themes, falls back to a plain <img>. */
-function ThemedIcon({ src, alt, onFallback }: {
+export function ThemedIcon({ src, alt, onFallback }: {
   src: string;
   alt: string;
   onFallback?: string;
@@ -300,16 +296,6 @@ function ThemedIcon({ src, alt, onFallback }: {
   );
 }
 
-
-function getFileIcon(ext: string): string {
-  const m: Record<string, string> = {
-    rs: 'rs.svg', js: 'js.svg', jsx: 'jsx.svg', ts: 'ts.svg', tsx: 'tsx.svg',
-    py: 'py.svg', go: 'go.svg', java: 'java.svg', c: 'c.svg', cpp: 'cpp.svg',
-    h: 'cpp.svg', html: 'html.svg', css: 'css.svg', json: 'json.svg',
-    md: 'md.svg', toml: 'toml.svg', sh: 'sh.svg', pyw: 'py.svg',
-  };
-  return m[ext.toLowerCase()] || 'file.svg';
-}
 
 
 // ─── Lazy Directory Browser Node ─────────────────────────────────────────────
@@ -556,6 +542,9 @@ export function Explorer() {
 
   const activeSession = state.terminals.find(t => t.id === state.activeTerminalId);
   const folderPath = activeSession?.folderPath || null;
+  const [workspaceSearch, setWorkspaceSearch] = useState<{ folder: string | null; query: string } | null>(null);
+  const searchingWorkspace = workspaceSearch !== null && workspaceSearch.folder === folderPath;
+  const workspaceQuery = searchingWorkspace ? workspaceSearch.query.trim().toLowerCase() : '';
 
   // Context menu state
   const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null);
@@ -563,8 +552,8 @@ export function Explorer() {
   const closeCtxMenu = useCallback(() => setCtxMenu(null), []);
 
   // Workspace tree: read one directory level at a time from the OS — same
-  // semantics as Windows Explorer / Finder / GNOME Files. No filtering,
-  // no recursion, no MAX_FILES cap. Subdirs lazy-load via BrowserDirNode.
+  // semantics as Windows Explorer / Finder / GNOME Files. Filtering only
+  // affects this listing; subdirs still lazy-load via BrowserDirNode.
   const [rootEntries, setRootEntries] = useState<DirEntryInfo[] | null>(null);
   useEffect(() => {
     if (!folderPath) { setRootEntries(null); return; }
@@ -661,10 +650,10 @@ export function Explorer() {
   }, [installing]);
 
   // Keep the last-selected view across panel collapse and application restarts.
-  const [activeTab, setActiveTab] = useState<'history' | 'workspace' | 'tasks'>(() => {
+  const [activeTab, setActiveTab] = useState<'history' | 'workspace'>(() => {
     try {
       const saved = localStorage.getItem('cc-left-tab');
-      if (saved === 'workspace' || saved === 'history' || saved === 'tasks') return saved;
+      if (saved === 'workspace' || saved === 'history') return saved;
     } catch { /* Best-effort operation; failure is non-fatal. */ }
     return 'history';
   });
@@ -834,34 +823,27 @@ export function Explorer() {
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></svg>
         </button>
-        <button
-          className={`explorer-tab ${activeTab === 'tasks' ? 'active' : ''}`}
-          aria-label={t('task.tab.tasks')}
-          aria-pressed={activeTab === 'tasks'}
-          onClick={() => setActiveTab('tasks')}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="m9 12 2 2 4-4" /></svg>
-        </button>
       </div>
 
       {(activeTab === 'workspace' && activeSession?.tool && !CWD_AGNOSTIC_TOOLS.has(activeSession.tool)) && (
-        <span className="workspace-dir-btn">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+        <span className={`workspace-dir-btn${searchingWorkspace ? ' is-searching' : ''}`} role="search" aria-label={t('explorer.filter_files')}>
+          {searchingWorkspace ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7.5" /><path d="m16 16 5 5" /></svg> : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
             <path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"></path>
-          </svg>
-          <span className="workspace-dir-path">
+          </svg>}
+          {searchingWorkspace ? <input className="workspace-filter-input" role="searchbox" autoFocus aria-label={t('explorer.filter_files')} placeholder={t('explorer.filter_files')} value={workspaceSearch.query} onChange={event => setWorkspaceSearch(event.target.value ? { folder: folderPath, query: event.target.value } : null)} onBlur={() => { if (!workspaceSearch.query) setWorkspaceSearch(null); }} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setWorkspaceSearch(null); } }} /> : <span className="workspace-dir-path">
             {activeSession.folderPath
               ? `⁦${activeSession.folderPath}⁩`
               : '—'}
-          </span>
+          </span>}
+          <button type="button" className="workspace-filter-toggle" aria-label={t(searchingWorkspace ? 'history.close_search' : 'explorer.filter_files')} onMouseDown={event => event.preventDefault()} onClick={() => setWorkspaceSearch(searchingWorkspace ? null : { folder: folderPath, query: '' })}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">{searchingWorkspace ? <path d="m6 6 12 12M6 18 18 6" /> : <><circle cx="10.5" cy="10.5" r="7.5" /><path d="m16 16 5 5" /></>}</svg>
+          </button>
         </span>
       )}
 
       {/* File list Content */}
       <div className="panel-content explorer-content">
-        {/* Keep task editors and their persistence mounted across tab switches. */}
-        <div className="explorer-task-host" hidden={activeTab !== 'tasks'}><TaskBoard /></div>
-        {activeTab === 'tasks' ? null : activeTab === 'history' ? (
+        {activeTab === 'history' ? (
           // HistoryBoard returns a fragment and was originally hosted inside
           // .task-board which provided the 16px gutter. In Explorer's flex
           // shell that padding doesn't exist, so we wrap to restore it.
@@ -898,15 +880,18 @@ export function Explorer() {
         ) : (
           <ScrollPanel>
             <div className="file-tree-container">
+              {workspaceQuery && !rootEntries.some(entry => entry.name.toLowerCase().includes(workspaceQuery)) && <div className="workspace-filter-empty" role="status">{t('explorer.no_matches')}</div>}
               {rootEntries.slice().sort((a, b) => {
                 if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
                 return a.name.localeCompare(b.name);
               }).map(entry => (
-                entry.is_dir ? (
-                  <BrowserDirNode key={entry.path} name={entry.name} dirPath={entry.path} onCtxMenu={handleCtxMenu} />
-                ) : (
-                  <BrowserFileNode key={entry.path} entry={entry} parentDirPath={folderPath!} onCtxMenu={handleCtxMenu} />
-                )
+                <div key={entry.path} hidden={!!workspaceQuery && !entry.name.toLowerCase().includes(workspaceQuery)}>
+                  {entry.is_dir ? (
+                    <BrowserDirNode name={entry.name} dirPath={entry.path} onCtxMenu={handleCtxMenu} />
+                  ) : (
+                    <BrowserFileNode entry={entry} parentDirPath={folderPath!} onCtxMenu={handleCtxMenu} />
+                  )}
+                </div>
               ))}
             </div>
           </ScrollPanel>

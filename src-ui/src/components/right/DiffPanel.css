@@ -117,7 +117,7 @@
 /* Transparent shapes clear descendant surfaces with specificity (0,3,1).
  * The changes container gives this overlay (0,4,0), so its opaque theme
  * background covers the file list and wallpaper behind the code. */
-:is([data-shape="glass"], [data-shape="carbon"], [data-shape="monogram"]) .panel-right .changes-fullview > .diff-panel {
+:is([data-shape="glass"], [data-shape="carbon"], [data-shape="monogram"]) .panel-right .changes-fullview .changes-detail-pane > .diff-panel {
   background: var(--bg-panel) !important;
   border-color: var(--border) !important;
 }
@@ -145,13 +145,17 @@
   justify-content: space-between;
   gap: 8px;
   padding: 6px 6px 6px 14px;
-  font-size: 11px;
+  font-size: 14px;
   color: var(--text-2, #888);
   flex-shrink: 0;
 }
+.diff-navigation-position { font-size:12px; color:var(--text-3); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.diff-file-location { padding:0 14px 8px; color:var(--text-3); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex-shrink:0; }
 
 .diff-header-name {
-  font-weight: 600;
+  min-width: 0;
+  flex: 1;
+  font-weight: 500;
   color: var(--text-1);
   white-space: nowrap;
   overflow: hidden;
@@ -326,7 +330,7 @@
   justify-content: center;
   padding: 3px 0;
   font-family: var(--font);
-  font-size: 11px;
+  font-size: 12px;
   white-space: normal;
   color: var(--text-3, var(--text-2));
   opacity: 0.8;

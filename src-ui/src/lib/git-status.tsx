@@ -5,7 +5,7 @@
 // regardless of whether the panel was even on screen — was the v2.8.7 perf
 // regression (UI lag during heavy agent activity). This provider now:
 //   • polls ONLY while the changes panel is visible (ChangesBoard registers
-//     via useGitPollingGate; it unmounts when its tab is inactive),
+//     via useGitPollingGate; hidden tabs deactivate their subscription),
 //   • debounces bursts at 800ms,
 //   • skips the re-render when a poll returns identical data,
 //   • derives a dirty-dirs Set so the Explorer tree's "has a changed
@@ -18,7 +18,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ReactNode } from 'react';
 import { useAppState, resolveDiffContext } from '../store/app-state';
 import type { ToolType } from '../store/app-state';
-import { commands, type GitChanges, type GitFileEntry } from '../tauri';
+import { commands, type GitChanges as NativeGitChanges, type GitFileEntry } from '../tauri';
+
+type GitChanges = NativeGitChanges | { state: 'error' };
 
 export type FileStats = { added: number; deleted: number; mtimeMs: number };
 type FileStatsMap = Map<string, FileStats>;
@@ -38,12 +40,13 @@ export const useFileStats = () => useContext(FileStatsContext);
 export const useDirtyDirs = () => useContext(DirtyDirsContext);
 /** Called by ChangesBoard while it is mounted (i.e. its tab is visible) so the
  *  expensive git poll only runs when the user is actually looking at it. */
-export function useGitPollingGate() {
+export function useGitPollingGate(active = true) {
   const gate = useContext(PollGateContext);
   useEffect(() => {
+    if (!active) return;
     gate(true);
     return () => gate(false);
-  }, [gate]);
+  }, [gate, active]);
 }
 
 const CWD_AGNOSTIC_TOOLS: ReadonlySet<ToolType> = new Set<ToolType>([
@@ -149,7 +152,10 @@ export function GitStatusProvider({ children }: { children: ReactNode }) {
           next.set(sid, changes);
           return next;
         });
-      }).catch(() => {}).finally(() => {
+      }).catch(() => {
+        if (!cancelled) setTabChanges(previous => new Map(previous).set(sid, { state: 'error' }));
+        lastSigRef.current = '';
+      }).finally(() => {
         inFlight = false;
         if (pending && !cancelled) { pending = false; schedule(); }
       });

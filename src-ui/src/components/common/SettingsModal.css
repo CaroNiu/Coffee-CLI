@@ -558,7 +558,8 @@
   padding: 8px 10px;
   border: none;
   background: transparent;
-  border-radius: var(--radius-sm, 8px);
+  /* Match the menu's inner curve after its 4px padding and 1px border. */
+  border-radius: max(0px, calc(var(--radius-md, 12px) - 5px));
   color: var(--text-1, #fff);
   font-size: 13px;
   text-align: left;

@@ -218,7 +218,7 @@ export const commands = {
    *  Loaded once at app boot and cached; see `lib/tool-info.ts`. */
   listTools: () => invoke<{ id: string; displayName: string }[]>('list_tools'),
 
-  /** Re-run legacy cleanup and non-hook presentation migration for one tool. */
+  /** Apply non-hook presentation maintenance for one tool. */
   maintainToolIntegration: (tool: string) =>
     invoke<void>('maintain_tool_integration', { tool }),
 

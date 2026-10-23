@@ -285,6 +285,16 @@ try {
   const welcome = page.locator('.claude-empty-icon'), mascot = welcome.locator('video');
   await page.waitForFunction(() => { const video = document.querySelector('.claude-empty-icon video'); return video?.readyState >= 2 && !video.paused; });
   assert.ok(await mascot.evaluate(video => video.muted && video.loop && video.playsInline), 'welcome mascot plays silently and loops inline');
+  const laptopPixels = await mascot.evaluate(async video => {
+    video.pause(); await new Promise(resolve => { video.addEventListener('seeked', resolve, { once: true }); video.currentTime = 1.5; });
+    const canvas = document.createElement('canvas'); canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d'); ctx.drawImage(video, 0, 0); const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let gray = 0, transparent = 0;
+    for (let i = 0; i < pixels.length; i += 4) { if (pixels[i + 3] === 0) transparent++; else if (pixels[i + 3] > 240 && pixels[i] > 80 && pixels[i] < 180 && Math.abs(pixels[i] - pixels[i + 1]) < 6 && Math.abs(pixels[i] - pixels[i + 2]) < 6) gray++; }
+    await video.play(); return { gray, transparent };
+  });
+  assert.ok(laptopPixels.gray > 20, 'desktop laptop stays gray and visible on a dark background');
+  assert.ok(laptopPixels.transparent > 1000, 'desktop laptop retains its transparent background');
   const bounds = await welcome.boundingBox(), frames = new Set();
   for (let frame = 0; frame < 4; frame++) {
     await page.waitForTimeout(350);

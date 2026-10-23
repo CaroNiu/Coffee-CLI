@@ -91,12 +91,11 @@ interface DiffPanelProps {
   commitHash?: string;
   onClose: () => void;
   /** Which surface this panel renders on:
-   *  - 'overlay' = right-bottom half-height (anchored inside ChangesBoard)
+   *  - 'overlay' = full-height right detail pane (inside ChangesBoard)
    *  - 'tab'     = center tab, fills the panel area (mounted by CenterPanel) */
   mode: 'overlay' | 'tab';
-  /** Expand the overlay to a center tab, or (in tab mode) fold back to the
-   *  overlay. The glyph swaps per mode: overlay shows ⤢ (expand), tab shows
-   *  the "fold to bottom-right" glyph. */
+  /** Switch between the center tab and right panel. The filled bar marks
+   *  the destination: centered for a tab, right-aligned for the panel. */
   onToggleExpanded: () => void;
   /** Height percent (0-100) for the half-paper bottom overlay.
    *  Ignored in expanded mode (which uses fixed-inset modal sizing).
@@ -107,12 +106,21 @@ interface DiffPanelProps {
    *  labels the summary card when we do. */
   added?: number;
   deleted?: number;
+  navigation?: { position: number; total: number; onPrevious: () => void; onNext: () => void };
+  isActive?: boolean;
 }
 
-export function DiffPanel({ path, repoRoot, rel, kind, fileSize, commitHash, onClose, mode, onToggleExpanded, heightPercent, added, deleted }: DiffPanelProps) {
+export function DiffPanel({ path, repoRoot, rel, kind, fileSize, commitHash, onClose, mode, onToggleExpanded, heightPercent, added, deleted, navigation, isActive = true }: DiffPanelProps) {
   const t = useT();
   const dataMode = useDataAttr('data-mode');
   const [result, setResult] = useState<DiffResult>({ state: 'loading' });
+  // Hidden tabs retain rows and scroll position while native reads are paused.
+  const activeRef = useRef(isActive);
+  const refreshRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    activeRef.current = isActive;
+    if (isActive) refreshRef.current?.();
+  }, [isActive]);
   // `expanded` (tab mode) is the legacy name kept locally so the keyboard +
   // sizing logic below reads as before; the prop surface is `mode`.
   const expanded = mode === 'tab';
@@ -153,6 +161,7 @@ export function DiffPanel({ path, repoRoot, rel, kind, fileSize, commitHash, onC
   // In tab mode we also blur the active element so keystrokes can't leak
   // into a focused terminal behind the surface.
   useEffect(() => {
+    if (!isActive) return;
     if (expanded) {
       (document.activeElement as HTMLElement | null)?.blur();
     }
@@ -164,7 +173,7 @@ export function DiffPanel({ path, repoRoot, rel, kind, fileSize, commitHash, onC
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [expanded, onClose]);
+  }, [expanded, onClose, isActive]);
 
   useEffect(() => {
     let cancelled = false;
@@ -175,7 +184,7 @@ export function DiffPanel({ path, repoRoot, rel, kind, fileSize, commitHash, onC
     setResult({ state: 'loading' });
 
     const load = async () => {
-      if (cancelled) return;
+      if (cancelled || !activeRef.current) return;
       if (loading) { refreshPending = true; return; }
       loading = true;
       const { added: badgeAdded, deleted: badgeDeleted } = badgeRef.current;
@@ -287,6 +296,7 @@ export function DiffPanel({ path, repoRoot, rel, kind, fileSize, commitHash, onC
         if (refreshPending && !cancelled) { refreshPending = false; void load(); }
       }
     };
+    refreshRef.current = () => { void load(); };
     void load();
 
     // Refresh in place, retaining the current rows and scroll position. The
@@ -309,6 +319,7 @@ export function DiffPanel({ path, repoRoot, rel, kind, fileSize, commitHash, onC
 
     return () => {
       cancelled = true;
+      refreshRef.current = null;
       clearTimeout(timer);
       window.clearInterval(poll);
       window.removeEventListener('fs-refresh', refresh);
@@ -335,12 +346,14 @@ export function DiffPanel({ path, repoRoot, rel, kind, fileSize, commitHash, onC
         <span className="diff-header-path">{path}</span>
       )}
       <div className="diff-header-actions">
+        {navigation && <>
+          <span className="diff-navigation-position">{navigation.position} / {navigation.total}</span>
+          <button type="button" className="diff-header-btn" aria-label={t('changes.previous_file')} onClick={navigation.onPrevious}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg></button>
+          <button type="button" className="diff-header-btn" aria-label={t('changes.next_file')} onClick={navigation.onNext}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg></button>
+        </>}
         {expanded ? (
-          // Tab mode: fold back to the bottom-right overlay. The glyph is an
-          // outer frame with a filled inner box pinned to the bottom-right —
-          // the inner box IS the overlay's corner position, so the icon says
-          // "shrink toward there". Close is handled by the tab's own X
-          // (rendered by CenterPanel), so no close button here.
+          // The right-aligned bar represents the full-height right panel.
+          // Close is handled by the center tab's own X.
           <button
             type="button"
             className="diff-header-btn"
@@ -349,15 +362,12 @@ export function DiffPanel({ path, repoRoot, rel, kind, fileSize, commitHash, onC
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="2"/>
-              <rect x="11" y="11" width="9" height="9" rx="1" fill="currentColor" stroke="none"/>
+              <rect x="13" y="6" width="6" height="12" rx="1" fill="currentColor" stroke="none"/>
             </svg>
           </button>
         ) : (
-          // Overlay mode: expand to a center tab. The glyph is an outer frame
-          // with a filled inner box centered — the visual inverse of the tab-
-          // mode fold icon (inner box at bottom-right). Together the pair reads
-          // as "center = tab surface, corner = overlay surface". Close button
-          // too — the overlay has no outer tab to provide an X.
+          // The centered bar represents the center tab. The right panel also
+          // provides its own close control.
           <>
             <button
               type="button"
@@ -367,8 +377,8 @@ export function DiffPanel({ path, repoRoot, rel, kind, fileSize, commitHash, onC
             >
               {/* Outer frame + centered vertical bar — the bar reads as the
                   center tab column the diff expands into (taller than wide =
-                  a tab/pane, not a square). Visual inverse of the tab-mode
-                  fold icon (bar at bottom-right = overlay corner). */}
+                  a tab/pane, not a square). The matching return icon moves
+                  this same bar to the right. */}
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2"/>
                 <rect x="9" y="6" width="6" height="12" rx="1" fill="currentColor" stroke="none"/>
@@ -392,8 +402,8 @@ export function DiffPanel({ path, repoRoot, rel, kind, fileSize, commitHash, onC
   );
 
   // Same DiffPanel element rendered on two surfaces:
-  //   overlay (default): in-flow, parent-anchored (bottom half of the changes
-  //     panel). heightPercent drives its height.
+  //   overlay (default): in-flow, fills the right detail pane. The optional
+  //     legacy heightPercent override is only applied when provided.
   //   tab: fills the center tab's panel area (mounted by CenterPanel). No
   //     portal, no backdrop — the center tab IS the surface, and closing is
   //     the tab's own X (not a backdrop click).
@@ -407,6 +417,7 @@ export function DiffPanel({ path, repoRoot, rel, kind, fileSize, commitHash, onC
       style={panelStyle}
     >
       {header}
+      {mode === 'overlay' && <div className="diff-file-location">{rel || path}</div>}
       <div className="diff-body">
         {result.state === 'loading' && (
           <div className="diff-empty">{t('diff.loading') || 'Loading…'}</div>

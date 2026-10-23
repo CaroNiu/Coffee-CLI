@@ -1486,7 +1486,7 @@ body.resizing-panels .pane-resizer {
     font-family: var(--font, system-ui);
     font-size: 16px;
     letter-spacing: 0.02em;
-    color: var(--text-1); /* Stark white text contrasting the accent icon */
+    color: var(--text-2);
 }
 
 .brand-icon {

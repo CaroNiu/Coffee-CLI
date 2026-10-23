@@ -1,6 +1,6 @@
 //! Per-tool integration registry — single source of truth for the
 //! per-CLI facts Coffee CLI needs (binary name, history
-//! shape, legacy-hook cleanup, launch argv). Iterate `TOOLS` instead of
+//! shape, launch argv). Iterate `TOOLS` instead of
 //! hardcoding lists in callers.
 //!
 //! Adding a new tool: create `src/tools/<id>.rs` with a `ToolDescriptor`
@@ -169,8 +169,8 @@ pub struct ToolDescriptor {
     pub binary_name: &'static str,
 
     /// `true` when an older Coffee release may have written hook/plugin
-    /// artifacts for this tool. Startup uses this only to dispatch cleanup;
-    /// current releases never install status hooks.
+    /// artifacts for this tool. Retained as historical integration metadata;
+    /// current maintenance only applies non-hook presentation settings.
     pub has_legacy_hook_artifacts: bool,
 
     /// Shape of this tool's on-disk session history. `None` =

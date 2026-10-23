@@ -695,10 +695,10 @@ export function CenterPanel() {
   // IPC queue between back-click and the next 9-dot click.
   const lastToolsScanAt = useRef<number>(0);
   // Previous toolsInstalled snapshot — diffed against each new scan so
-  // we can maintain its cleanup/theme integration exactly when a CLI flips from
+  // we can maintain its presentation integration exactly when a CLI flips from
   // not-installed → installed during a Coffee CLI session. `null`
   // sentinel = "we haven't scanned yet"; the very first scan does not
-  // trigger any install IPCs because startup's install_all() already
+  // trigger any maintenance IPCs because startup's maintain_all() already
   // covered whatever was on PATH at launch — diffing against `null`
   // would re-fire those redundantly.
   const prevToolsInstalledRef = useRef<Record<string, boolean> | null>(null);
@@ -805,7 +805,8 @@ export function CenterPanel() {
         // helper, and stealing the focus always landed on the wrong one.
         // The enforcer now only pulls focus back when it wanders to
         // genuinely non-input DOM (<div>, <body>, a clicked tab bar).
-        if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+        // Comboboxes and search controls also retain keyboard focus.
+        if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.getAttribute('role') === 'combobox' || el.closest('[role="search"]'))) {
           return;
         }
         const id = activeIdRef.current;

@@ -6,7 +6,7 @@
   position: relative;
   container-type: inline-size;
   overflow: hidden;
-  color: var(--text-1);
+  color: var(--text-2);
   background: var(--bg-terminal);
 }
 

@@ -258,7 +258,7 @@ pub(crate) fn check_tool_unix(bin: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Re-run legacy cleanup and any non-hook presentation migration for one tool.
+/// Apply non-hook presentation maintenance for one tool.
 /// Called from the launchpad's focus-rescan when `check_tools_installed`
 /// flips a CLI from not-installed → installed, so users who install a
 /// CLI while Coffee CLI is running also get the OpenCode-family transparent
@@ -5274,9 +5274,8 @@ pub fn start_ui(pending_launch: Option<crate::launch::LaunchRequest>) -> anyhow:
             crate::git::git_commit_files,
         ])
         .setup(|app| {
-            // Remove Coffee status hooks/plugins left by older releases.
-            // Current integrations are read-only terminal/title parsers.
-            crate::hook_installer::cleanup_all();
+            // Presentation and npm-bin maintenance never modifies status hooks.
+            crate::hook_installer::maintain_all();
 
             // Per-pane MCP servers are spawned lazily inside
             // `tier_terminal_start` when each multi-agent pane boots

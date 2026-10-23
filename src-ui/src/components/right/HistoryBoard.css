@@ -17,7 +17,7 @@
   border: 0;
   border-radius: var(--shape-radius-btn, var(--radius-sm));
   background: transparent;
-  color: var(--text-1);
+  color: var(--text-2);
   font: 500 14px/18px var(--font, system-ui);
   text-align: left;
 }
@@ -25,6 +25,7 @@
 .history-search-trigger > svg { display: block; flex-shrink: 0; }
 .history-layout-toggle { justify-content: space-between; margin-bottom: 6px; color: var(--accent); font-size: 12px; }
 .history-search-trigger:hover, .history-layout-toggle:hover, .history-project-row:hover { background: var(--bg-hover); }
+.history-search-trigger:hover, .history-project-row:hover { color: var(--text-1); }
 .history-search-trigger:focus-visible, .history-layout-toggle:focus-visible, .history-project-row:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
 .history-project-row { margin: 4px 0 2px; }
 .history-project-row > svg { flex-shrink: 0; }
@@ -47,7 +48,7 @@
   border-radius: var(--shape-radius-panel, 16px);
   background-color: var(--bg-app);
   background-image: linear-gradient(var(--bg-panel), var(--bg-panel));
-  color: var(--text-1);
+  color: var(--text-2);
   box-shadow: 0 12px 48px #0004;
   overflow: hidden;
   font-family: var(--font, system-ui);
@@ -61,8 +62,8 @@
 .history-search-dialog .agent-session-search-wrap { flex-shrink: 0; margin: 0 20px 12px; }
 .history-search-dialog .agent-session-search { height: 38px; }
 .history-search-results { flex: 1; min-height: 0; overflow: auto; padding: 0 12px 12px; }
-.history-search-result { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px; border: 0; border-radius: var(--shape-radius-btn, 6px); background: transparent; color: var(--text-1); text-align: left; font: 13px/1.4 var(--font, system-ui); }
-.history-search-result:hover, .history-search-result[aria-selected="true"] { background: var(--bg-hover); }
+.history-search-result { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px; border: 0; border-radius: var(--shape-radius-btn, 6px); background: transparent; color: var(--text-2); text-align: left; font: 13px/1.4 var(--font, system-ui); }
+.history-search-result:hover, .history-search-result[aria-selected="true"] { background: var(--bg-hover); color: var(--text-1); }
 .history-search-result > :first-child:not(span) { width: 18px !important; height: 18px !important; }
 .history-search-result > span:last-child { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; }
 .history-search-result strong, .history-search-result small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -87,6 +88,7 @@
 }
 
 .history-session-list .history-card-active { background: var(--bg-hover); }
+.history-session-list .history-card-active .history-card-title { color: var(--text-1); }
 
 /* Light palettes keep session rows flush with the rail until hover, then lift
    the active row onto the brighter workspace surface. This restores the same
@@ -131,7 +133,7 @@
   flex: 1;
   min-width: 0;
   font-size: 14px;
-  color: var(--text-1);
+  color: var(--text-2);
   font-family: var(--font, system-ui);
   font-weight: 500;
   line-height: 1.4;
@@ -195,7 +197,7 @@
   background-color: var(--bg-app);
   background-image: linear-gradient(var(--bg-panel), var(--bg-panel));
   box-shadow: 0 1px 2px #0003, 0 6px 20px #0003;
-  color: var(--text-1);
+  color: var(--text-2);
   pointer-events: none;
 }
 
@@ -367,6 +369,7 @@
 }
 .history-card:hover .history-card-title,
 .history-card:focus-within .history-card-title {
+  color: var(--text-1);
   text-overflow: clip;
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
@@ -389,7 +392,7 @@
   border-radius: 0;
   padding: 0;
   margin: 0;
-  color: var(--text-1);
+  color: var(--text-2);
   font-size: 14px;
   font-family: var(--font, system-ui);
   font-weight: 500;

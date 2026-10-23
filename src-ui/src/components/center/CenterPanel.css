@@ -638,7 +638,7 @@
 .launchpad-card span {
   font-size: clamp(15px, 1.35vw, 18px);
   font-weight: 500;
-  color: var(--text-1);
+  color: var(--text-2);
   white-space: nowrap;
 }
 

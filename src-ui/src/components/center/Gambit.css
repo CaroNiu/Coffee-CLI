@@ -60,7 +60,7 @@
         0 0 3px rgba(var(--shadow-rgb), 0.40),
         0 0 4px rgba(var(--shadow-rgb), 0.20);
     box-shadow: var(--gambit-shadow);
-    color: var(--text-1, #e8e4de);
+    color: var(--text-2, #bab5ac);
     font-family: inherit;
     overflow: hidden;
     user-select: none;
@@ -79,7 +79,7 @@
     /* Inherits the same 4-layer 80/60/40/20 falloff defined on
        .gambit. With --shadow-rgb=0,0,0 (light theme black) the
        shadow reads naturally against the ivory background. */
-    color: var(--text-1, #2a2823);
+    color: var(--text-2, #50564f);
 }
 
 /* ─── Shape overlays (mirror .task-card / .panel-* styling) ─── */
@@ -199,7 +199,7 @@
     border: none;
     outline: none;
     resize: none;
-    color: var(--text-1, #e8e4de);
+    color: var(--text-2, #bab5ac);
     font-family: var(--font, inherit);
     font-size: 14px;
     line-height: 1.5;
@@ -280,7 +280,7 @@
     padding: 0;
     border: 0;
     background: none;
-    color: var(--text-1);
+    color: var(--text-2);
     font: 12px var(--font);
 }
 .gambit-attachment-content span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

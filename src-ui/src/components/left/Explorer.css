@@ -14,7 +14,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    color: var(--text-1);
+    color: var(--text-2);
 }
 
 .brand-icon {
@@ -30,7 +30,7 @@
     line-height: 1;
 }
 
-/* ─── Left navigation: sessions, workspace, tasks ───────────────────────── */
+/* ─── Left navigation: sessions and workspace ───────────────────────── */
 .explorer-tabs {
     display: flex;
     /* The brand header lives in the titlebar; navigation has its own gutter. */
@@ -79,7 +79,7 @@
     border: 0;
     border-radius: var(--shape-radius-btn, var(--radius-sm));
     background: transparent;
-    color: var(--text-1);
+    color: var(--text-2);
     font: 500 14px/18px var(--font, system-ui);
     text-align: left;
     white-space: nowrap;
@@ -90,7 +90,7 @@
 .explorer-new-session > svg { display: block; flex-shrink: 0; }
 .explorer-new-session > span { overflow: hidden; text-overflow: ellipsis; }
 
-.explorer-new-session:hover { background: var(--bg-hover); }
+.explorer-new-session:hover { background: var(--bg-hover); color: var(--text-1); }
 .explorer-new-session:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
 
 .workspace-dir-btn {
@@ -137,6 +137,16 @@
     line-height: 32px;
 }
 
+.workspace-dir-btn > svg { flex-shrink: 0; }
+.workspace-dir-btn.is-searching { background: transparent; }
+.workspace-dir-btn.is-searching:focus-within { border-color: var(--accent); }
+.workspace-filter-input { flex: 1; width: 0; min-width: 0; border: 0; outline: 0; padding: 0; background: transparent; color: var(--text-2); font: 400 14px/20px var(--font); }
+.workspace-filter-input::placeholder { color: var(--text-3); }
+.workspace-filter-toggle { display: flex; align-items: center; justify-content: center; flex: 0 0 20px; height: 24px; padding: 0; border: 0; border-radius: var(--shape-radius-btn); background: transparent; color: var(--text-3); }
+.workspace-filter-toggle:hover { color: var(--text-1); background: var(--bg-hover); }
+.workspace-filter-toggle:focus-visible { outline: 1px solid var(--accent); }
+.workspace-filter-empty { padding: 8px; color: var(--text-3); font-size: 14px; line-height: 1.4; }
+
 /* Custom styling removed for first child separator */
 
 .explorer-tab:hover:not(.active) {
@@ -150,8 +160,6 @@
 
 .explorer-tab:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
 
-.explorer-task-host { height: 100%; min-height: 0; }
-.explorer-task-host .task-board { padding-inline: 8px; }
 .explorer-panel .agent-channel-summary { margin-inline: 8px; }
 
 /* Recursive File Tree styles */
@@ -186,7 +194,7 @@
     border-radius: var(--radius-sm);
     user-select: none;
     transition: background var(--transition);
-    color: var(--text-1);
+    color: var(--text-2);
     font-weight: 500;
 }
 
