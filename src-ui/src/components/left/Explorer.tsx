@@ -551,7 +551,7 @@ function BrowserFileNode({ entry, parentDirPath, onCtxMenu }: {
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export function Explorer() {
-  const { state, dispatch } = useAppState();
+  const { state } = useAppState();
   const t = useT();
 
   const activeSession = state.terminals.find(t => t.id === state.activeTerminalId);
@@ -671,28 +671,6 @@ export function Explorer() {
   useEffect(() => {
     try { localStorage.setItem('cc-left-tab', activeTab); } catch { /* Best-effort operation; failure is non-fatal. */ }
   }, [activeTab]);
-
-  const handleOpenFolder = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      const { open } = await import('@tauri-apps/plugin-dialog');
-      const selected = await open({ directory: true });
-      if (selected && typeof selected === 'string') {
-        const activeTerminalId = state.activeTerminalId;
-        const tool = activeSession?.tool;
-
-        if (activeTerminalId && tool) {
-          // 1. Update this tab's folderPath so the restarted terminal knows its CWD
-          dispatch({ type: 'SET_FOLDER', path: selected });
-
-          // 2. Force unmount-remount of the TierTerminal to restart the Agent in the new dir
-          dispatch({ type: 'RESTART_TERMINAL', id: activeTerminalId, newId: crypto.randomUUID() });
-        }
-      }
-    } catch (err) {
-      console.error('[Explorer] Failed to open folder:', err);
-    }
-  };
 
   // OS-level fs watcher — picks up changes from the terminal CLI, editors,
   // git, or any process writing under folderPath. The backend emits the
@@ -867,19 +845,16 @@ export function Explorer() {
       </div>
 
       {(activeTab === 'workspace' && activeSession?.tool && !CWD_AGNOSTIC_TOOLS.has(activeSession.tool)) && (
-        <button
-          className="workspace-dir-btn"
-          onClick={handleOpenFolder}
-        >
+        <span className="workspace-dir-btn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
             <path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"></path>
           </svg>
           <span className="workspace-dir-path">
             {activeSession.folderPath
               ? `⁦${activeSession.folderPath}⁩`
-              : t('explorer.workspace.select-dir')}
+              : '—'}
           </span>
-        </button>
+        </span>
       )}
 
       {/* File list Content */}

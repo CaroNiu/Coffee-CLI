@@ -28,12 +28,15 @@ await build({
     builder.onResolve({ filter: /claude-session$/ }, () => ({ path: 'session', namespace: 'fixture' }));
     builder.onResolve({ filter: /store\/app-state$/ }, () => ({ path: 'store', namespace: 'fixture' }));
     builder.onResolve({ filter: /lib\/shiki$/ }, () => ({ path: 'syntax', namespace: 'fixture' }));
+    builder.onResolve({ filter: /lib\/clipboard$/ }, () => ({ path: 'clipboard', namespace: 'fixture' }));
     builder.onResolve({ filter: /\.svg\?raw$/ }, args => ({ path: resolve(args.resolveDir, args.path.replace('?raw', '')), namespace: 'svg' }));
     builder.onLoad({ filter: /.*/, namespace: 'svg' }, async args => ({ contents: `export default ${JSON.stringify(await readFile(args.path, 'utf8'))}`, loader: 'js' }));
     builder.onLoad({ filter: /.*/, namespace: 'fixture' }, args => ({ resolveDir: project, loader: 'js', contents: args.path === 'store' ? `
       export function useAppLanguage(){return 'en'};export function useAppState(){return {dispatch(){}}};
     ` : args.path === 'syntax' ? `
       export async function tokenizeFile(){return null};export async function tokenizeByLang(){return null};export function getShikiTheme(){return 'light'};
+    ` : args.path === 'clipboard' ? `
+      export async function clipboardWrite(text){window.copiedText=text};
     ` : `
       import {useSyncExternalStore} from 'react';import {emptyClaudeState} from './src/lib/claude-protocol';
       let state={...emptyClaudeState(),ready:true};const listeners=new Set();
@@ -115,8 +118,8 @@ try {
   console.log('ok viewport resizing and tab hide/reveal');
 
   await page.evaluate(() => window.reset('write')); await page.waitForTimeout(450); await returnBottom();
-  await page.locator('.claude-tool-body > .claude-expand').click(); await page.waitForTimeout(200); await atBottom();
-  await wheelUp(180); await page.locator('.claude-tool-body > .claude-expand').evaluate(el => el.click()); await page.waitForTimeout(200);
+  await page.locator('.claude-tool-body .claude-tool-resize').click(); await page.waitForTimeout(200); await atBottom();
+  await wheelUp(180); await page.locator('.claude-tool-body .claude-tool-resize').evaluate(el => el.click()); await page.waitForTimeout(200);
   const collapsed = await metrics(); await page.evaluate(() => window.appendReply()); await page.waitForTimeout(350);
   assert.ok(Math.abs((await metrics()).top - collapsed.top) < 2, 'tool collapse cannot silently resume follow');
   console.log('ok tool expansion follows only while pinned; collapse cannot re-enable follow');
@@ -193,6 +196,71 @@ try {
   await page.evaluate(() => window.setSession({messages:[],busy:false}));
   assert.equal(await navigation.count(), 0, 'empty conversations have no navigation');
   console.log('ok left-side navigation preview, jump, paused follow, responsive spacing and empty state');
+
+  await page.setViewportSize({ width: 1100, height: 800 });
+  await page.evaluate(() => {
+    window.reasoningMessage = { id: 'thinking-toggle', role: 'reasoning', content: 'Reasoning remains readable while tokens arrive.\n\n'.repeat(20), partial: true, timestamp: Date.now() };
+    window.setSession({ messages: [window.reasoningMessage], busy: true, status: 'thinking', requests: [], historyCursor: 0, endedAt: undefined });
+  });
+  const thinking = page.locator('.claude-reasoning');
+  await thinking.locator('summary').click();
+  await page.evaluate(() => window.setSession({ thinkingTokens: 500, messages: [{ ...window.reasoningMessage, content: window.reasoningMessage.content + 'A new streamed thought.' }] }));
+  await page.waitForTimeout(250);
+  assert.equal(await thinking.evaluate(el => el.open), true, 'manual reasoning expansion survives streamed content and token rerenders');
+  await thinking.locator('summary').click(); await page.waitForTimeout(100);
+  await page.evaluate(() => window.setSession({ thinkingTokens: 600 }));
+  assert.equal(await thinking.evaluate(el => el.open), false, 'manual collapse also survives updates');
+  await page.keyboard.press('Control+o'); await page.waitForTimeout(100);
+  assert.equal(await thinking.evaluate(el => el.open), true, 'Ctrl+O still expands reasoning');
+  await page.keyboard.press('Control+o'); await page.waitForTimeout(100);
+  assert.equal(await thinking.evaluate(el => el.open), false, 'Ctrl+O still collapses reasoning');
+  await thinking.locator('summary').click(); await page.waitForTimeout(100);
+  await page.evaluate(() => window.setSession({ messages: [window.reasoningMessage, ...Array.from({ length: 60 }, (_, i) => ({ id: 'toggle-tail-' + i, role: 'user', content: 'Another turn. '.repeat(50), timestamp: Date.now() }))] }));
+  await scroll.evaluate(el => { el.scrollTop = el.scrollHeight; el.dispatchEvent(new Event('scroll')); }); await page.waitForTimeout(350);
+  assert.equal(await thinking.count(), 0, 'offscreen reasoning is virtualized');
+  await scroll.evaluate(el => { el.scrollTop = 0; el.dispatchEvent(new Event('scroll')); }); await page.waitForTimeout(350);
+  assert.equal(await thinking.evaluate(el => el.open), true, 'expansion survives virtual row remounting');
+  await page.evaluate(() => window.setSession({ messages: [{ ...window.reasoningMessage, content: '' }] }));
+  assert.equal(await thinking.locator('summary').count(), 0, 'empty or withheld reasoning has no misleading expand arrow');
+  await page.evaluate(() => window.setSession({ messages: [window.reasoningMessage] }));
+  assert.equal(await thinking.evaluate(el => el.open), true, 'new reasoning content retains the saved expansion choice');
+  console.log('ok reasoning toggle stays under user control during streaming');
+
+  await page.evaluate(() => {
+    window.toolMessage = { id: 'tool-controls', role: 'tool', toolName: 'Bash', toolStatus: 'done', input: { command: 'echo full-output' }, output: Array.from({ length: 80 }, (_, i) => 'Original output line ' + i).join('\n'), content: '', timestamp: Date.now() };
+    window.setSession({ messages: [window.toolMessage], busy: false, requests: [], historyCursor: 0 });
+  });
+  await page.waitForTimeout(200);
+  const inputRow = page.locator('.claude-io-row').first(), outputRow = page.locator('.claude-io-row').last();
+  await inputRow.getByRole('button', { name: 'Copy message', exact: true }).click();
+  assert.equal(await page.evaluate(() => window.copiedText), 'echo full-output');
+  await outputRow.getByRole('button', { name: 'Copy message', exact: true }).click();
+  assert.equal(await page.evaluate(() => window.copiedText), await page.evaluate(() => window.toolMessage.output), 'copy includes the whole output, beyond the clipped preview');
+  const outputScroll = outputRow.locator('.claude-tool-content-scroll');
+  const preview = await outputScroll.boundingBox();
+  assert.ok(preview.height <= 180);
+  await outputRow.getByRole('button', { name: 'Click to expand', exact: true }).click(); await page.waitForTimeout(100);
+  assert.ok((await outputScroll.boundingBox()).height > preview.height + 100);
+  await page.evaluate(() => window.setSession({ messages: [{ ...window.toolMessage, output: window.toolMessage.output + '\nLast streamed line' }] }));
+  assert.equal(await outputRow.locator('.claude-tool-resize').getAttribute('aria-expanded'), 'true', 'stream updates preserve expanded output');
+  await outputRow.getByRole('button', { name: 'Collapse', exact: true }).click();
+  assert.equal(await outputRow.locator('.claude-tool-resize').getAttribute('aria-expanded'), 'false');
+  await page.evaluate(() => window.setSession({ messages: [{ ...window.toolMessage, toolName: 'Write', toolStatus: 'running', input: {}, output: undefined }] }));
+  assert.equal(await page.locator('.claude-tool-pending').count(), 1, 'a streaming Write with incomplete arguments displays a pending state');
+  assert.equal(await page.locator('.claude-tool-subtitle').count(), 0, 'incomplete Write arguments do not claim a one-line file');
+  await page.evaluate(() => window.setSession({ messages: [{ ...window.toolMessage, toolName: 'Write', input: { file_path: 'example.ts', content: 'new file line\n'.repeat(40) } }] }));
+  await page.locator('.claude-tool-body').getByRole('button', { name: 'Copy message', exact: true }).click();
+  assert.equal(await page.evaluate(() => window.copiedText), 'new file line\n'.repeat(40));
+  await page.locator('.claude-tool-resize').click();
+  assert.equal(await page.locator('.claude-tool-resize').getAttribute('aria-expanded'), 'true');
+  await page.evaluate(() => window.setSession({ messages: [{ ...window.toolMessage, toolName: 'Edit', input: { file_path: 'example.ts', old_string: 'before\n'.repeat(20), new_string: 'after\n'.repeat(20) } }] }));
+  await page.locator('.claude-diff').getByRole('button', { name: 'Copy message', exact: true }).click();
+  assert.equal(await page.evaluate(() => window.copiedText), 'after\n'.repeat(20));
+  await page.locator('.claude-tool-resize').click();
+  assert.equal(await page.locator('.claude-diff.is-expanded').count(), 1);
+  await page.setViewportSize({ width: 390, height: 800 }); await page.waitForTimeout(150);
+  assert.ok(await scroll.evaluate(el => el.scrollWidth <= el.clientWidth + 1));
+  console.log('ok tool input/output copy, expansion, streaming updates, Write pending state and diff controls');
   assert.deepEqual(errors, []);
 } finally {
   await page.evaluate(() => window.stopStream?.()).catch(() => {});

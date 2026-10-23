@@ -2099,7 +2099,6 @@ html.is-windows[data-frost="frost"] #root {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.10);
 }
-:is([data-shape="glass"], [data-shape="carbon"], [data-shape="monogram"]) .workspace-dir-btn:hover,
 :is([data-shape="glass"], [data-shape="carbon"], [data-shape="monogram"]) .agent-session-search:focus {
     background: rgba(255, 255, 255, 0.06);
     border-color: rgba(255, 255, 255, 0.22);
@@ -2123,7 +2122,6 @@ html.is-windows[data-frost="frost"] #root {
     background: color-mix(in oklab, var(--bg-card) 65%, transparent);
     border: 1px solid color-mix(in oklab, var(--border) 65%, transparent);
 }
-[data-mode="light"]:is([data-shape="carbon"], [data-shape="monogram"]) .workspace-dir-btn:hover,
 [data-mode="light"]:is([data-shape="carbon"], [data-shape="monogram"]) .agent-session-search:focus {
     background: color-mix(in oklab, var(--bg-card) 72%, transparent);
     border-color: color-mix(in oklab, var(--accent) 55%, transparent);
@@ -2301,7 +2299,6 @@ html.is-windows[data-frost="frost"] #root {
 
 [data-shape="panel"] .chrome-tabs-header {
     height: 31px;
-    padding-left: 8px;
 }
 
 [data-shape="panel"] .chrome-tab.active {

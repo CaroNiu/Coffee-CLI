@@ -57,7 +57,19 @@ body.gambit-docked .claude-scroll-bottom { bottom:calc(var(--gambit-dock-h,200px
 .claude-io-row .claude-code,.claude-io-row > pre { border:0; border-radius:0; flex:1; min-width:0; margin:0; max-height:180px; overflow:auto; padding:8px; font:12px/1.55 var(--mono); white-space:pre-wrap; overflow-wrap:anywhere; }
 .claude-io-row > pre { background:var(--bg-hover); }
 .claude-io-row.is-error > span,.claude-tool-error { color:var(--danger,#df735f); }
+.claude-tool-content { position:relative; min-width:0; }
+.claude-tool-content-scroll { overflow:auto; }
+.claude-tool-content .claude-code { max-height:none; overflow:visible; padding-right:65px; }
+.claude-io-row > .claude-tool-content { flex:1; }
+.claude-io-row + .claude-io-row .claude-code { background:var(--bg-hover); }
+.claude-tool-actions { position:absolute; top:3px; right:4px; z-index:1; display:flex; gap:2px; border-radius:var(--shape-radius-btn,6px); background:var(--bg-terminal); }
+.claude-row .claude-tool-actions .conversation-copy { margin:0; opacity:.7; }
+.claude-tool-resize { display:inline-flex; align-items:center; justify-content:center; width:27px; height:27px; padding:0; border:0; border-radius:var(--shape-radius-btn,6px); color:var(--text-2); background:transparent; cursor:pointer; }
+.claude-tool-resize:hover,.claude-row .claude-tool-actions .conversation-copy:hover { color:var(--text-1); background:var(--bg-hover); opacity:1; }
+.claude-tool-resize:focus-visible { outline:1px solid var(--accent); outline-offset:1px; }
+.claude-tool-pending { color:var(--text-3); font-size:12px; }
 .claude-diff { position:relative; overflow:hidden; border:1px solid var(--border); border-radius:var(--shape-radius-btn,6px); background:var(--bg-terminal); }
+.claude-diff:has(> .claude-tool-actions) { padding-top:30px; }
 .claude-diff-scroll { max-height:125px; overflow:auto; }
 .claude-diff.is-expanded .claude-diff-scroll { max-height:600px; }
 .claude-diff-row { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); font:12px/1.65 var(--mono); }

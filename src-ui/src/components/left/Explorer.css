@@ -34,7 +34,7 @@
 .explorer-tabs {
     display: flex;
     /* The brand header lives in the titlebar; navigation has its own gutter. */
-    margin: 12px 16px 8px 16px;
+    margin: 12px 8px 8px;
     flex-shrink: 0;
     /* No bg / border / radius / padding — segmented strip has no
        container layer; active tab is indicated by text color
@@ -97,12 +97,12 @@
     display: flex;
     align-items: center;
     gap: 7px;
-    width: calc(100% - 32px);
-    margin: 0 16px 4px 16px;
+    width: calc(100% - 16px);
+    margin: 0 8px 4px;
     /* Fixed height prevents jitter between languages — different scripts
        (CJK / Latin / Cyrillic / Vietnamese) render the same font-size at
        slightly different intrinsic heights, and when the folder path
-       toggles between "empty state label" and an actual path, the button
+       toggles between "empty state label" and an actual path, the label
        was visibly resizing. Replace vertical padding with fixed height +
        line-height to lock it regardless of content. 34px = the rendered
        height of the Sessions tab's <input> at font 13 / padding 8 with
@@ -117,17 +117,10 @@
     font-size: 14px;
     font-weight: 500;
     line-height: 1;
-    cursor: pointer;
-    transition: all 0.15s;
+    cursor: default;
     text-align: left;
     overflow: hidden;
     box-sizing: border-box;
-}
-
-.workspace-dir-btn:hover {
-    background: var(--bg-hover);
-    color: var(--text-1);
-    border-color: var(--text-3);
 }
 
 .workspace-dir-path {
@@ -138,7 +131,7 @@
     text-align: left;
     flex: 1;
     min-width: 0;
-    /* Match the fixed button height so vertical centering is consistent
+    /* Match the fixed label height so vertical centering is consistent
        across languages (different scripts have different default
        line-heights otherwise). */
     line-height: 32px;
@@ -158,14 +151,16 @@
 .explorer-tab:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
 
 .explorer-task-host { height: 100%; min-height: 0; }
+.explorer-task-host .task-board { padding-inline: 8px; }
+.explorer-panel .agent-channel-summary { margin-inline: 8px; }
 
 /* Recursive File Tree styles */
 .file-tree-container {
     padding: 8px 4px 8px 8px; /* Top, Right, Bottom, Left. Keep right small so scrollbar has room */
 }
 
-/* HistoryBoard host: 16px horizontal gutter aligns the search box and
- * cards with the workspace tab's path button + tab strip; vertical
+/* HistoryBoard host: 8px horizontal gutter aligns the search action and
+ * cards with the workspace path label + tab strip; vertical
  * spacing is left to .explorer-tabs's 8px margin-bottom so the rhythm
  * matches Workspace. */
 .explorer-history-host {
@@ -173,7 +168,7 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
-    padding: 0 16px;
+    padding: 0 8px;
 }
 
 .tree-dir, .tree-file {
