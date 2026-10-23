@@ -350,9 +350,11 @@ export function HistoryBoard() {
       }
     }
     const targetId = crypto.randomUUID();
+    let codexMode: 'conversation' | undefined;
+    try { if (saved.tool === 'codex' && localStorage.getItem('coffee:codex-launch-mode') === 'conversation') codexMode = 'conversation'; } catch { /* optional preference */ }
     dispatch({
       type: 'ADD_TERMINAL',
-      session: { id: targetId, tool: saved.tool as ToolType, folderPath: saved.cwd, resumeToken: saved.session_token }
+      session: { id: targetId, tool: saved.tool as ToolType, folderPath: saved.cwd, resumeToken: saved.session_token, codexMode }
     });
   };
 

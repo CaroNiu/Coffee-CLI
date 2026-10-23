@@ -15,23 +15,26 @@ function evaluate(file, name, context = {}) {
   }).outputText, context);
 }
 const isClaudeConversation = evaluate('lib/chat-tools.ts', 'isClaudeConversation');
-const reducer = evaluate('store/app-state.tsx', 'reducer', { isClaudeConversation, getTabOrder: state => state.tabOrder });
+const isCodexConversation = evaluate('lib/chat-tools.ts', 'isCodexConversation');
+const isConversationSession = evaluate('lib/chat-tools.ts', 'isConversationSession', { isClaudeConversation, isCodexConversation });
+const reducer = evaluate('store/app-state.tsx', 'reducer', { isConversationSession, getTabOrder: state => state.tabOrder });
 const terminals = [{ id: 'claude', tool: 'claude' }, { id: 'terminal', tool: null }];
 let state;
 const effects = [];
-const terminalSends = [], claudeSends = [];
+const terminalSends = [], claudeSends = [], codexSends = [];
 const context = {
-  isClaudeConversation,
+  isClaudeConversation, isCodexConversation, isConversationSession,
   useAppState: () => ({ state, dispatch: action => { state = reducer(state, action); } }),
   useAppDispatch: () => context.useAppState().dispatch,
   useCallback: fn => fn, useEffect: fn => effects.push(fn), useT: () => key => key,
-  useClaudeSession: () => ({ busy: false }), getToolIcon: () => '',
+  useClaudeSession: () => ({ busy: false }), useCodexSession: () => ({ busy: false }), getToolIcon: () => '',
   schemeLabels: () => ({ left: 'Alt+Q', gambit: 'Alt+W', right: 'Alt+E' }),
   React: { createElement: (type, props, ...children) => ({ type, props, children }) },
   Gambit: 'gambit', IS_MACOS: false,
   isSplitTool: () => false,
   submitTerminalPrompt: async (id, text) => terminalSends.push({ id, text }),
   sendClaudeMessage: async (id, text) => { claudeSends.push({ id, text }); return true; },
+  sendCodexMessage: async (id, text) => { codexSends.push({ id, text }); return true; },
 };
 const host = evaluate('components/center/ActiveGambit.tsx', 'ActiveGambit', context);
 const titlebar = evaluate('components/common/TitleBar.tsx', 'TitleBar', context);
@@ -105,4 +108,21 @@ for (const tool of ['codex', 'kimicode', 'qwen', 'opencode', 'terminal']) {
   assert.equal(terminalSends.length, before + 1);
   assert.equal(terminalSends.at(-1).id, tool);
 }
-console.log('OK: Codex/Kimi/other tools always send to CLI, with no legacy view controls even for stale chat state');
+console.log('OK: existing Codex/Kimi/other tool tabs retain CLI routing');
+for (const preference of [false, true]) {
+  state = { terminals: [{ id: 'codex-desktop', tool: 'codex', codexMode: 'conversation' }], activeTerminalId: 'codex-desktop', gambitOpen: preference, agentPageActive: null, diffTabActive: false };
+  assert.equal(host().props.codex, true);
+  assert.equal(toggle().props.disabled, true);
+  const before = state;
+  state = reducer(state, { type: 'TOGGLE_GAMBIT' });
+  assert.equal(state, before);
+  assert.equal(await host().props.onSend('Codex structured prompt'), true);
+  assert.equal(codexSends.at(-1).id, 'codex-desktop');
+}
+for (const codexMode of ['conversation', 'terminal']) {
+  const launched = reducer({ terminals: [{ id: 'new', tool: null }], tabOrder: ['new'] }, { type: 'LAUNCH_TERMINAL_TOOL', id: 'new', tool: 'codex', codexMode });
+  assert.equal(isCodexConversation(launched.terminals[0]), codexMode === 'conversation');
+  const restarted = reducer({ ...launched, activeTerminalId: 'new' }, { type: 'RESTART_TERMINAL', id: 'new', newId: 'retry' });
+  assert.equal(restarted.terminals[0].codexMode, codexMode);
+}
+console.log('OK: Codex conversation uses its own backend, keeps its composer and retains mode on reconnect');

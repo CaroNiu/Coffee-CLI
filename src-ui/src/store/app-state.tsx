@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useLayoutEffect, useReducer, useRef } from 'react';
 import type { ReactNode, RefObject } from 'react';
-import { isClaudeConversation, supportsEnhancedTool } from '../lib/chat-tools';
+import { isConversationSession, supportsEnhancedTool } from '../lib/chat-tools';
 import { supportsAdditionalAgentStatus } from '../lib/terminal-agent-status';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -162,6 +162,7 @@ export interface TerminalSession {
   tool: ToolType;
   toolData?: string;  // Extra context for the tool (e.g. SSH connection JSON for remote)
   claudeMode?: ClaudeMode;
+  codexMode?: ClaudeMode;
   folderPath: string | null;
   /// Live terminal title set by the tool via OSC 0/2 (e.g. Claude Code's
   /// conversation summary). When set, the tab shows this instead of the cwd
@@ -348,11 +349,11 @@ type Action =
   | { type: 'SET_ICON_THEME'; theme: IconTheme }
   | { type: 'SET_LANG'; lang: string }
   | { type: 'ADD_TERMINAL'; session: TerminalSession }
-  | { type: 'LAUNCH_TERMINAL_TOOL'; id: string; tool: ToolType; cwd?: string; toolData?: string; resumeToken?: string; strictCwd?: boolean; claudeMode?: ClaudeMode }
+  | { type: 'LAUNCH_TERMINAL_TOOL'; id: string; tool: ToolType; cwd?: string; toolData?: string; resumeToken?: string; strictCwd?: boolean; claudeMode?: ClaudeMode; codexMode?: ClaudeMode }
   | { type: 'REMOVE_TERMINAL'; id: string }
   | { type: 'REORDER_TAB'; tabId: string; beforeId: string | null }
   | { type: 'SET_ACTIVE_TERMINAL'; id: string | null }
-  | { type: 'SET_TERMINAL_TOOL'; id: string; tool: ToolType; toolData?: string; resumeToken?: string; claudeMode?: ClaudeMode }
+  | { type: 'SET_TERMINAL_TOOL'; id: string; tool: ToolType; toolData?: string; resumeToken?: string; claudeMode?: ClaudeMode; codexMode?: ClaudeMode }
   | { type: 'SET_TERMINAL_HIDDEN'; id: string; isHidden: boolean }
   | { type: 'RESTART_TERMINAL'; id: string; newId: string }
   | { type: 'OPEN_HYPER_AGENT_TAB' }
@@ -485,6 +486,7 @@ function reducer(state: AppState, action: Action): AppState {
         folderPath: action.cwd ?? previous?.folderPath ?? null,
         toolData: action.toolData, resumeToken: action.resumeToken, strictCwd: action.strictCwd,
         claudeMode: action.tool === 'claude' ? action.claudeMode ?? 'conversation' : undefined,
+        codexMode: action.tool === 'codex' ? action.codexMode ?? 'terminal' : undefined,
         toolTitle: undefined, agentStatus: undefined, startedAt: Date.now(),
       };
       if (action.cwd) {
@@ -538,7 +540,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'SET_TERMINAL_TOOL':
       return {
         ...state,
-        terminals: state.terminals.map(t => t.id === action.id ? { ...t, tool: action.tool, claudeMode: action.tool === 'claude' ? action.claudeMode ?? 'conversation' : undefined, toolData: action.toolData, resumeToken: action.resumeToken, toolTitle: undefined, agentStatus: undefined, startedAt: Date.now() } : t)
+        terminals: state.terminals.map(t => t.id === action.id ? { ...t, tool: action.tool, claudeMode: action.tool === 'claude' ? action.claudeMode ?? 'conversation' : undefined, codexMode: action.tool === 'codex' ? action.codexMode ?? 'terminal' : undefined, toolData: action.toolData, resumeToken: action.resumeToken, toolTitle: undefined, agentStatus: undefined, startedAt: Date.now() } : t)
       };
     case 'SET_TERMINAL_HIDDEN':
       return {
@@ -586,7 +588,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'SET_DEFAULT_SHELL':
       return { ...state, defaultShell: action.shell };
     case 'TOGGLE_GAMBIT':
-      if (!state.agentPageActive && !state.diffTabActive && isClaudeConversation(state.terminals.find(t => t.id === state.activeTerminalId))) return state;
+      if (!state.agentPageActive && !state.diffTabActive && isConversationSession(state.terminals.find(t => t.id === state.activeTerminalId))) return state;
       return { ...state, gambitOpen: !state.gambitOpen };
     case 'TOGGLE_SETTINGS':
       return { ...state, settingsOpen: !state.settingsOpen };

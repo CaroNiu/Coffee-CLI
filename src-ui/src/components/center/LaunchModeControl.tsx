@@ -1,8 +1,8 @@
 import { useT } from '../../i18n/useT';
 import type { ClaudeMode } from '../../store/app-state';
 
-export function LaunchModeControl({ value = 'terminal', disabled = false, onChange }: {
-  value?: ClaudeMode; disabled?: boolean; onChange?: (mode: ClaudeMode) => void;
+export function LaunchModeControl({ value = 'terminal', disabled = false, onChange, label: modeLabel }: {
+  value?: ClaudeMode; disabled?: boolean; onChange?: (mode: ClaudeMode) => void; label?: string;
 }) {
   const t = useT();
   // Lucide monitor / square-terminal; see /icons/LICENSE-lucide.txt.
@@ -11,6 +11,6 @@ export function LaunchModeControl({ value = 'terminal', disabled = false, onChan
   </svg>;
   const label = t(value === 'conversation' ? 'claude.launch.conversation' : 'claude.launch.terminal');
   return onChange
-    ? <button type="button" className="launchpad-mode-icon is-switchable" data-mode={value} disabled={disabled} aria-label={`${t('claude.launch.mode')}: ${label}`} onClick={event => { event.stopPropagation(); onChange(value === 'conversation' ? 'terminal' : 'conversation'); }}>{icon}</button>
+    ? <button type="button" className="launchpad-mode-icon is-switchable" data-mode={value} disabled={disabled} aria-label={`${modeLabel ?? t('claude.launch.mode')}: ${label}`} onClick={event => { event.stopPropagation(); onChange(value === 'conversation' ? 'terminal' : 'conversation'); }}>{icon}</button>
     : <span className="launchpad-mode-icon" data-mode="terminal" role="img" aria-label={label} onClick={event => event.stopPropagation()}>{icon}</span>;
 }

@@ -5,6 +5,7 @@ import { onWindowForeground } from '../../lib/window-focus-filter';
 import { TierTerminal } from './TierTerminal';
 import { AgentPages } from '../agent/AgentPages';
 import { ClaudeConversation } from './ClaudeConversation';
+import { CodexConversation } from './CodexConversation';
 import { LaunchModeControl } from './LaunchModeControl';
 import { FourSplitGrid } from './FourSplitGrid';
 import { ToolConfigModal } from './ToolConfigModal';
@@ -13,7 +14,7 @@ import { ErrorBoundary } from '../common/ErrorBoundary';
 import { DiffPanel } from '../right/DiffPanel';
 import { getTabOrder, supportsAgentStatus, useAppState, type ClaudeMode, type ToolType } from '../../store/app-state';
 import { isFrostShape } from '../../lib/personalization';
-import { isClaudeConversation } from '../../lib/chat-tools';
+import { isClaudeConversation, isCodexConversation } from '../../lib/chat-tools';
 
 // Dropdown shown when a tool card's folder icon is clicked: the globally
 // recent project folders (any tool that used one) + "Open folder…" last.
@@ -766,6 +767,13 @@ export function CenterPanel() {
     setClaudeLaunchMode(mode);
     try { localStorage.setItem('coffee:claude-launch-mode', mode); } catch { /* optional preference */ }
   };
+  const [codexLaunchMode, setCodexLaunchMode] = useState<ClaudeMode>(() => {
+    try { return localStorage.getItem('coffee:codex-launch-mode') === 'conversation' ? 'conversation' : 'terminal'; } catch { return 'terminal'; }
+  });
+  const changeCodexLaunchMode = (mode: ClaudeMode) => {
+    setCodexLaunchMode(mode);
+    try { localStorage.setItem('coffee:codex-launch-mode', mode); } catch { /* optional preference */ }
+  };
   // Global recent project folders (across all folder-using tools) — backs the
   // folder-icon dropdown. Separate from the per-tool last-cwd above.
   const [recentFolders, setRecentFolders] = useState<string[]>(() => {
@@ -1186,7 +1194,7 @@ export function CenterPanel() {
         });
         pushRecentFolder(cwd);
       }
-      dispatch({ type: 'LAUNCH_TERMINAL_TOOL', id: activeTerminalId, tool, toolData, cwd, claudeMode: tool === 'claude' ? claudeLaunchMode : undefined });
+      dispatch({ type: 'LAUNCH_TERMINAL_TOOL', id: activeTerminalId, tool, toolData, cwd, claudeMode: tool === 'claude' ? claudeLaunchMode : undefined, codexMode: tool === 'codex' ? codexLaunchMode : undefined });
     }
   };
 
@@ -1527,6 +1535,8 @@ export function CenterPanel() {
                 bgType={bgType}
                 paneCount={4}
               />
+            ) : isCodexConversation(t) ? (
+              <CodexConversation key={`codex-${t.id}-${t.restartKey ?? 0}`} sessionId={t.id} cwd={t.folderPath} resumeToken={t.resumeToken} isActive={t.id === activeTerminalId && !diffTabActive && !agentPageActive} hasBg={hasBg} bgUrl={bgUrl} bgType={bgType} />
             ) : isClaudeConversation(t) ? (
               <ClaudeConversation
                 key={`claude-${t.id}-${t.restartKey ?? 0}`}
@@ -1679,7 +1689,7 @@ export function CenterPanel() {
                                         <span>{lastCwdByTool[tool.key!] ? formatCwd(lastCwdByTool[tool.key!]) : t('claude.launch.choose_directory')}</span>
                                     </button>}
                                   </div>
-                                  {tool.type === 'ai-cli' && <LaunchModeControl value={tool.key === 'claude' ? claudeLaunchMode : 'terminal'} disabled={disabled} onChange={tool.key === 'claude' ? changeClaudeLaunchMode : undefined} />}
+                                  {tool.type === 'ai-cli' && <LaunchModeControl value={tool.key === 'claude' ? claudeLaunchMode : tool.key === 'codex' ? codexLaunchMode : 'terminal'} disabled={disabled} label={tool.key === 'codex' ? 'Codex' : undefined} onChange={tool.key === 'claude' ? changeClaudeLaunchMode : tool.key === 'codex' ? changeCodexLaunchMode : undefined} />}
                                 </div>
                               </div>
                             );

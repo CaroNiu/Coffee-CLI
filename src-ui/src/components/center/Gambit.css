@@ -238,6 +238,10 @@
     min-width: 0;
     font: inherit;
 }
+.gambit-footer--claude .gambit-workspace {
+    max-width: min(200px, 24%);
+    margin-right: 0;
+}
 /* Match the glyph's size to the desktop composer's compact controls. */
 .gambit-workspace-icon {
     display: inline-flex;

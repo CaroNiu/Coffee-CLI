@@ -23,6 +23,7 @@ import { useAppState } from '../../store/app-state';
 import { registerFileDropTarget, formatPathsForInsert } from '../../lib/file-drop';
 import { bindAutoHideScrollbar } from '../../lib/auto-hide-scrollbar';
 import { ClaudeComposerControls } from './ClaudeComposerControls';
+import { CodexComposerControls } from './CodexComposerControls';
 import { gambitAttachments, removeGambitAttachment } from '../../lib/gambit-attachments';
 import './Gambit.css';
 
@@ -39,6 +40,7 @@ interface GambitProps {
   onSend: (text: string) => boolean | Promise<boolean>;
   running?: boolean;
   claude?: boolean;
+  codex?: boolean;
   onCancel?: () => void;
   sendFailedHint?: string;
   /** Whether the left/right side panels are currently hidden. When Gambit
@@ -105,6 +107,7 @@ function GambitImpl({
   onSend,
   running = false,
   claude = false,
+  codex = false,
   onCancel,
   sendFailedHint,
   leftPanelHidden,
@@ -116,6 +119,7 @@ function GambitImpl({
   const rootRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const claudeKeyHandler = useRef<((event: React.KeyboardEvent<HTMLTextAreaElement>) => boolean) | undefined>(undefined);
+  const codexSubmitHandler = useRef<((text: string) => boolean) | undefined>(undefined);
   const sendingRef = useRef(false);
   const latestDraftRef = useRef(draft);
   latestDraftRef.current = draft;
@@ -567,7 +571,8 @@ function GambitImpl({
       setSendEmpty(true);
       return;
     }
-    const body = claude ? text : wrapImagePathsForSend(text);
+    if (codex && codexSubmitHandler.current?.(text)) return;
+    const body = claude || codex ? text : wrapImagePathsForSend(text);
     if (sendingRef.current) return;
     sendingRef.current = true;
     let ok = false;
@@ -584,13 +589,13 @@ function GambitImpl({
     // the newest entry (which is the one we just pushed).
     historyCursorRef.current = null;
     if (latestDraftRef.current === draft) onDraftChange('');
-  }, [draft, onSend, onDraftChange, running, claude]);
+  }, [draft, onSend, onDraftChange, running, claude, codex]);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // IME composition in progress — let the IME keep Enter for confirming
     // candidates. nativeEvent.isComposing is the canonical flag.
     if (e.nativeEvent.isComposing) return;
-    if (claude && claudeKeyHandler.current?.(e)) return;
+    if ((claude || codex) && claudeKeyHandler.current?.(e)) return;
     // History recall is gated behind Alt+↑/↓. Bare ↑/↓ stays native caret
     // movement — users complained that hijacking them stole vertical caret
     // positioning inside a multi-line draft. Alt+arrow has no native
@@ -660,7 +665,7 @@ function GambitImpl({
     const after = draft.slice(selEnd);
     const leftPad = before.length > 0 && !/\s$/.test(before) ? ' ' : '';
     const rightPad = after.length > 0 && !/^\s/.test(after) ? ' ' : '';
-    const inserted = leftPad + paths.map(path => claude && /\s/.test(path) ? `"${path}"` : path).join(' ') + rightPad;
+    const inserted = leftPad + paths.map(path => (claude || codex) && /\s/.test(path) ? `"${path}"` : path).join(' ') + rightPad;
     const newDraft = before + inserted + after;
     onDraftChange(newDraft);
     requestAnimationFrame(() => {
@@ -746,7 +751,7 @@ function GambitImpl({
         />
       </div>
 
-      <div className="gambit-footer">
+      <div className={`gambit-footer${claude || codex ? ' gambit-footer--claude' : ''}`}>
 
         {/* Target label — leftmost footer item, symmetric to the send button.
             Shows the active tab's folder or remote host so a prompt can't be
@@ -754,7 +759,7 @@ function GambitImpl({
             Deliberately no hover tooltip — the visible name is the info.
             No folder icon: every directory would get the same glyph, so it's
             pure noise (and read as a different brightness than the text). */}
-        {workspaceName && !claude && (
+        {workspaceName && (
           <span className="gambit-workspace">
             {toolIcon != null && <span className="gambit-workspace-icon">{toolIcon}</span>}
             <span className="gambit-workspace-name">{workspaceName}</span>
@@ -762,6 +767,7 @@ function GambitImpl({
         )}
 
         {claude && <ClaudeComposerControls sessionId={sessionId} draft={draft} onDraftChange={onDraftChange} keyHandler={claudeKeyHandler} />}
+        {codex && <CodexComposerControls key={sessionId} sessionId={sessionId} draft={draft} onDraftChange={onDraftChange} keyHandler={claudeKeyHandler} submitHandler={codexSubmitHandler} />}
 
         {sendFailed && (
           <span className="gambit-send-hint" role="status">

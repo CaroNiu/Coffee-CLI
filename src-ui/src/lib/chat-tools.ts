@@ -4,6 +4,14 @@ export function isClaudeConversation(session: Pick<TerminalSession, 'tool' | 'cl
   return session?.tool === 'claude' && session.claudeMode !== 'terminal';
 }
 
+export function isCodexConversation(session: Pick<TerminalSession, 'tool' | 'codexMode'> | undefined): boolean {
+  return session?.tool === 'codex' && session.codexMode === 'conversation';
+}
+
+export function isConversationSession(session: TerminalSession | undefined): boolean {
+  return isClaudeConversation(session) || isCodexConversation(session);
+}
+
 const ENHANCED_TOOLS = new Set<ToolType>([
   'claude', 'codex', 'kimicode',
 ]);

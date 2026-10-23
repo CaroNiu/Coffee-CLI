@@ -2,6 +2,7 @@
 
 mod terminal;
 mod claude_session;
+mod codex_session;
 mod opencode_island;
 mod server;
 mod agent;

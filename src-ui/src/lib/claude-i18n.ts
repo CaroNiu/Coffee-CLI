@@ -7,5 +7,6 @@ const effortKeys: Record<string, I18nKey> = {
   xhigh: 'claude.effort.xhigh', max: 'claude.effort.max',
 };
 export function claudeEffortLabel(level: string, t: ClaudeTranslate): string {
+  if (level === 'ultra') return 'Ultra';
   return effortKeys[level] ? t(effortKeys[level]) : level === 'ultracode' ? 'Ultracode' : level || t('claude.effort.title');
 }

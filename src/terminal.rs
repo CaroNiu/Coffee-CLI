@@ -610,6 +610,10 @@ pub fn spawn(
         cmd.env(key, val);
     }
 
+    // Refresh only this child: IDE-private PATH entries must not shadow installed CLIs.
+    #[cfg(target_os = "windows")]
+    cmd.env("PATH", crate::windows_path::terminal_path());
+
     // Terminal capability: all tools get xterm-256color for rich rendering.
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");

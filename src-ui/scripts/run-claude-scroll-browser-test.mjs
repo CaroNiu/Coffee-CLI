@@ -16,8 +16,8 @@ await build({
   stdin: { resolveDir: project, loader: 'tsx', contents: `
     import React,{useState} from 'react';import {createRoot} from 'react-dom/client';
     import {ClaudeConversation} from './src/components/center/ClaudeConversation';
-    import './src/styles/global.css';
-    function Fixture(){const [active,setActive]=useState(true);window.setActive=setActive;return <div className="host" style={{display:active?'flex':'none'}}><ClaudeConversation sessionId="scroll" cwd={null} isActive={active}/></div>}
+    import './src/styles/global.css';import './src/components/center/TierTerminal.css';
+    function Fixture(){const [active,setActive]=useState(true);window.setActive=setActive;return <div className="host" style={{display:active?'flex':'none'}}><ClaudeConversation sessionId="scroll" cwd="D:/Test" isActive={active}/></div>}
     createRoot(document.getElementById('root')).render(<Fixture/>);
   ` },
   bundle: true, outfile: join(directory, 'fixture.js'), jsx: 'automatic',
@@ -25,19 +25,20 @@ await build({
   nodePaths: [join(project, 'node_modules')], loader: { '.webp': 'dataurl', '.webm': 'dataurl', '.gif': 'dataurl' },
   define: { 'process.env.NODE_ENV': '"development"' },
   plugins: [{ name: 'isolated-session', setup(builder) {
+    builder.onResolve({ filter: /(^|\/)tauri$/ }, () => ({ path: 'tauri', namespace: 'fixture' }));
     builder.onResolve({ filter: /claude-session$/ }, () => ({ path: 'session', namespace: 'fixture' }));
     builder.onResolve({ filter: /store\/app-state$/ }, () => ({ path: 'store', namespace: 'fixture' }));
     builder.onResolve({ filter: /lib\/shiki$/ }, () => ({ path: 'syntax', namespace: 'fixture' }));
-    builder.onResolve({ filter: /lib\/clipboard$/ }, () => ({ path: 'clipboard', namespace: 'fixture' }));
+    builder.onResolve({ filter: /(^|\/)clipboard$/ }, () => ({ path: 'clipboard', namespace: 'fixture' }));
     builder.onResolve({ filter: /\.svg\?raw$/ }, args => ({ path: resolve(args.resolveDir, args.path.replace('?raw', '')), namespace: 'svg' }));
     builder.onLoad({ filter: /.*/, namespace: 'svg' }, async args => ({ contents: `export default ${JSON.stringify(await readFile(args.path, 'utf8'))}`, loader: 'js' }));
     builder.onLoad({ filter: /.*/, namespace: 'fixture' }, args => ({ resolveDir: project, loader: 'js', contents: args.path === 'store' ? `
-      export function useAppLanguage(){return 'en'};export function useAppState(){return {dispatch(){}}};
+      export function useAppLanguage(){return 'en'};export function useAppState(){return {dispatch(action){(window.actions??=[]).push(action)}}};
     ` : args.path === 'syntax' ? `
       export async function tokenizeFile(){return null};export async function tokenizeByLang(){return null};export function getShikiTheme(){return 'light'};
     ` : args.path === 'clipboard' ? `
-      export async function clipboardWrite(text){window.copiedText=text};
-    ` : `
+      export async function clipboardWrite(text){window.copiedText=text};export async function clipboardRead(){return 'pasted text'};
+    ` : args.path === 'tauri' ? `export const commands=new Proxy({},{get:(_,name)=>async(...args)=>{(window.nativeActions??=[]).push({name,args})}});` : `
       import {useSyncExternalStore} from 'react';import {emptyClaudeState,reduceClaudeEvent} from './src/lib/claude-protocol';
       let state={...emptyClaudeState(),ready:true};const listeners=new Set();
       window.setSession=patch=>{state={...state,...patch};listeners.forEach(fn=>fn())};
@@ -338,6 +339,14 @@ try {
   }
   await page.evaluate(() => { Math.random = window.originalRandom; });
   console.log('ok welcome animation frames, stable layout, reduced motion, inactive tab pause and static fallback');
+  await page.evaluate(()=>window.setSession({busy:false,ready:true,messages:[{id:'link',role:'assistant',content:'[Open page](./test%20page.html) [Website](https://example.com)',timestamp:Date.now()}]}));
+  const local=page.getByRole('link',{name:'Open page',exact:true});await local.click();assert.deepEqual(await page.evaluate(()=>window.nativeActions.at(-1)),{name:'openUrl',args:['D:/Test/test page.html']});
+  await page.getByRole('link',{name:'Website',exact:true}).click();assert.deepEqual(await page.evaluate(()=>window.nativeActions.at(-1).args),['https://example.com']);
+  await local.click({button:'right'});await page.locator('.term-ctx-menu').getByRole('button',{name:'Copy link address',exact:true}).click();assert.equal(await page.evaluate(()=>window.copiedText),'D:/Test/test page.html');
+  await local.click({button:'right'});await page.locator('.term-ctx-menu').getByRole('button',{name:'Reveal in File Explorer',exact:true}).click();assert.equal(await page.evaluate(()=>window.nativeActions.at(-1).name),'showInFolder');
+  await local.evaluate(el=>window.getSelection().selectAllChildren(el));await local.click({button:'right'});await page.locator('.term-ctx-menu').getByRole('button',{name:/^Copy Ctrl/}).dispatchEvent('mousedown');assert.equal(await page.evaluate(()=>window.copiedText),'Open page');
+  await local.click({button:'right'});await page.locator('.term-ctx-menu').getByRole('button',{name:/^Paste Ctrl/}).dispatchEvent('mousedown');assert.deepEqual(await page.evaluate(()=>window.actions.at(-1)),{type:'APPEND_GAMBIT_DRAFT',id:'scroll',text:'pasted text'});
+  console.log('ok Claude local files, website clicks, link actions, selection copy and paste into draft');
   assert.deepEqual(errors, []);
 } finally {
   await page.evaluate(() => window.stopStream?.()).catch(() => {});

@@ -20,10 +20,11 @@ import { useCallback, useEffect } from 'react';
 import { useAppState, isSplitTool, paneSessionId, matchHotkeyScheme } from '../../store/app-state';
 import { submitTerminalPrompt } from '../../lib/terminal-control';
 import { getFocusedPane } from '../../lib/pane-focus';
-import { isClaudeConversation } from '../../lib/chat-tools';
+import { isClaudeConversation, isCodexConversation } from '../../lib/chat-tools';
 import { getToolIcon } from './CenterPanel';
 import { Gambit } from './Gambit';
 import { controlClaude, sendClaudeMessage, useClaudeSession } from '../../lib/claude-session';
+import { interruptCodex, sendCodexMessage, useCodexSession } from '../../lib/codex-session';
 
 // Last path segment of a folder, Windows ("\") and POSIX ("/") safe. Local copy
 // (CenterPanel has the same helper) — tiny, not worth a shared util yet.
@@ -58,8 +59,10 @@ export function ActiveGambit() {
 
   const gambitDraft = activeSession?.gambitDraft ?? '';
   const isClaude = isClaudeConversation(activeSession);
-  const gambitOpen = isClaude || state.gambitOpen;
+  const isCodex = isCodexConversation(activeSession);
+  const gambitOpen = isClaude || isCodex || state.gambitOpen;
   const claude = useClaudeSession(isClaude ? activeId ?? '' : '');
+  const codex = useCodexSession(isCodex ? activeId ?? '' : '');
   // Footer label telling the user where Send will land. Local sessions show
   // their working-folder name; SSH/WebSocket sessions show their connection
   // host, since folderPath may still contain the launchpad's previous folder.
@@ -105,6 +108,7 @@ export function ActiveGambit() {
   const handleSend = useCallback(async (text: string): Promise<boolean> => {
     if (!activeId) return false;
     const tool = activeSession?.tool ?? null;
+    if (isCodex) return sendCodexMessage(activeId, text);
     if (isClaude) {
       if (/^\/plan\s+\S/.test(text)) {
         try { await controlClaude(activeId, { subtype: 'set_permission_mode', mode: 'plan' }); } catch { return false; }
@@ -119,7 +123,7 @@ export function ActiveGambit() {
       targetId = paneSessionId(activeId, paneIdx, 'split');
     }
     try { await submitTerminalPrompt(targetId, text); return true; } catch { return false; }
-  }, [activeId, activeSession?.tool, isClaude]);
+  }, [activeId, activeSession?.tool, isClaude, isCodex]);
 
   // Global open/close hotkey (settings → 妙手). Registered in the CAPTURE
   // phase on document so it fires BEFORE the focused xterm's own keydown —
@@ -177,8 +181,9 @@ export function ActiveGambit() {
       onClose={handleClose}
       onSend={handleSend}
       claude={isClaude}
-      running={isClaude && claude.busy}
-      onCancel={isClaude ? () => { void controlClaude(activeId, { subtype: 'interrupt' }).catch(() => {}); } : undefined}
+      codex={isCodex}
+      running={isClaude ? claude.busy : isCodex && codex.busy}
+      onCancel={isCodex ? () => { void interruptCodex(activeId); } : isClaude ? () => { void controlClaude(activeId, { subtype: 'interrupt' }).catch(() => {}); } : undefined}
       leftPanelHidden={state.leftPanelHidden}
       rightPanelHidden={state.rightPanelHidden}
     />

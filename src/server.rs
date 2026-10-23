@@ -239,6 +239,7 @@ pub(crate) fn check_tool_windows(bin: &str) -> bool {
     use std::os::windows::process::CommandExt;
     std::process::Command::new("where")
         .arg(bin)
+        .env("PATH", crate::windows_path::terminal_path())
         .creation_flags(0x08000000) // CREATE_NO_WINDOW
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -5185,6 +5186,7 @@ pub fn start_ui(pending_launch: Option<crate::launch::LaunchRequest>) -> anyhow:
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(crate::channels::ChannelRuntime::default())
         .manage(crate::claude_session::ClaudeSessions::default())
+        .manage(crate::codex_session::CodexSessions::default())
         .manage(AppState {
             terminal_session,
             fs_watcher: Mutex::new(None),
@@ -5197,6 +5199,10 @@ pub fn start_ui(pending_launch: Option<crate::launch::LaunchRequest>) -> anyhow:
             crate::claude_session::claude_session_control,
             crate::claude_session::claude_session_respond,
             crate::claude_session::claude_session_close,
+            crate::codex_session::codex_session_start,
+            crate::codex_session::codex_session_request,
+            crate::codex_session::codex_session_respond,
+            crate::codex_session::codex_session_close,
             crate::fonts::list_system_fonts,
             agent_bridge_ready,
             crate::agent::agent_get_model,
@@ -5407,6 +5413,7 @@ pub fn start_ui(pending_launch: Option<crate::launch::LaunchRequest>) -> anyhow:
 
             if matches!(event, tauri::RunEvent::ExitRequested { .. }) {
                 crate::claude_session::shutdown(&app_handle.state::<crate::claude_session::ClaudeSessions>());
+                crate::codex_session::shutdown(&app_handle.state::<crate::codex_session::CodexSessions>());
                 let state = app_handle.state::<AppState>();
                 let mut n = 0usize;
                 if let Ok(mut map) = state.terminal_session.lock() {
