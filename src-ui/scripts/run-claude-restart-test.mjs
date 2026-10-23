@@ -31,7 +31,10 @@ function fixture(options = {}) {
     if (request.subtype === 'set_model') native.model = request.model;
     if (request.subtype === 'apply_flag_settings') native = { ...native, effort: request.settings.effortLevel, ultracode: request.settings.ultracode, thinking: request.settings.alwaysThinkingEnabled };
     if (request.subtype === 'set_permission_mode') { if (options.failMode) throw new Error('Policy denied bypass'); native.mode = request.mode; }
-    if (request.subtype === 'interrupt') listener({ payload: { id: args.id, generation, event: { type: 'result', usage: {} } } });
+    if (request.subtype === 'interrupt') {
+      if (options.failInterrupt) throw new Error('Interrupt could not be delivered');
+      listener({ payload: { id: args.id, generation, event: options.interruptResult ?? { type: 'result', usage: {} } } });
+    }
     return {};
   };
   const module = { exports: {} };
@@ -78,5 +81,31 @@ for (const options of [{ failSave: true }, { failStart: true }, { failMode: true
     assert.equal(state.ready, !!options.failSave);
     if (options.failSave) assert.equal(h.calls.filter(c => c.command === 'claude_session_close').length, 0);
     console.log('OK: failed restart never fakes an applied bypass selection', options);
+  } finally { release(); }
+}
+
+for (const options of [
+  { interruptResult: { type:'result',is_error:true,errors:['[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use'] } },
+  { interruptResult: { type:'result',is_error:true,errors:['API Error: 503 unavailable'] } },
+  { failInterrupt: true },
+]) {
+  const h=fixture(options),release=await ready(h);
+  try {
+    await h.api.sendClaudeMessage('tab','First prompt');
+    if(options.failInterrupt) await assert.rejects(h.api.controlClaude('tab',{subtype:'interrupt'}));
+    else await h.api.controlClaude('tab',{subtype:'interrupt'});
+    const stopped=h.api.getClaudeSession('tab');
+    assert.equal(stopped.interruptRequested,false);
+    if(options.failInterrupt) assert.match(stopped.error,/could not be delivered/);
+    else if(options.interruptResult.errors[0].startsWith('API Error')) assert.equal(stopped.error,'API Error: 503 unavailable','late control acknowledgement cannot erase a real failure');
+    else {
+      assert.equal(stopped.error,undefined); assert.equal(stopped.interrupted,true); assert.equal(stopped.busy,false);
+      assert.equal(await h.api.sendClaudeMessage('tab','Continue from here'),true);
+      const continued=h.api.getClaudeSession('tab');
+      assert.equal(continued.interrupted,false); assert.equal(continued.busy,true);
+      assert.deepEqual(Array.from(continued.messages.slice(-2),m=>m.content),['First prompt','Continue from here']);
+      assert.equal(h.calls.filter(c=>c.command==='claude_session_start').length,1,'continuing reuses the native conversation');
+    }
+    console.log('OK: interrupt diagnostic, real failure and continuation',options);
   } finally { release(); }
 }

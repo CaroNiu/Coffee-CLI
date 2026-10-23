@@ -25,6 +25,7 @@ mod launch;
 mod tool_config;
 mod tools;
 mod git;
+mod git_project_status;
 mod shell_probe;
 #[cfg(target_os = "linux")]
 mod linux_blur;

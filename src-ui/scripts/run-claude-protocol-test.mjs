@@ -79,4 +79,26 @@ test('a queued second turn keeps the session busy after the first result',()=>{
   const end=reduceClaudeEvent(next,{type:'result',usage:{}},6000);
   assert.equal(end.busy,false); assert.equal(end.pendingTurns,0);
 });
+
+test('only a locally requested stop downgrades its EDE diagnostic',()=>{
+  const diagnostic='[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use';
+  const state={...emptyClaudeState(),ready:true,busy:true,pendingTurns:1,interruptRequested:true,messages:[{id:'partial',role:'assistant',content:'Keep this output',partial:true,timestamp:1},{id:'tool',role:'tool',content:'',toolStatus:'running',output:'Already produced output',timestamp:1}]};
+  const stopped=reduceClaudeEvent(state,{type:'result',subtype:'error_during_execution',is_error:true,errors:[diagnostic]},5000);
+  assert.equal(stopped.busy,false); assert.equal(stopped.ready,true); assert.equal(stopped.interrupted,true);
+  assert.equal(stopped.interruptRequested,false); assert.equal(stopped.error,undefined);
+  assert.equal(stopped.messages[0].content,'Keep this output'); assert.equal(stopped.messages[0].partial,false);
+  assert.equal(stopped.messages[1].output,'Already produced output'); assert.equal(stopped.messages[1].interrupted,true);
+  const nextFailure=reduceClaudeEvent(stopped,{type:'result',is_error:true,errors:[diagnostic]},6000);
+  assert.equal(nextFailure.interrupted,false); assert.equal(nextFailure.error,diagnostic,'a stop marker cannot leak to the next result');
+  const unrequested=reduceClaudeEvent({...state,interruptRequested:false},{type:'result',is_error:true,errors:[diagnostic]},5000);
+  assert.equal(unrequested.error,diagnostic,'diagnostics from a real failure remain errors');
+  const mixed=reduceClaudeEvent(state,{type:'result',is_error:true,errors:[diagnostic,'API Error: 503 unavailable']},5000);
+  assert.equal(mixed.error,'API Error: 503 unavailable','real provider errors survive a concurrent stop');
+  const unknown=reduceClaudeEvent(state,{type:'result',is_error:true,errors:[]},5000);
+  assert.equal(unknown.errorKey,'claude.error.request_failed','an unexplained error is never silently hidden');
+  const otherDiagnostic=reduceClaudeEvent(state,{type:'result',is_error:true,errors:['[ede_diagnostic] unexpected provider failure']},5000);
+  assert.equal(otherDiagnostic.error,'[ede_diagnostic] unexpected provider failure','unrecognized diagnostics still surface');
+  const exit=reduceClaudeEvent(state,{type:'coffee_exit',code:1,detail:'Process crashed'},5000);
+  assert.equal(exit.error,'Process crashed'); assert.equal(exit.ready,false); assert.equal(exit.interruptRequested,false);
+});
 console.log(`${passed} Claude protocol checks passed`);

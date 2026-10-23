@@ -78,6 +78,13 @@ export type GitChanges =
       session_commits: CommitMeta[];
     };
 
+export interface GitProjectStatus {
+  repo_root: string;
+  branch: string;
+  github: 'ok' | 'unavailable' | 'not_github';
+  pull_request: { number: number; url: string; state: 'open' | 'draft' | 'merged' | 'closed'; ci: 'success' | 'failure' | 'pending' | null } | null;
+}
+
 export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (!_invoke) throw new Error('Tauri IPC not available');
   return _invoke(cmd, args) as Promise<T>;
@@ -236,6 +243,7 @@ export const commands = {
   // DiffPanel pulls each side's blob via `gitShowFile` and feeds the existing
   // jsdiff + Shiki pipeline.
   gitChanges: (folder: string) => invoke<GitChanges>('git_changes', { folder }),
+  gitProjectStatus: (folder: string) => invoke<GitProjectStatus | null>('git_project_status', { folder }),
   // Content of `<spec>` — e.g. "HEAD:src/a.ts" (committed) or ":src/a.ts"
   // (staged/index blob). null when the path doesn't exist at that revision;
   // the panel treats null as an empty side (file renders as all-additions).

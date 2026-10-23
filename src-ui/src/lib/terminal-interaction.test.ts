@@ -18,6 +18,7 @@
 import { usesSelfRenderedCaret } from './chat-tools';
 import { supportsAgentStatus, supportsNativeAgentStatus } from '../store/app-state';
 import { parseOmpTerminalTitle } from './omp-terminal-title';
+import { parseAdditionalAgentTitle } from './terminal-agent-status';
 import type { Terminal } from '@xterm/xterm';
 import {
   parseTerminalAgentStatus,
@@ -517,6 +518,37 @@ export function main(): void {
   equal(parseTerminalAgentStatus(kimiMoonWorking, 'kimicode'), 'working', 'Kimi label-less moon frame');
   equal(parseTerminalAgentStatus(bashPermission, 'claude'), 'wait_input', 'Claude interaction waits');
   equal(parseTerminalAgentStatus(codexApproval, 'codex'), 'wait_input', 'Codex interaction waits');
+
+  const statusFixtures = [
+    ['qwen', ['⠋ Thinking (3s · esc to cancel)'], ['⠏ 等待用户确认...']],
+    ['hermes', ['⠋ Thinking  ctrl+c to interrupt'], ['Allow once', 'Deny', '↑/↓ to select · Enter to confirm']],
+    ['grok', ['⠧ Waiting on subagent… 2.8s   13s ⇣29.7k [stop]'], ['┃  2 (○) Yes, proceed']],
+    ['antigravity', ['⠋ Thinking', '──── esc to cancel'], ['↑/↓ Navigate · tab Amend', 'esc to cancel']],
+    ['pi', ['── ⠋ Working ──────'], null],
+    ['copilot', ['esc to cancel'], ['Enter to select · Esc to cancel']],
+    ['cursor', ['⬡ Thinking', 'ctrl+c to stop'], ['Waiting for approval', 'Run this command?', 'Run (once) (y)']],
+    ['cline', ['Thinking... (esc to cancel)'], ['Cline needs permission', 'Approve tool call?', '[y] Approve · [n] Deny']],
+    ['kiro', ['Kiro is working · type to steer · ctrl+s to queue'], ['❯ Allow', 'Esc to close · ↑/↓ to navigate · Enter to select']],
+    ['muse', ['◆ Working (3s · esc to interrupt)'], ['Enter to select · ↑/↓ to move · Tab for an optional note · Esc to interrupt']],
+    ['mimocode', ['⠋ generating  esc interrupt'], ['△ Permission required']],
+    ['kilo', ['esc interrupt'], ['△ Permission required']],
+  ] as const;
+  for (const [tool, working, waiting] of statusFixtures) {
+    equal(supportsAgentStatus(tool), true, `${tool}: island status enabled`);
+    equal(parseTerminalAgentStatus(screen(...working.map(text => line(text))), tool), 'working', `${tool}: working chrome`);
+    if (waiting) equal(parseTerminalAgentStatus(screen(...waiting.map(text => line(text))), tool), 'wait_input', `${tool}: blocked chrome`);
+    equal(parseTerminalAgentStatus(screen(line('I am thinking about working on this task.')), tool), null, `${tool}: prose is not status`);
+    equal(parseTerminalInteraction(screen(...working.map(text => line(text))), tool), null, `${tool}: detection cannot send permission keys`);
+    // A viewport-sized later frame must not inherit an old spinner/menu.
+    equal(parseTerminalAgentStatus(screen(...working.map(text => line(text)), ...Array.from({ length: 30 }, () => line('later output'))), tool), null, `${tool}: old status outside live tail`);
+  }
+  for (const [tool, title, status] of [
+    ['qwen', '◐ Project', 'working'], ['qwen', '✳︎ Project', 'wait_input'],
+    ['hermes', '⏳ Project', 'working'], ['hermes', '⚠️ Project', 'wait_input'], ['hermes', '✓ Project', 'idle'],
+    ['grok', '⠋ Explore - grok', 'working'], ['grok', '⚠ Action Required - grok', 'wait_input'], ['grok', 'Project - grok', 'idle'],
+  ] as const) equal(parseAdditionalAgentTitle(title, tool)?.status, status, `${tool}: ${title}`);
+  equal(parseAdditionalAgentTitle('Project', 'qwen'), null, 'static title alone is not state');
+  equal(parseAdditionalAgentTitle('⠋ test', 'terminal'), null, 'plain shells never acquire agent status');
 
   // OMP v17.2.12 title-generator.ts: the separator immediately after π owns
   // state; punctuation/spinners inside the session label are ordinary text.

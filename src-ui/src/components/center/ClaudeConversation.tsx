@@ -15,6 +15,13 @@ import { ConversationNavigation, MessageCopyButton, type ConversationNavigationI
 import { commands } from '../../tauri';
 import CLAWD_SVG from '../../icons-inline/clawd.svg?raw';
 import CLAUDE_WORKING_MARK from '../../icons-inline/claude-working-mark.webp';
+import CLAUDE_WELCOME from '../../icons-inline/claude-welcome.webm';
+import CLAUDE_WAVING from '../../icons-inline/claude-waving.gif';
+import CLAUDE_JUMPING from '../../icons-inline/claude-jumping.gif';
+import CLAUDE_WALKING from '../../icons-inline/claude-walking.gif';
+import CLAUDE_LURKING from '../../icons-inline/claude-lurking.gif';
+import CLAUDE_RACING from '../../icons-inline/claude-racing.gif';
+import CLAUDE_CLOUD from '../../icons-inline/claude-cloud.gif';
 import './ConversationView.css';
 import './Gambit.css';
 import './ClaudeConversation.css';
@@ -26,6 +33,42 @@ function useClock(active: boolean, ms = 1000) {
 }
 function count(value: number) { return value >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(Math.round(value)); }
 function elapsed(ms: number, t: ClaudeTranslate) { const seconds = Math.max(0, Math.round(ms / 1000)); return seconds >= 60 ? t('claude.time.minutes', { minutes: Math.floor(seconds / 60), seconds: seconds % 60 }) : t('claude.time.seconds', { seconds }); }
+
+const CLAUDE_WELCOME_ICONS = [
+  { id: 'laptop', src: CLAUDE_WELCOME },
+  { id: 'waving', src: CLAUDE_WAVING },
+  { id: 'jumping', src: CLAUDE_JUMPING },
+  { id: 'walking', src: CLAUDE_WALKING },
+  { id: 'lurking', src: CLAUDE_LURKING },
+  { id: 'racing', src: CLAUDE_RACING },
+  { id: 'cloud', src: CLAUDE_CLOUD },
+];
+
+function ClaudeWelcomeIcon({ isActive }: { isActive: boolean }) {
+  const [icon] = useState(() => CLAUDE_WELCOME_ICONS[Math.floor(Math.random() * CLAUDE_WELCOME_ICONS.length)]);
+  const ref = useRef<HTMLVideoElement>(null);
+  const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [motionAllowed, setMotionAllowed] = useState(() => !window.matchMedia('(prefers-reduced-motion: reduce)').matches && !document.hidden);
+  useEffect(() => {
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setMotionAllowed(!motion.matches && !document.hidden);
+    motion.addEventListener('change', update); document.addEventListener('visibilitychange', update);
+    return () => { motion.removeEventListener('change', update); document.removeEventListener('visibilitychange', update); };
+  }, []);
+  useEffect(() => {
+    const video = ref.current;
+    if (!video) return;
+    if (!isActive || !motionAllowed) video.pause(); else void video.play().catch(() => {});
+    return () => video.pause();
+  }, [isActive, motionAllowed, failed]);
+  return <span className={`claude-empty-icon is-${icon.id}${ready && !failed && isActive && motionAllowed ? ' is-animated' : ''}`} aria-hidden="true" data-welcome-icon={icon.id}>
+    <span className="claude-empty-still" dangerouslySetInnerHTML={{ __html: CLAWD_SVG }} />
+    {!failed && (icon.id === 'laptop'
+      ? <video ref={ref} src={icon.src} autoPlay muted loop playsInline onLoadedData={() => setReady(true)} onError={() => setFailed(true)} />
+      : isActive && motionAllowed && <img src={icon.src} alt="" onLoad={() => setReady(true)} onError={() => setFailed(true)} />)}
+  </span>;
+}
 
 function ThinkingTokens({ value }: { value?: number }) {
   const t = useT();
@@ -162,9 +205,9 @@ export const ClaudeTool = memo(function ClaudeTool({ message }: { message: Claud
     {showBody && <div className="claude-tool-body">
       {edit ? <EditDiff before={before} after={after} path={path} /> : write ? message.toolStatus === 'running' && input.content === undefined ? <span className="claude-tool-pending">{t('diff.loading')}</span> : <ToolContent content={text(input.content)} path={path} /> : bash ? <div className="claude-io">
         <div className="claude-io-row"><span>{t('claude.input')}</span><ToolContent content={text(input.command)} path="command.sh" previewHeight={180} /></div>
-        {message.output !== undefined && <div className={`claude-io-row ${message.toolStatus === 'failed' ? 'is-error' : ''}`}><span>{t('claude.output')}</span><ToolContent content={output || t('claude.no_output')} path="output.txt" plain previewHeight={180} /></div>}
+        {message.output !== undefined && <div className={`claude-io-row ${message.toolStatus === 'failed' && !message.interrupted ? 'is-error' : ''}`}><span>{t('claude.output')}</span><ToolContent content={output || t('claude.no_output')} path="output.txt" plain previewHeight={180} /></div>}
       </div> : <><ToolContent content={JSON.stringify(input, null, 2)} path="input.json" />{message.output !== undefined && <ToolContent content={output || t('claude.no_output')} path="output.txt" plain />}</>}
-      {edit || write ? message.toolStatus === 'failed' && <pre className="claude-tool-error">{output}</pre> : null}
+      {edit || write ? message.toolStatus === 'failed' && <pre className={message.interrupted ? 'claude-interrupted' : 'claude-tool-error'}>{output}</pre> : null}
     </div>}
   </section>;
 });
@@ -303,7 +346,7 @@ export function ClaudeConversation({ sessionId, cwd, resumeToken, isActive, bgUr
         <div style={{ height: virtual.topSpacer }} aria-hidden="true" />
         {s.messages.slice(virtual.start, virtual.end).map((m, i) => <MeasuredRow key={m.id} id={virtual.measurementKeys[virtual.start + i]} measure={virtual.measureRow}>
           {new Date(m.timestamp).toDateString() !== new Date(s.messages[virtual.start + i - 1]?.timestamp ?? 0).toDateString() && <div className="claude-date">{new Date(m.timestamp).toLocaleDateString(language, { weekday: 'short', month: 'short', day: 'numeric' })}</div>}
-          <article data-message-id={m.id} className={`claude-row claude-row--${m.role} ${m.toolStatus ? `claude-row--${m.toolStatus}` : ''} ${m.parentId ? 'claude-row--nested' : ''}`}>
+          <article data-message-id={m.id} className={`claude-row claude-row--${m.role} ${m.toolStatus ? `claude-row--${m.interrupted ? 'interrupted' : m.toolStatus}` : ''} ${m.parentId ? 'claude-row--nested' : ''}`}>
             {m.role === 'user' ? <><time>{new Date(m.timestamp).toLocaleTimeString(language, { hour: 'numeric', minute: '2-digit' })}</time><div className="claude-user-content"><MarkdownContent content={m.content} /></div></> : m.role === 'tool' ? <ClaudeTool message={m} /> : m.role === 'reasoning' ? <ClaudeThinking message={m} expanded={thinkingExpansion[m.id] ?? expandedThinking} tokens={s.thinkingTokens} onToggle={open => setThinkingExpansion(previous => (previous[m.id] ?? expandedThinking) === open ? previous : { ...previous, [m.id]: open })} /> : <><time>{new Date(m.timestamp).toLocaleTimeString(language, { hour: 'numeric', minute: '2-digit' })}</time><MarkdownContent content={m.content} /></>}
             {(m.role === 'user' || m.role === 'assistant') && !m.partial && <MessageCopyButton copied={copied === m.id} onCopy={() => copy(m)} />}
             {virtual.start + i === s.messages.length - 1 && summary}
@@ -312,9 +355,10 @@ export function ClaudeConversation({ sessionId, cwd, resumeToken, isActive, bgUr
         <div style={{ height: virtual.bottomSpacer }} aria-hidden="true" />
         {s.requests.map(p => <Question key={p.id} id={sessionId} pending={p} />)}
         {(!s.ready && !s.error || s.busy && !s.requests.length) && <Working status={s.status} startedAt={s.startedAt} />}
+        {s.interrupted && !s.busy && !s.error && <div className="claude-interrupted" role="status">{t('claude.interrupted')}</div>}
         {s.error && <div className="claude-session-error" role="alert">{s.errorKey ? t(s.errorKey, { detail: s.error }) : s.error}{!s.ready && <button className="claude-expand" onClick={() => dispatch({ type: 'RESTART_TERMINAL', id: sessionId, newId: crypto.randomUUID() })}>{t('claude.reconnect')}</button>}</div>}
         {empty && <div className="claude-empty">
-          <span className="claude-empty-icon" aria-hidden="true" dangerouslySetInnerHTML={{ __html: CLAWD_SVG }} />
+          <ClaudeWelcomeIcon isActive={isActive} />
           <div className="claude-empty-title" lang="en">Coffee and Claude time</div>
           <div className="claude-empty-meta">
             <span className="claude-empty-directory">

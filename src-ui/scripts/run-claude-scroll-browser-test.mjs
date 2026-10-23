@@ -22,7 +22,7 @@ await build({
   ` },
   bundle: true, outfile: join(directory, 'fixture.js'), jsx: 'automatic',
   external: ['/fonts/*', '/monogram.svg'],
-  nodePaths: [join(project, 'node_modules')], loader: { '.webp': 'dataurl' },
+  nodePaths: [join(project, 'node_modules')], loader: { '.webp': 'dataurl', '.webm': 'dataurl', '.gif': 'dataurl' },
   define: { 'process.env.NODE_ENV': '"development"' },
   plugins: [{ name: 'isolated-session', setup(builder) {
     builder.onResolve({ filter: /claude-session$/ }, () => ({ path: 'session', namespace: 'fixture' }));
@@ -38,9 +38,10 @@ await build({
     ` : args.path === 'clipboard' ? `
       export async function clipboardWrite(text){window.copiedText=text};
     ` : `
-      import {useSyncExternalStore} from 'react';import {emptyClaudeState} from './src/lib/claude-protocol';
+      import {useSyncExternalStore} from 'react';import {emptyClaudeState,reduceClaudeEvent} from './src/lib/claude-protocol';
       let state={...emptyClaudeState(),ready:true};const listeners=new Set();
       window.setSession=patch=>{state={...state,...patch};listeners.forEach(fn=>fn())};
+      window.stopFixture=errors=>{state=reduceClaudeEvent({...state,interruptRequested:true},{type:'result',is_error:true,errors});listeners.forEach(fn=>fn())};
       window.reset=kind=>{
         clearInterval(window.streamTimer);window.tick=0;
         const messages=Array.from({length:96},(_,i)=>({id:'history-'+i,role:i%2?'assistant':'user',content:'History '+i+'\\n\\n'+'Earlier readable context. '.repeat(35),timestamp:Date.now()-100000+i}));
@@ -261,6 +262,72 @@ try {
   await page.setViewportSize({ width: 390, height: 800 }); await page.waitForTimeout(150);
   assert.ok(await scroll.evaluate(el => el.scrollWidth <= el.clientWidth + 1));
   console.log('ok tool input/output copy, expansion, streaming updates, Write pending state and diff controls');
+
+  await page.evaluate(() => {
+    window.setSession({messages:[{id:'stop-tool',role:'tool',toolName:'Bash',toolStatus:'running',content:'',input:{command:'echo hello'},output:'Already printed output',timestamp:Date.now()}],busy:true,pendingTurns:1,error:undefined});
+    window.stopFixture(['[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use']);
+  });
+  await page.locator('[role="status"].claude-interrupted').waitFor();
+  assert.equal(await page.locator('[role="status"].claude-interrupted').textContent(),'Interrupted');
+  assert.equal(await page.locator('.claude-session-error').count(),0);
+  assert.equal(await page.locator('.claude-row--interrupted').count(),1);
+  assert.equal(await page.locator('.claude-io-row.is-error').count(),0);
+  assert.ok((await page.locator('.claude-tool-body').textContent()).includes('Already printed output'));
+  assert.equal(await page.locator('[role="status"].claude-interrupted').evaluate(el=>getComputedStyle(el).fontStyle),'italic');
+  await page.evaluate(()=>window.stopFixture(['[ede_diagnostic] result_type=user last_content_type=n/a stop_reason=tool_use','API Error: 503 unavailable']));
+  assert.equal(await page.locator('.claude-session-error').textContent(),'API Error: 503 unavailable');
+  assert.equal(await page.locator('[role="status"].claude-interrupted').count(),0);
+  await page.evaluate(()=>window.setSession({busy:true,interrupted:false,error:undefined}));
+  assert.equal(await page.locator('[role="status"].claude-interrupted').count(),0);
+  console.log('ok user interruption is neutral, keeps partial output and never hides a real API failure');
+
+  await page.evaluate(() => { window.originalRandom = Math.random; Math.random = () => 0; window.setSession({ messages: [], busy: false, requests: [], endedAt: undefined }); });
+  const welcome = page.locator('.claude-empty-icon'), mascot = welcome.locator('video');
+  await page.waitForFunction(() => { const video = document.querySelector('.claude-empty-icon video'); return video?.readyState >= 2 && !video.paused; });
+  assert.ok(await mascot.evaluate(video => video.muted && video.loop && video.playsInline), 'welcome mascot plays silently and loops inline');
+  const bounds = await welcome.boundingBox(), frames = new Set();
+  for (let frame = 0; frame < 4; frame++) {
+    await page.waitForTimeout(350);
+    frames.add(await mascot.evaluate(video => { const canvas = document.createElement('canvas'); canvas.width = 136; canvas.height = 100; const ctx = canvas.getContext('2d'); ctx.drawImage(video, -10, -8, 160, 160 * video.videoHeight / video.videoWidth); return canvas.toDataURL(); }));
+    assert.deepEqual(await welcome.boundingBox(), bounds, 'mascot animation never shifts the welcome layout');
+  }
+  assert.ok(frames.size > 1, 'decoded mascot frames actually animate');
+  await page.emulateMedia({ reducedMotion: 'reduce' }); await page.waitForTimeout(150);
+  assert.equal(await mascot.evaluate(video => video.paused), true);
+  assert.equal(await welcome.locator('.claude-empty-still').evaluate(el => getComputedStyle(el).visibility), 'visible');
+  await page.emulateMedia({ reducedMotion: 'no-preference' }); await page.waitForTimeout(150);
+  assert.equal(await mascot.evaluate(video => video.paused), false);
+  await page.evaluate(() => window.setActive(false)); await page.waitForTimeout(100);
+  assert.equal(await mascot.evaluate(video => video.paused), true, 'inactive tabs pause the welcome animation');
+  await page.evaluate(() => window.setActive(true)); await page.waitForTimeout(150);
+  assert.equal(await mascot.evaluate(video => video.paused), false);
+  await mascot.dispatchEvent('error');
+  assert.equal(await mascot.count(), 0);
+  assert.equal(await welcome.locator('.claude-empty-still').evaluate(el => getComputedStyle(el).visibility), 'visible', 'unsupported video falls back to the existing static icon');
+  for (const [index, id] of ['laptop', 'waving', 'jumping', 'walking', 'lurking', 'racing', 'cloud'].entries()) {
+    await page.evaluate(() => window.setSession({ messages: [{ id: 'hide-welcome', role: 'user', content: 'A new turn', timestamp: Date.now() }] }));
+    await page.waitForFunction(() => !document.querySelector('.claude-empty-icon'));
+    await page.evaluate(index => { Math.random = () => (index + .5) / 7; window.setSession({ messages: [] }); }, index);
+    await page.waitForFunction(() => document.querySelector('.claude-empty-icon')?.classList.contains('is-animated'));
+    assert.equal(await welcome.getAttribute('data-welcome-icon'), id, 'every bundled animation can be selected');
+    const asset = await welcome.locator('video,img').getAttribute('src');
+    assert.ok(asset.startsWith('data:'), 'test fixture loads the bundled asset without a remote request');
+    await page.evaluate(() => { Math.random = () => .99; window.setSession({ contextTokens: 42 }); });
+    assert.equal(await welcome.getAttribute('data-welcome-icon'), id, 'rerenders do not reroll the current animation');
+    if (id !== 'laptop') {
+      await page.emulateMedia({ reducedMotion: 'reduce' }); await page.waitForTimeout(100);
+      assert.equal(await welcome.locator('img').count(), 0, 'reduced motion unmounts animated GIFs');
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+      await page.waitForFunction(() => document.querySelector('.claude-empty-icon img')?.naturalWidth > 0);
+      await page.evaluate(() => window.setActive(false)); await page.waitForTimeout(100);
+      assert.equal(await welcome.locator('img').count(), 0, 'inactive tabs stop GIF playback');
+      await page.evaluate(() => window.setActive(true));
+      await page.waitForFunction(() => document.querySelector('.claude-empty-icon img')?.naturalWidth > 0);
+      assert.equal(await welcome.getAttribute('data-welcome-icon'), id);
+    }
+  }
+  await page.evaluate(() => { Math.random = window.originalRandom; });
+  console.log('ok welcome animation frames, stable layout, reduced motion, inactive tab pause and static fallback');
   assert.deepEqual(errors, []);
 } finally {
   await page.evaluate(() => window.stopStream?.()).catch(() => {});

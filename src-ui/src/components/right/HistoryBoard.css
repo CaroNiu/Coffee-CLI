@@ -298,6 +298,44 @@
 }
 
 /* ─── Card delete button + inline rename ─── */
+.history-git-mark {
+  position:relative; display:inline-flex; align-items:center; justify-content:center;
+  flex:0 0 22px; height:22px; margin-left:6px; color:var(--text-2);
+}
+.history-project-row > .history-git-mark { flex:0 0 22px; }
+.history-git-mark.is-open { color:var(--success,#79c99e); }
+.history-git-mark.is-merged { color:#a78bdb; }
+.history-git-mark.is-closed { color:var(--danger,#df735f); }
+.history-git-ci { position:absolute; right:-1px; bottom:-1px; font:700 10px/10px var(--font); }
+.history-git-ci.is-success { color:var(--success,#79c99e); }
+.history-git-ci.is-failure { color:var(--danger,#df735f); }
+.history-git-ci.is-pending { color:#719cdb; }
+.history-card:hover .history-git-mark,.history-card:focus-within .history-git-mark { display:none; }
+.history-card-working-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 22px;
+  height: 22px;
+  margin-left: 6px;
+  color: var(--accent);
+}
+.history-card-working-indicator > span {
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: history-working-spin 0.9s linear infinite;
+}
+.history-card:hover .history-card-working-indicator,
+.history-card:focus-within .history-card-working-indicator {
+  display: none;
+}
+@keyframes history-working-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .history-card-working-indicator > span { animation: none; }
+}
 /* No permanent action gutter: the button occupies the title row on hover,
    shrinking the title while its trailing mask fades the text into the action. */
 .history-card-delete-btn {

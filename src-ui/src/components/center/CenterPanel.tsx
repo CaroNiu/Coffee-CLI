@@ -1402,7 +1402,7 @@ export function CenterPanel() {
           // Muse inherits its Windows launcher's title; keep the workspace name.
           const title = session.tool === 'muse' ? baseTitle : session.toolTitle?.trim() || baseTitle;
           const showAgentStatus = supportsAgentStatus(session.tool)
-            && (session.tool !== 'opencode' || session.agentStatus !== undefined);
+            && (['claude', 'codex', 'kimicode', 'omp'].includes(session.tool ?? '') || session.agentStatus !== undefined);
           return (
             <div
               key={session.id}

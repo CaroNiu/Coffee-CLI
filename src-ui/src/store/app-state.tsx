@@ -3,6 +3,7 @@
 import { createContext, useContext, useLayoutEffect, useReducer, useRef } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import { isClaudeConversation, supportsEnhancedTool } from '../lib/chat-tools';
+import { supportsAdditionalAgentStatus } from '../lib/terminal-agent-status';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -31,7 +32,7 @@ export function supportsNativeAgentStatus(tool: ToolType): boolean {
 /** OpenCode v2's process-local adapter and native titles can report status
  * without a conversation view or rendered-screen interaction parser. */
 export function supportsAgentStatus(tool: ToolType): boolean {
-  return tool === 'opencode' || supportsNativeAgentStatus(tool) || supportsEnhancedTool(tool);
+  return tool === 'opencode' || supportsNativeAgentStatus(tool) || supportsEnhancedTool(tool) || supportsAdditionalAgentStatus(tool);
 }
 
 // Theme: color palette family (orthogonal to shape and to mode).

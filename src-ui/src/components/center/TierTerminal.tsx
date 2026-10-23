@@ -46,6 +46,7 @@ import { commands } from '../../tauri';
 import { registerTerminalObserver } from '../../lib/terminal-observer';
 import { confirmTerminalAgentStatus, forwardTerminalInput, isTerminalSubmitInput, registerTerminalControl, setTerminalControlReady, submitTerminalPrompt, terminalControlStatus } from '../../lib/terminal-control';
 import { supportsAgentStatus, useAppDispatch, useAppStateRef, type AgentStatus, type ToolType, type ThemeColor } from '../../store/app-state';
+import { parseAdditionalAgentTitle, supportsAdditionalAgentStatus } from '../../lib/terminal-agent-status';
 import { useT } from '../../i18n/useT';
 import { getToolDisplayName } from '../../lib/tool-info';
 import { THEME_COLORS } from '../../lib/personalization';
@@ -557,7 +558,7 @@ function TierTerminalImpl({
     const markAgentSubmission = () => {
       // OMP and OpenCode's adapter report all three states. Enter
       // may only advance a selector, so a guessed working state could stick.
-      if (!usesAgentStatus || tool === 'omp' || tool === 'opencode') return;
+      if (!usesAgentStatus || tool === 'omp' || tool === 'opencode' || supportsAdditionalAgentStatus(tool)) return;
       clearScreenIdleTimer();
       // The old selector frame may still be painted, but Enter hands control
       // back to the agent immediately. The next parsed screen will confirm or
@@ -575,11 +576,14 @@ function TierTerminalImpl({
       clearScreenIdleTimer();
       screenIdleTimer = window.setTimeout(() => {
         screenIdleTimer = undefined;
+        if (!mounted || ptyEnded) return;
         // Claude/Codex/OMP expose an authoritative active-turn bit in their
         // OSC title. Rendered text can pause while the model thinks, so mere
         // screen stability must never end a turn that the CLI still reports
         // as working/waiting. The title's later idle transition completes it.
         if (nativeStatus === 'working' || nativeStatus === 'wait_input') return;
+        const current = parseTerminalAgentStatus(readTerminalScreen(term), tool);
+        if (current) { publishScreenStatus(current); return; }
         publishScreenStatus('idle');
       }, delayMs);
     };
@@ -1274,7 +1278,7 @@ function TierTerminalImpl({
     // ANSI cursor movement and redraws, read the rendered screen once and feed
     // both the precise interaction card and the Dynamic Island state machine.
     // No hooks, model calls, or duplicate terminal readers are involved.
-    if (supportsTerminalInteraction(tool)) {
+    if (usesAgentStatus || supportsTerminalInteraction(tool)) {
       let publishedFingerprint: string | null = null;
       let lastScreenFingerprint = '';
       let interactionClearTimer: number | undefined;
@@ -1284,7 +1288,7 @@ function TierTerminalImpl({
         interactionClearTimer = undefined;
       };
       const scanTerminalSemantics = () => {
-        if (!mounted) return;
+        if (!mounted || ptyEnded) return;
         const screen = readTerminalScreen(term);
         const rawInteraction = parseTerminalInteraction(screen, tool);
         const suppressed = interactionSuppressionRef.current;
@@ -1342,11 +1346,10 @@ function TierTerminalImpl({
 
         if (semanticStatus) {
           publishScreenStatus(semanticStatus);
-        } else if (screenChanged) {
-          // Working TUIs repaint their spinner/text continuously. Every real
-          // text-frame change restarts this timer; once the screen stabilizes
-          // (spinner removed, prompt ready), the island settles to idle. Cursor
-          // style repaints do not change text and therefore cannot hold it open.
+        } else if (screenChanged && (screenStatus !== null || !supportsAdditionalAgentStatus(tool))) {
+          // Only settle a previously observed signal after its chrome has
+          // disappeared. The delayed scan rechecks the live screen; silence
+          // while a working indicator remains is never completion evidence.
           scheduleScreenIdle();
         }
       };
@@ -1365,6 +1368,7 @@ function TierTerminalImpl({
     // working vs non-working; permission prompts share its static idle prefix.
     let lastTabTitle: string | undefined;
     term.onTitleChange((title) => {
+      if (!mounted || ptyEnded) return;
       let displayTitle = title;
       if (tool === 'claude') {
         const parsed = parseClaudeTerminalTitle(title);
@@ -1388,6 +1392,17 @@ function TierTerminalImpl({
         const parsed = parseOmpTerminalTitle(title);
         displayTitle = parsed.displayTitle;
         publishNativeStatus(parsed.status);
+      } else {
+        const parsed = parseAdditionalAgentTitle(title, tool);
+        if (parsed) {
+          displayTitle = parsed.displayTitle;
+          publishNativeStatus(parsed.status);
+        } else if (supportsAdditionalAgentStatus(tool) && nativeStatus !== null) {
+          // Qwen removes its prefix on idle; unknown/static titles alone do
+          // not establish state. Recheck the screen after a known mark leaves.
+          nativeStatus = null;
+          scheduleScreenIdle();
+        }
       }
       if (displayTitle !== lastTabTitle) {
         lastTabTitle = displayTitle;
@@ -1571,6 +1586,9 @@ function TierTerminalImpl({
         onCwd: (cwd) => {
           if (!mounted) return;
           dispatch({ type: 'SET_TERMINAL_CWD', id: sessionId, path: cwd });
+        },
+        onToken: (token) => {
+          if (mounted && !ptyEnded) dispatch({ type: 'SET_SESSION_TOKEN', id: sessionId, token });
         },
       });
       if (mounted) unlisteners.push(unsubEvents); else { unsubEvents(); return; }

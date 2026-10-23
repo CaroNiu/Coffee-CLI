@@ -8,6 +8,7 @@ import { getToolDisplayName } from '../../lib/tool-info';
 import { useAgentClient, openAgentConversation, refreshAgentConversations } from '../../lib/agent-client';
 import {
   prefetchHistory,
+  refreshHistory,
   subscribeHistory,
   getHistorySnapshot,
   sortByMtime,
@@ -17,6 +18,8 @@ import { subscribePinned, getPinnedSnapshot } from '../../lib/pinned-sessions';
 import { subscribeRenamed, getRenamedSnapshot, setCustomName } from '../../lib/renamed-sessions';
 import { SessionContextMenu, type SessionCtxMenuState } from './SessionContextMenu';
 import { useTextContextMenu } from '../../lib/use-text-context-menu';
+import { gitFolderKey, useProjectGitStatuses } from '../../lib/project-git-status';
+import { HistoryGitMark } from './HistoryGitMark';
 // hermes/opencode PNG assets live in src/icons-inline/ so the Launchpad
 // can `?inline`-import them as data URIs and bypass the <img> async-decode
 // flash. We pull the same data URIs here so HistoryBoard doesn't need a
@@ -155,6 +158,18 @@ export function HistoryBoard() {
   // Pinned (置顶) markers from localStorage - re-renders + re-sorts the list
   // the instant a pin toggles from the context menu.
   const pinned = useSyncExternalStore(subscribePinned, getPinnedSnapshot);
+  // Identity is tool + native conversation token, never the folder/title.
+  const workingSessions = useMemo(() => new Set(state.terminals
+    .filter(session => !session.multiAgent && session.resumeToken && session.agentStatus === 'working')
+    .map(session => `${session.tool}:${session.resumeToken}`)), [state.terminals]);
+  const workingSignature = [...workingSessions].sort().join('|');
+  useEffect(() => {
+    if (!workingSignature) return;
+    // Give the CLI time to create its new history file; reuse the single
+    // throttled cache scan rather than polling separately for every row.
+    const timer = window.setTimeout(refreshHistory, 1_000);
+    return () => window.clearTimeout(timer);
+  }, [workingSignature]);
   // Custom session titles from localStorage (rename feature) - re-renders
   // the list the instant a rename lands.
   const renamed = useSyncExternalStore(subscribeRenamed, getRenamedSnapshot);
@@ -273,6 +288,12 @@ export function HistoryBoard() {
   const [visibleCount, setVisibleCount] = useState(PAGE);
   const [searchCount, setSearchCount] = useState(PAGE);
   const filteredRows = rows.slice(0, visibleCount);
+  const liveSessionFolders = useMemo(() => new Map(state.terminals
+    .filter(session => !session.multiAgent && session.resumeToken && session.folderPath)
+    .map(session => [`${session.tool}:${session.resumeToken}`, session.folderPath!])), [state.terminals]);
+  const gitFolders = filteredRows.flatMap(row => row.kind === 'project' ? row.group.cwd ? [row.group.cwd] : []
+    : [liveSessionFolders.get(`${row.session.tool}:${row.session.session_token}`) ?? '']);
+  const gitStatuses = useProjectGitStatuses(gitFolders);
   const searchResults = searchOpen ? matchedSessions.slice(0, searchCount) : [];
   const selectedSearchIndex = Math.min(searchSelection, Math.max(0, searchResults.length - 1));
   const hasMore = rows.length > visibleCount;
@@ -372,10 +393,13 @@ export function HistoryBoard() {
         const sessionKey = `${session.tool ?? ''}:${session.id}`;
         const displayName = renamed[sessionKey] ?? session.name;
         const isRenaming = renamingKey === sessionKey;
+        const isWorking = Boolean(session.session_token && workingSessions.has(`${session.tool}:${session.session_token}`));
+        const liveFolder = liveSessionFolders.get(`${session.tool}:${session.session_token}`);
+        const gitStatus = liveFolder ? gitStatuses.get(gitFolderKey(liveFolder)) : undefined;
         return (
           <div
             key={`${sessionKey}:${session.file_path ?? session.saved_at}`}
-            className={`history-card${grouped ? ' history-card-grouped' : ''}${session.tool === 'coffee-agent' && session.id === activeAgentConversation && state.agentPageActive === 'agent' ? ' history-card-active' : ''}`}
+            className={`history-card${isWorking ? ' history-card-working' : ''}${grouped ? ' history-card-grouped' : ''}${session.tool === 'coffee-agent' && session.id === activeAgentConversation && state.agentPageActive === 'agent' ? ' history-card-active' : ''}`}
             aria-describedby={preview?.key === sessionKey ? previewId : undefined}
             onMouseEnter={(event) => {
               if (isRenaming || ctxMenu || searchOpen) return;
@@ -430,6 +454,8 @@ export function HistoryBoard() {
                 ) : (
                   <>
                     <span className="history-card-title">{displayName}</span>
+                    {isWorking && <span className="history-card-working-indicator" role="img" aria-label={t('claude.status.working')}><span /></span>}
+                    {!isWorking && <HistoryGitMark status={gitStatus} />}
                     {/* One-click soft-delete (hide), revealed in the title row.
                         stopPropagation keeps it from resuming the session. */}
                     <button
@@ -493,6 +519,7 @@ export function HistoryBoard() {
         }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
           <span>{row.group.name}</span>
+          <HistoryGitMark status={gitStatuses.get(gitFolderKey(row.group.cwd))} />
           <svg className="history-project-chevron" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m5 3 5 5-5 5" /></svg>
         </button>
       ))}

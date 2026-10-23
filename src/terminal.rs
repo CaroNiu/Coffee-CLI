@@ -480,6 +480,37 @@ pub struct TerminalSession {
 
 pub type SharedSession = Arc<Mutex<std::collections::HashMap<String, TerminalSession>>>;
 
+#[derive(Serialize, Clone)]
+pub(crate) struct SessionTokenPayload {
+    pub id: String,
+    pub token: String,
+}
+
+// Claude supports assigning a native ID before launch. This gives fresh tabs
+// the same exact history identity as resumed tabs, without hooks or cwd guesses.
+pub(crate) fn claude_launch_token(args: &mut Vec<String>, assign_new: bool) -> Option<String> {
+    let mut token = None;
+    let mut has_selector = false;
+    for (index, arg) in args.iter().enumerate() {
+        if matches!(arg.as_str(), "--session-id" | "--resume" | "-r") {
+            has_selector = true;
+            token = args.get(index + 1).filter(|value| uuid::Uuid::parse_str(value).is_ok()).cloned();
+        } else if let Some(value) = arg.strip_prefix("--session-id=").or_else(|| arg.strip_prefix("--resume=")) {
+            has_selector = true;
+            token = uuid::Uuid::parse_str(value).ok().map(|_| value.to_string());
+        } else if matches!(arg.as_str(), "--continue" | "-c" | "--fork-session") {
+            // These flags can select/create a different native conversation.
+            return None;
+        }
+    }
+    if !has_selector && assign_new {
+        let id = uuid::Uuid::new_v4().to_string();
+        args.extend(["--session-id".to_string(), id.clone()]);
+        token = Some(id);
+    }
+    token
+}
+
 // ─── Spawn ────────────────────────────────────────────────
 
 pub(crate) fn shell_working_directory(path: &std::path::Path) -> anyhow::Result<std::path::PathBuf> {
@@ -1101,11 +1132,14 @@ pub fn spawn(
                                 if let Ok(map) = session_for_token.lock() {
                                     if let Some(sess) = map.get(&session_id_out) {
                                         if let Ok(mut t) = sess.session_token.lock() {
-                                            *t = Some(token_str);
+                                            *t = Some(token_str.clone());
                                         }
                                     }
                                 }
                                 token_captured = true;
+                                let _ = app_out.emit("tier-terminal-token", SessionTokenPayload {
+                                    id: session_id_out.clone(), token: token_str,
+                                });
                             }
                         }
                     }
@@ -1193,6 +1227,31 @@ fn resolve_program(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn claude_history_identity_respects_existing_launch_selectors() {
+        let mut fresh = Vec::new();
+        let id = claude_launch_token(&mut fresh, true).unwrap();
+        assert!(uuid::Uuid::parse_str(&id).is_ok());
+        assert_eq!(fresh, vec!["--session-id".to_string(), id.clone()]);
+        assert_eq!(claude_launch_token(&mut fresh, true), Some(id.clone()));
+        assert_ne!(claude_launch_token(&mut Vec::new(), true), Some(id.clone()));
+        for flag in ["--resume", "-r", "--session-id"] {
+            let mut args = vec![flag.to_string(), id.clone()];
+            let original = args.clone();
+            assert_eq!(claude_launch_token(&mut args, true), Some(id.clone()));
+            assert_eq!(args, original);
+        }
+        for flags in [vec!["--continue"], vec!["-c"], vec!["--resume"], vec!["--resume", "named-session"], vec!["--fork-session"]] {
+            let mut args: Vec<String> = flags.iter().map(|value| value.to_string()).collect();
+            let original = args.clone();
+            assert_eq!(claude_launch_token(&mut args, true), None);
+            assert_eq!(args, original);
+        }
+        let mut custom = vec!["wrapper-arg".to_string()];
+        assert_eq!(claude_launch_token(&mut custom, false), None);
+        assert_eq!(custom, vec!["wrapper-arg".to_string()]);
+    }
 
     #[cfg(windows)]
     #[test]

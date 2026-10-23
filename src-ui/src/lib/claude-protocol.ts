@@ -22,6 +22,7 @@ export interface ClaudeMessage extends ChatMessage {
   endedAt?: number;
   parentId?: string;
   streamKey?: string;
+  interrupted?: boolean;
 }
 export interface ClaudeModel {
   value: string;
@@ -58,6 +59,8 @@ export interface ClaudeState {
   startedAt?: number;
   endedAt?: number;
   error?: string;
+  interruptRequested?: boolean;
+  interrupted?: boolean;
   errorKey?: 'claude.error.request_failed' | 'claude.error.process_exited' | 'claude.error.settings_readback' | 'claude.error.restart';
   currentMessageId: string;
   contextTokens: number;
@@ -93,10 +96,10 @@ export function reduceClaudeEvent(state: ClaudeState, frame: Json, now = Date.no
     s.messages.push(result ? { ...message, ...result } : message);
     if (result) { s.orphanToolResults = { ...s.orphanToolResults }; delete s.orphanToolResults[message.id]; }
   };
-  const finish = () => {
+  const finish = (interrupted = false) => {
     s.busy = false; s.status = 'idle'; s.endedAt = now; s.thinkingTokens = undefined;
     s.messages = s.messages.map(m => m.partial || m.toolStatus === 'running'
-      ? { ...m, partial: false, endedAt: m.endedAt ?? now, ...(m.toolStatus === 'running' ? { toolStatus: 'failed' as const, output: m.output || 'Interrupted' } : {}) } : m);
+      ? { ...m, partial: false, endedAt: m.endedAt ?? now, ...(m.toolStatus === 'running' ? { toolStatus: 'failed' as const, output: m.output || 'Interrupted', interrupted } : {}) } : m);
   };
   if (frame.type === 'stream_event') {
     const e = object(frame.event), block = object(e.content_block), delta = object(e.delta);
@@ -176,7 +179,9 @@ export function reduceClaudeEvent(state: ClaudeState, frame: Json, now = Date.no
   } else if (frame.type === 'tool_progress') {
     s.status = 'tool';
   } else if (frame.type === 'result') {
-    finish(); s.requests = [];
+    const interrupted = !historical && s.interruptRequested === true;
+    s.interruptRequested = false; s.interrupted = interrupted;
+    finish(interrupted); s.requests = [];
     s.pendingTurns = Math.max(0, s.pendingTurns - 1);
     if (s.pendingTurns) { s.busy = true; s.status = 'working'; s.startedAt = now; s.endedAt = undefined; }
     if (!historical) {
@@ -184,10 +189,17 @@ export function reduceClaudeEvent(state: ClaudeState, frame: Json, now = Date.no
       if (typeof frame.total_cost_usd === 'number') s.totalCost = frame.total_cost_usd;
       const model = object(s.modelUsage[s.model] ?? Object.values(s.modelUsage)[0]);
       s.contextWindow = number(model.contextWindow) || s.contextWindow;
-      if (frame.is_error) { s.error = list(frame.errors).map(String).join('\n'); s.errorKey = s.error ? undefined : 'claude.error.request_failed'; s.error ||= 'Claude request failed'; }
+      if (frame.is_error) {
+        const errors = list(frame.errors).map(String);
+        // Only a locally requested stop can downgrade interruption diagnostics.
+        // Provider/API failures alongside them must still remain visible.
+        const visible = interrupted ? errors.filter(error => !/^\[ede_diagnostic\]\s+result_type=user\s+last_content_type=n\/a\s+stop_reason=tool_use\s*$/.test(error) && !/^\[?Request interrupted by user(?: for tool use)?\]?$/.test(error)) : errors;
+        if (!interrupted || !errors.length || visible.length) { s.error = visible.join('\n'); s.errorKey = s.error ? undefined : 'claude.error.request_failed'; s.error ||= 'Claude request failed'; }
+      }
     }
   } else if (frame.type === 'coffee_exit') {
     const busy = s.busy; finish(); s.ready = false; s.pendingTurns = 0; s.requests = [];
+    s.interruptRequested = false;
     if (number(frame.code) !== 0 || busy) { s.error = text(frame.detail); s.errorKey = s.error ? undefined : 'claude.error.process_exited'; s.error ||= 'Claude process exited'; }
   }
   const usage = frame.type === 'assistant' ? object(object(frame.message).usage) : frame.type === 'stream_event' && object(frame.event).type === 'message_start' ? object(object(object(frame.event).message).usage) : {};

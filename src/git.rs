@@ -582,7 +582,7 @@ pub(crate) fn project_snapshot(folder: &str) -> serde_json::Value {
     }
 }
 
-fn project_git_output(folder: &str, args: &[&str]) -> Result<String, String> {
+pub(crate) fn project_git_output(folder: &str, args: &[&str]) -> Result<String, String> {
     project_git_read(folder, args, false)
 }
 

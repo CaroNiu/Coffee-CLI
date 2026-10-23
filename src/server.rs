@@ -996,6 +996,13 @@ fn tier_terminal_start_blocking(
         _ => (cmd, args),
     };
 
+    let mut args = args;
+    let native_token = if tool.as_deref() == Some("claude") {
+        terminal::claude_launch_token(&mut args, launch_config.command.trim().is_empty())
+    } else {
+        None
+    };
+
     // If a session with the same ID already exists (e.g. restart-in-place),
     // forcefully kill and remove it before spawning a fresh one.
     {
@@ -1051,6 +1058,13 @@ fn tier_terminal_start_blocking(
         extra_env,
         launch_config,
     ).map_err(|e| format!("Failed to spawn PTY: {}", e))?;
+
+    if let Some(token) = native_token {
+        if let Some(session) = terminal_session.lock().unwrap().get(&session_id) {
+            *session.session_token.lock().unwrap() = Some(token.clone());
+        }
+        let _ = app.emit("tier-terminal-token", terminal::SessionTokenPayload { id: session_id.clone(), token });
+    }
 
     // Emit the initial CWD to the frontend so the left panel can map immediately.
     // On Windows, cmd.exe does not emit OSC 7, and full-screen agents enter alt-screen
@@ -5253,6 +5267,7 @@ pub fn start_ui(pending_launch: Option<crate::launch::LaunchRequest>) -> anyhow:
             get_all_tool_configs,
             set_tool_config,
             crate::git::git_changes,
+            crate::git_project_status::git_project_status,
             crate::git::git_show_file,
             crate::git::git_init,
             crate::git::git_capture_baseline,

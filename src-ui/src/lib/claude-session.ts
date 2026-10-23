@@ -83,7 +83,7 @@ export async function sendClaudeMessage(id: string, prompt: string): Promise<boo
   if (!c.state.ready || c.restarting) return false;
   const snapshot = c.state;
   const pendingId = `pending:${crypto.randomUUID()}`, now = Date.now();
-  c.state = { ...c.state, busy: true, pendingTurns: c.state.pendingTurns + 1, status: c.state.busy ? c.state.status : 'working', error: undefined, errorKey: undefined, startedAt: c.state.busy ? c.state.startedAt : now, endedAt: undefined,
+  c.state = { ...c.state, busy: true, interrupted: false, pendingTurns: c.state.pendingTurns + 1, status: c.state.busy ? c.state.status : 'working', error: undefined, errorKey: undefined, startedAt: c.state.busy ? c.state.startedAt : now, endedAt: undefined,
     messages: [...c.state.messages, { id: pendingId, role: 'user', content: prompt, timestamp: now }] };
   publish(c, true);
   try { await invoke('claude_session_send', { id, generation: c.generation, text: prompt }); return true; }
@@ -109,10 +109,12 @@ export async function controlClaude(id: string, request: Json): Promise<Json> {
   const c = client(id);
   if (!c.state.ready && (request.subtype !== 'interrupt' || !c.state.nativeId)) throw new Error('Claude 尚未就绪');
   if (request.subtype === 'set_permission_mode' && request.mode === 'bypassPermissions' && !c.state.bypassAvailable) return restartWithBypass(id, c);
+  const interrupting = request.subtype === 'interrupt' && c.state.busy;
+  if (interrupting) { c.state = { ...c.state, interruptRequested: true }; publish(c, true); }
   let errorKey: ClaudeState['errorKey'];
   try {
     const result = await invoke<Json>('claude_session_control', { id, generation: c.generation, request });
-    const patch: Partial<ClaudeState> = { error: c.state.ready ? undefined : c.state.error, errorKey: c.state.ready ? undefined : c.state.errorKey };
+    const patch: Partial<ClaudeState> = request.subtype === 'interrupt' ? {} : { error: c.state.ready ? undefined : c.state.error, errorKey: c.state.ready ? undefined : c.state.errorKey };
     if (request.subtype === 'set_model') patch.model = text(request.model);
     if (request.subtype === 'set_permission_mode') patch.permissionMode = text(request.mode);
     if (request.subtype === 'apply_flag_settings') {
@@ -131,7 +133,7 @@ export async function controlClaude(id: string, request: Json): Promise<Json> {
       if (typeof applied.ultracode === 'boolean') patch.ultracode = applied.ultracode;
     }
     c.state = { ...c.state, ...patch }; publish(c, true); return result;
-  } catch (error) { c.state = { ...c.state, error: String(error), errorKey }; publish(c, true); throw error; }
+  } catch (error) { c.state = { ...c.state, ...(interrupting ? { interruptRequested: false } : {}), error: String(error), errorKey }; publish(c, true); throw error; }
 }
 
 function waitUntilIdle(c: Client): Promise<void> {

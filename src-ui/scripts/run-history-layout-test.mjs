@@ -64,6 +64,23 @@ assert.equal(matches(original[9], 'internal/workspace'), false, 'directoryless t
 assert.equal(matches(original[0], 'no such conversation'), false);
 console.log('OK: hidden/pinned sessions, stable cache, directory grouping, duplicate names, case-sensitive paths, directoryless tools, collapse/toggle, renamed title and project/tool search');
 
+context.state = { terminals: [
+  { tool: 'claude', resumeToken: 'active', agentStatus: 'working', folderPath: 'D:/same' },
+  { tool: 'claude', resumeToken: 'idle', agentStatus: 'idle', folderPath: 'D:/same' },
+  { tool: 'codex', resumeToken: 'waiting', agentStatus: 'wait_input' },
+  { tool: 'kimicode', resumeToken: 'active', agentStatus: 'idle' },
+  { tool: 'hermes', agentStatus: 'working', folderPath: 'D:/same' },
+] };
+let working = evaluate('workingSessions');
+assert.deepEqual(Array.from(working), ['claude:active'], 'only the exact working tool/token is projected; cwd and unknown tokens never bind');
+context.state.terminals[0].agentStatus = 'idle';
+assert.equal(evaluate('workingSessions').size, 0, 'finished tasks release the spinner slot');
+context.state.terminals[0].agentStatus = 'wait_input';
+assert.equal(evaluate('workingSessions').size, 0, 'permission waiting is not shown as working');
+context.state.terminals = [];
+assert.equal(evaluate('workingSessions').size, 0, 'closing a tab clears its indicator');
+console.log('OK: history working state uses exact native identity and clears for waiting, completion and closed tabs');
+
 // Exercise the real history click handler together with the shared reducer.
 const store = ts.createSourceFile('app-state.tsx', readFileSync(new URL('../src/store/app-state.tsx', import.meta.url), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const declarations = ['getTabOrder', 'reducer'].map(name => store.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === name).getText(store).replace(/^export\s+/, ''));

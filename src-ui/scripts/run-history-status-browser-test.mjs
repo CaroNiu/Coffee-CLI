@@ -1,0 +1,110 @@
+// Real HistoryBoard + CSS in an isolated browser. No CLI, account or model calls.
+import assert from 'node:assert/strict';
+import { mkdtemp, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import http from 'node:http';
+import { build } from 'esbuild';
+
+const { chromium } = await import(process.env.COFFEE_PLAYWRIGHT_MODULE || 'playwright-core');
+const project = fileURLToPath(new URL('..', import.meta.url));
+const directory = await mkdtemp(join(tmpdir(), 'coffee-history-status-'));
+const mock = `
+  import {useSyncExternalStore} from 'react';
+  let state={currentLang:'en',terminals:[{id:'a',tool:'claude',resumeToken:'one',agentStatus:'working',folderPath:'D:/same'},{id:'b',tool:'claude',resumeToken:'two',agentStatus:'idle',folderPath:'D:/same'}]};
+  const listeners=new Set();
+  window.updateStatus=status=>{state={...state,terminals:state.terminals.map(t=>t.id==='a'?{...t,agentStatus:status}:t)};listeners.forEach(fn=>fn())};
+  export function useAppState(){return {state:useSyncExternalStore(fn=>{listeners.add(fn);return()=>listeners.delete(fn)},()=>state),dispatch(){window.opened=true}}}
+  export function useAppLanguage(){return 'en'};
+  const sessions=[{id:'one',tool:'claude',session_token:'one',name:'Working on the first task',cwd:'D:/same',saved_at:'2026-10-23T00:00:00Z'},{id:'two',tool:'claude',session_token:'two',name:'Another task in the same folder',cwd:'D:/same',saved_at:'2026-10-22T00:00:00Z'},{id:'other',tool:'codex',session_token:'one',name:'Different tool with the same token',cwd:'D:/same',saved_at:'2026-10-21T00:00:00Z'}];
+  const snapshot={sessions,status:'ready'}, emptySet=new Set(), emptyObject={}, agent={conversations:[]};
+  export const commands={async gitProjectStatus(folder){window.gitReadCount=(window.gitReadCount||0)+1;const p=new URLSearchParams(location.search),pr=p.get('pr')||'open';return {repo_root:folder,branch:'feature/ui',github:'ok',pull_request:{number:42,url:'https://github.com/example/repo/pull/42',state:pr,ci:pr==='open'?(p.get('ci')||'success'):null}}}},isTauri=true;
+  export const subscribeHistory=()=>()=>{},getHistorySnapshot=()=>snapshot,prefetchHistory=()=>{},refreshHistory=()=>{},sortByMtime=s=>s;
+  export const subscribeHidden=()=>()=>{},getHiddenSnapshot=()=>emptySet,hideSession=()=>{window.deleted=true};
+  export const subscribePinned=()=>()=>{},getPinnedSnapshot=()=>emptySet;
+  export const subscribeRenamed=()=>()=>{},getRenamedSnapshot=()=>emptyObject,setCustomName=()=>{};
+  export const useAgentClient=()=>agent,refreshAgentConversations=async()=>{},openAgentConversation=async()=>{};
+  export const useTextContextMenu=()=>({menu:null,openMenu(){}}),SessionContextMenu=()=>null;
+`;
+await build({
+  stdin: { resolveDir: project, loader: 'tsx', contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {HistoryBoard} from './src/components/right/HistoryBoard';createRoot(document.getElementById('root')).render(<HistoryBoard/>);` },
+  bundle: true, outfile: join(directory, 'fixture.js'), jsx: 'automatic',
+  nodePaths: [join(project, 'node_modules')], loader: { '.png': 'dataurl' },
+  define: { 'process.env.NODE_ENV': '"development"' },
+  plugins: [{ name: 'isolated-history', setup(builder) {
+    builder.onResolve({ filter: /(?:store\/app-state|tauri|lib\/(?:history-cache|hidden-sessions|pinned-sessions|renamed-sessions|agent-client|use-text-context-menu)|SessionContextMenu)$/ }, () => ({ path: 'mock', namespace: 'fixture' }));
+    builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: mock, resolveDir: project, loader: 'js' }));
+    builder.onResolve({ filter: /\.(?:svg|png)\?(?:inline|raw)$/ }, args => ({ path: resolve(args.resolveDir, args.path.split('?')[0]), namespace: 'asset' }));
+    builder.onLoad({ filter: /.*/, namespace: 'asset' }, async args => ({ contents: `export default ${JSON.stringify(args.path.endsWith('.svg') ? await readFile(args.path, 'utf8') : '')}`, loader: 'js' }));
+  } }],
+});
+const html = `<!doctype html><link rel="stylesheet" href="/fixture.css"><style>
+*{box-sizing:border-box}body{margin:0;background:#181419;color:#ddd;font:15px system-ui}:root{--accent:#ce829c;--text-1:#ddd;--text-2:#aba1aa;--bg-hover:#30252d;--font:system-ui}#root{width:260px;padding:8px}
+</style><div id="root"></div><script src="/fixture.js"></script>`;
+const server = http.createServer(async (req, res) => {
+  if (req.url.split('?')[0] === '/') return res.setHeader('Content-Type', 'text/html').end(html);
+  if (!['/fixture.js', '/fixture.css'].includes(req.url)) return res.writeHead(404).end();
+  res.setHeader('Content-Type', req.url.endsWith('.js') ? 'text/javascript' : 'text/css');
+  res.end(await readFile(join(directory, req.url.slice(1))));
+});
+await new Promise(accept => server.listen(0, '127.0.0.1', accept));
+const browser = await chromium.launch({ headless: true, ...(process.env.COFFEE_CHROMIUM_EXECUTABLE ? { executablePath: process.env.COFFEE_CHROMIUM_EXECUTABLE } : {}) });
+try {
+  const page = await browser.newPage({ viewport: { width: 640, height: 400 } });
+  const errors = []; page.on('pageerror', error => errors.push(error.message));
+  await page.goto(`http://127.0.0.1:${server.address().port}`);
+  const rows = page.locator('.history-card');
+  await rows.first().waitFor();
+  assert.equal(await rows.count(), 3);
+  await rows.nth(1).locator('.history-git-mark').waitFor();
+  assert.equal(await page.evaluate(()=>window.gitReadCount),1,'shared folders use one metadata request');
+  assert.match(await rows.nth(1).locator('.history-git-mark').getAttribute('title'),/feature\/ui.*#42 Open.*Passed/);
+  assert.equal(await rows.nth(2).locator('.history-git-mark').count(),0,'closed history is not assigned the current project PR');
+  assert.equal(await page.locator('.history-card-working').count(), 1, 'same folder/cross-tool tokens do not acquire another task status');
+  const working = rows.first();
+  const circle = working.locator('.history-card-working-indicator');
+  assert.equal(await circle.isVisible(), true);
+  assert.equal(await circle.locator('span').evaluate(el => getComputedStyle(el).animationName), 'history-working-spin');
+  await page.screenshot({ path: join(directory, 'history-working.png') });
+  const titleWidth = await working.locator('.history-card-title').evaluate(el => el.getBoundingClientRect().width);
+  await working.hover();
+  assert.equal(await circle.isVisible(), false);
+  assert.equal(await working.locator('.history-card-delete-btn').evaluate(el => getComputedStyle(el).opacity), '1');
+  assert.equal(await working.locator('.history-card-title').evaluate(el => el.getBoundingClientRect().width), titleWidth, 'hover swaps actions without moving title');
+  await page.mouse.move(500, 300);
+  await working.locator('.history-card-delete-btn').focus();
+  assert.equal(await circle.isVisible(), false, 'keyboard focus reveals delete');
+  await page.locator('.history-search-trigger').focus();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  assert.equal(await circle.locator('span').evaluate(el => getComputedStyle(el).animationName), 'none');
+  for (const status of ['wait_input', 'idle', undefined]) {
+    await page.evaluate(status => window.updateStatus(status), status);
+    await page.waitForFunction(() => !document.querySelector('.history-card-working-indicator'));
+  }
+  await page.evaluate(() => window.updateStatus('working'));
+  await circle.waitFor({ state: 'visible' });
+  await working.hover();
+  await working.locator('.history-card-delete-btn').click();
+  assert.equal(await page.evaluate(() => window.deleted && !window.opened), true, 'delete does not resume/open a task');
+  for(const [state,ci] of [['open','failure'],['open','pending'],['draft',null],['merged',null],['closed',null]]) {
+    await page.evaluate(()=>localStorage.setItem('cc-history-layout','list'));
+    await page.goto(`http://127.0.0.1:${server.address().port}/?pr=${state}&ci=${ci??''}`);
+    const mark=page.locator('.history-card').nth(1).locator('.history-git-mark');
+    await mark.waitFor();
+    assert.ok((await mark.getAttribute('class')).includes('is-'+state));
+    assert.equal(await mark.locator('.history-git-ci').count(),ci?1:0);
+    if(ci) assert.ok((await mark.locator('.history-git-ci').getAttribute('class')).includes('is-'+ci));
+    await page.mouse.move(500,300);
+    await page.screenshot({path:join(directory,`git-${state}-${ci??'none'}.png`)});
+    assert.equal(await page.locator('.history-card').first().locator('.history-git-mark').count(),0,'working spinner wins over PR status');
+    await page.locator('.history-layout-toggle').click();
+    await page.locator('.history-project-row .history-git-mark').waitFor();
+  }
+  assert.deepEqual(errors, []);
+  console.log('OK: real history rows, exact status identity, spinner/hover/keyboard actions, reduced motion, state clearing, deletion and Git/PR/CI project marks');
+  console.log(`Screenshot: ${join(directory, 'history-working.png')}`);
+} finally {
+  await browser.close();
+  await new Promise(done => server.close(done));
+}

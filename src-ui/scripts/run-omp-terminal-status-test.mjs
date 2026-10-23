@@ -12,6 +12,8 @@ const bundle = await build({
       export { parseOmpTerminalTitle } from './src/lib/omp-terminal-title';
       export { parseClaudeTerminalTitle } from './src/lib/claude-terminal-title';
       export { supportsAgentStatus } from './src/store/app-state';
+      export { parseAdditionalAgentTitle, supportsAdditionalAgentStatus } from './src/lib/terminal-agent-status';
+      export { parseTerminalAgentStatus } from './src/lib/terminal-interaction';
     `,
     resolveDir: fileURLToPath(new URL('..', import.meta.url)),
   },
@@ -24,7 +26,7 @@ const reducer = stateSource.statements.find(node => ts.isFunctionDeclaration(nod
 const statusBlock = tierSource.slice(tierSource.indexOf('    const usesAgentStatus ='), tierSource.indexOf('    const fit = new FitAddon();'));
 const titleBlock = tierSource.slice(tierSource.indexOf('    let lastTabTitle:'), tierSource.indexOf('    // Debug: track when cursor moves'));
 assert.ok(statusBlock && titleBlock, 'extract the production status and title handlers');
-const code = ts.transpileModule(`${reducer}\n${statusBlock}\n${titleBlock}\n({ reducer, submit: markAgentSubmission });`, {
+const code = ts.transpileModule(`${reducer}\n${statusBlock}\n${titleBlock}\n({ reducer, submit: markAgentSubmission, publishScreenStatus, scheduleScreenIdle, exit(){ publishScreenStatus('idle'); ptyEnded = true; } });`, {
   compilerOptions: { target: ts.ScriptTarget.ES2022 },
 }).outputText;
 
@@ -33,12 +35,14 @@ function fixture(tool = 'omp') {
   let state = { terminals: [{ id: 'test', tool, agentStatus: 'idle' }] };
   const actions = [];
   const timers = new Map();
+  let screen = [];
   let timerId = 0;
   const api = runInNewContext(code, {
-    ...production, tool, sessionId: 'test', unlisteners: [],
+    ...production, tool, sessionId: 'test', unlisteners: [], mounted: true, ptyEnded: false,
     hasTerminalInteraction: () => false,
     confirmTerminalAgentStatus: () => {},
     markSentinelWorking: () => {},
+    readTerminalScreen: () => screen,
     term: { onTitleChange(callback) { listener = callback; } },
     window: {
       setTimeout(callback) { timers.set(++timerId, callback); return timerId; },
@@ -48,6 +52,10 @@ function fixture(tool = 'omp') {
   });
   return {
     submit: api.submit,
+    screen: lines => { screen = lines.map(text => ({ text, bold: false })); },
+    publish: api.publishScreenStatus,
+    settle: api.scheduleScreenIdle,
+    exit: api.exit,
     title: title => listener(title),
     state: () => state,
     expectStatus: expected => assert.equal(state.terminals[0].agentStatus, expected),
@@ -106,3 +114,26 @@ for (const tool of ['claude', 'codex', 'kimicode']) {
   other.flushTimers(); other.expectStatus('idle');
 }
 console.log('OK: OMP/Claude title lifecycle, current/legacy Claude frames, pending selectors, empty Enter, state/title deduplication, and existing-tool submission behavior');
+
+for (const tool of ['qwen', 'hermes', 'grok', 'antigravity', 'pi', 'copilot', 'cursor', 'cline', 'kiro', 'muse', 'mimocode', 'kilo']) {
+  const terminal = fixture(tool);
+  terminal.submit(); terminal.flushTimers(); terminal.expectStatus('idle');
+  assert.equal(terminal.actions.length, 0, `${tool}: Enter alone is not working evidence`);
+}
+const qwen = fixture('qwen');
+qwen.title('◐ project'); qwen.expectStatus('working');
+qwen.flushTimers(); qwen.expectStatus('working');
+qwen.title('✳︎ project'); qwen.expectStatus('wait_input');
+qwen.title('project'); qwen.flushTimers(); qwen.expectStatus('idle');
+const hermes = fixture('hermes');
+hermes.title('⏳ project'); hermes.expectStatus('working');
+hermes.settle(); hermes.flushTimers(); hermes.expectStatus('working');
+hermes.title('⚠ project'); hermes.expectStatus('wait_input');
+hermes.title('✓ project'); hermes.expectStatus('idle');
+const pi = fixture('pi');
+pi.screen(['⠋ Working']); pi.publish('working');
+pi.settle(); pi.flushTimers(); pi.expectStatus('working');
+pi.screen(['Ready for another prompt']); pi.settle(); pi.flushTimers(); pi.expectStatus('idle');
+hermes.title('⏳ project'); hermes.settle(); hermes.exit();
+hermes.title('⏳ stale title after exit'); hermes.flushTimers(); hermes.expectStatus('idle');
+console.log('OK: new CLI Enter guards, native working/waiting/idle transitions, silent live spinners and removed working chrome');
