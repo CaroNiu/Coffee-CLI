@@ -6,7 +6,7 @@ import { useT } from '../../i18n/useT';
 import { claudeEffortLabel } from '../../lib/claude-i18n';
 import './ClaudeComposerControls.css';
 
-type Menu = 'commands' | 'model' | 'effort' | 'permissions' | null;
+type Menu = 'commands' | 'model' | 'effort' | 'permissions' | 'context' | null;
 export function ClaudeComposerControls({ sessionId, draft, onDraftChange, keyHandler }: {
   sessionId: string; draft: string; onDraftChange: (value: string) => void;
   keyHandler: MutableRefObject<((event: KeyboardEvent<HTMLTextAreaElement>) => boolean) | undefined>;
@@ -24,6 +24,8 @@ export function ClaudeComposerControls({ sessionId, draft, onDraftChange, keyHan
   latestDraft.current = draft;
   const model = s.models.find(m => m.value === s.model) ?? s.models.find(m => m.resolvedModel === s.model) ?? s.models[0];
   const effort = s.ultracode ? 'ultracode' : s.effort;
+  const contextPercent = s.contextWindow > 0 ? Math.max(0, Math.min(100, s.contextTokens / s.contextWindow * 100)) : 0;
+  const contextSeverity = contextPercent >= 90 ? 'critical' : contextPercent >= 75 ? 'warning' : 'normal';
   const slash = /^\/[\w:-]*$/.test(draft) && dismissed !== draft;
   const shown = menu ?? (slash ? 'commands' : null);
   useLayoutEffect(() => {
@@ -31,8 +33,8 @@ export function ClaudeComposerControls({ sessionId, draft, onDraftChange, keyHan
     const update = () => {
       const rect = anchors.current[shown]?.getBoundingClientRect();
       if (!rect) return;
-      const width = Math.min(shown === 'effort' ? 320 : 480, window.innerWidth - 16);
-      const left = shown === 'model' || shown === 'effort' ? rect.right - width : rect.left;
+      const width = Math.min(shown === 'context' ? 220 : shown === 'effort' ? 320 : 480, window.innerWidth - 16);
+      const left = shown === 'model' || shown === 'effort' || shown === 'context' ? rect.right - width : rect.left;
       setPosition({ left: Math.max(8, Math.min(left, window.innerWidth - width - 8)), bottom: window.innerHeight - rect.top + 6, width, maxHeight: Math.max(0, rect.top - 14) });
     };
     update();
@@ -110,10 +112,12 @@ export function ClaudeComposerControls({ sessionId, draft, onDraftChange, keyHan
     <div className="claude-model-controls">
     <button ref={el => { anchors.current.model = el; }} className="claude-model-control" disabled={!s.ready} onClick={() => shown === 'model' ? close() : open('model')} aria-expanded={shown === 'model'} aria-label={t('claude.model')}>{model?.resolvedModel || s.model || 'Claude'}</button>
     {model?.supportsEffort && <button ref={el => { anchors.current.effort = el; }} className={`claude-effort-trigger${s.ultracode ? ' is-ultracode' : ''}`} disabled={!s.ready} onClick={() => shown === 'effort' ? close() : open('effort')} aria-expanded={shown === 'effort'} aria-label={t('claude.effort.title')}>{claudeEffortLabel(effort, t)}</button>}
-    {s.contextWindow > 0 && <span className="claude-context-count" aria-label={t('claude.context_used')}>{Math.round(s.contextTokens / s.contextWindow * 100)}%</span>}
+    {s.contextWindow > 0 && <button ref={el => { anchors.current.context = el; }} className="claude-context-control" data-severity={contextSeverity} aria-label={`${t('claude.context_used')}: ${Math.round(contextPercent)}%`} aria-haspopup="dialog" aria-expanded={shown === 'context'} onClick={() => shown === 'context' ? close() : open('context')}>
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle className="claude-context-track" cx="8" cy="8" r="6" /><circle className="claude-context-progress" cx="8" cy="8" r="6" pathLength="100" strokeDasharray="100" strokeDashoffset={100 - contextPercent} /></svg>
+    </button>}
     </div>
-    {shown && createPortal(<div className="claude-control-menu" ref={popup} role="dialog" aria-label={t(shown === 'commands' ? 'claude.commands' : shown === 'model' ? 'claude.model' : shown === 'effort' ? 'claude.effort.title' : 'claude.permissions')} style={position} onMouseDown={e => e.stopPropagation()}>
-      {shown === 'commands' ? commands.length ? commands.map((c, i) => <button key={c.name} className={i === selected ? 'is-selected' : ''} onMouseEnter={() => setSelected(i)} onClick={() => chooseCommand(i)}><strong>/{c.name}</strong><small>{c.description}</small></button>) : <div className="claude-menu-empty">{t('claude.commands_empty')}</div> : shown === 'permissions' ? modes.map(m => <button key={m.value} disabled={pending} className={s.permissionMode === m.value ? 'is-selected' : ''} onClick={() => void change({ subtype: 'set_permission_mode', mode: m.value }, true)}><strong>{m.label}{s.permissionMode === m.value ? ' ✓' : ''}</strong><small>{m.description}</small></button>) : <>
+    {shown && createPortal(<div className="claude-control-menu" ref={popup} role="dialog" aria-label={t(shown === 'context' ? 'claude.context_window' : shown === 'commands' ? 'claude.commands' : shown === 'model' ? 'claude.model' : shown === 'effort' ? 'claude.effort.title' : 'claude.permissions')} style={position} onMouseDown={e => e.stopPropagation()}>
+      {shown === 'context' ? <div className="claude-context-readout"><span>{t('claude.context_window')}</span><span>{Math.round(contextPercent)}%</span></div> : shown === 'commands' ? commands.length ? commands.map((c, i) => <button key={c.name} className={i === selected ? 'is-selected' : ''} onMouseEnter={() => setSelected(i)} onClick={() => chooseCommand(i)}><strong>/{c.name}</strong><small>{c.description}</small></button>) : <div className="claude-menu-empty">{t('claude.commands_empty')}</div> : shown === 'permissions' ? modes.map(m => <button key={m.value} disabled={pending} className={s.permissionMode === m.value ? 'is-selected' : ''} onClick={() => void change({ subtype: 'set_permission_mode', mode: m.value }, true)}><strong>{m.label}{s.permissionMode === m.value ? ' ✓' : ''}</strong><small>{m.description}</small></button>) : <>
         {shown === 'model' && s.models.map(m => <button key={m.value} disabled={pending} className={m.value === model?.value ? 'is-selected' : ''} onClick={() => void change({ subtype: 'set_model', model: m.value })}><strong>{m.displayName}{m.value === model?.value ? ' ✓' : ''}</strong><small>{m.description}</small></button>)}
         {shown === 'effort' && model?.supportsEffort && <ClaudeEffortControl key={`${sessionId}:${model.value}`} levels={[...(model.supportedEffortLevels ?? []), 'ultracode']} value={effort} disabled={pending} onClose={() => { close(); anchors.current.effort?.focus(); }} onCommit={level => change({ subtype: 'apply_flag_settings', settings: level === 'ultracode' ? { effortLevel: 'xhigh', ultracode: true } : { effortLevel: level, ultracode: false } }, true)} />}
         {shown === 'effort' && model?.supportsThinkingOff && <button disabled={pending} onClick={() => void change({ subtype: 'apply_flag_settings', settings: { alwaysThinkingEnabled: !s.thinking } }, true)}><strong>{t('claude.thinking_extended')}</strong><span>{t(s.thinking ? 'settings.sound.on' : 'settings.sound.off')}</span></button>}

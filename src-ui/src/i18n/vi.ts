@@ -391,6 +391,7 @@ Xóa tờ ghi chú này khi bạn sẵn sàng và bắt đầu tác vụ đầu 
   'claude.permissions': 'Chế độ quyền Claude',
   'claude.model': 'Đổi mô hình Claude',
   'claude.context_used': 'Ngữ cảnh đã dùng',
+  'claude.context_window': 'Ngữ cảnh',
   'claude.commands_empty': 'Không có lệnh phù hợp',
   'claude.status.thinking': 'Đang suy nghĩ',
   'claude.status.brewing': 'Đang ấp ủ',

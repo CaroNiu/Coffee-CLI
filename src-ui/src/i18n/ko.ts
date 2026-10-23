@@ -390,6 +390,7 @@ export const ko = {
   'claude.permissions': 'Claude 권한 모드',
   'claude.model': 'Claude 모델 전환',
   'claude.context_used': '컨텍스트 사용량',
+  'claude.context_window': '컨텍스트',
   'claude.commands_empty': '일치하는 명령이 없습니다',
   'claude.status.thinking': '생각 중',
   'claude.status.brewing': '구상 중',

@@ -388,6 +388,7 @@ export const ru = {
   'claude.permissions': 'Режим разрешений Claude',
   'claude.model': 'Сменить модель Claude',
   'claude.context_used': 'Использование контекста',
+  'claude.context_window': 'Контекст',
   'claude.commands_empty': 'Нет подходящих команд',
   'claude.status.thinking': 'Размышление',
   'claude.status.brewing': 'Подготовка',

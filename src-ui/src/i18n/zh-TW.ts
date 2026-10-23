@@ -391,6 +391,7 @@ export const zhTW = {
   'claude.permissions': 'Claude 權限模式',
   'claude.model': '切換 Claude 模型',
   'claude.context_used': '上下文用量',
+  'claude.context_window': '上下文',
   'claude.commands_empty': '沒有符合的指令',
   'claude.status.thinking': '思考中',
   'claude.status.brewing': '醞釀中',

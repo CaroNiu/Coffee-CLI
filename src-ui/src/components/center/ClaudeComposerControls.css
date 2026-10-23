@@ -6,7 +6,16 @@
 .claude-composer-controls .claude-model-control { overflow:hidden; text-overflow:ellipsis; }
 .claude-composer-controls .claude-effort-trigger.is-ultracode { color:var(--accent); }
 .claude-model-controls { display:flex; align-items:center; gap:4px; margin-left:auto; min-width:0; }
-.claude-context-count { color:var(--text-3); font-size:12px; }
+.claude-composer-controls .claude-context-control { display:flex; align-items:center; justify-content:center; width:26px; padding:5px; flex-shrink:0; --context-color:var(--accent); }
+.claude-context-control[data-severity="warning"] { --context-color:var(--warning,#d6a34a); }
+.claude-context-control[data-severity="critical"] { --context-color:var(--danger,#df735f); }
+.claude-context-control svg { display:block; transform:rotate(-90deg); }
+.claude-context-control circle { fill:none; stroke-width:2px; }
+.claude-context-track { stroke:var(--border); }
+.claude-context-progress { stroke:var(--context-color); stroke-linecap:round; transition:stroke-dashoffset .3s,stroke .3s; }
+.claude-context-readout { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:8px; font-size:12px; color:var(--text-2); }
+.claude-context-readout > :last-child { font-variant-numeric:tabular-nums; }
+@media(prefers-reduced-motion:reduce) { .claude-context-progress { transition:none; } }
 .claude-control-menu { position:fixed; z-index:10020; display:flex; flex-direction:column; overflow:auto; padding:5px; background:var(--bg-panel,var(--bg-terminal)); border:1px solid var(--border); border-radius:var(--shape-radius-panel,8px); box-shadow:0 8px 30px #0005; color:var(--text-1); font:12px var(--font); }
 .claude-control-menu button { display:flex; align-items:baseline; justify-content:space-between; flex-shrink:0; text-align:left; gap:12px; padding:7px 9px; background:transparent; color:var(--text-1); border:0; border-radius:var(--shape-radius-btn,5px); font:inherit; cursor:pointer; }
 .claude-control-menu button:hover,.claude-control-menu button.is-selected { background:var(--accent-bg,var(--bg-hover)); }

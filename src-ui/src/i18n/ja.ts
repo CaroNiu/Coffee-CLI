@@ -390,6 +390,7 @@ export const ja = {
   'claude.permissions': 'Claude 権限モード',
   'claude.model': 'Claude モデルを切り替え',
   'claude.context_used': 'コンテキスト使用量',
+  'claude.context_window': 'コンテキスト',
   'claude.commands_empty': '一致するコマンドがありません',
   'claude.status.thinking': '思考中',
   'claude.status.brewing': '構想中',
