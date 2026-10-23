@@ -1,4 +1,8 @@
-import type { ToolType } from '../store/app-state';
+import type { TerminalSession, ToolType } from '../store/app-state';
+
+export function isClaudeConversation(session: Pick<TerminalSession, 'tool' | 'claudeMode'> | undefined): boolean {
+  return session?.tool === 'claude' && session.claudeMode !== 'terminal';
+}
 
 const ENHANCED_TOOLS = new Set<ToolType>([
   'claude', 'codex', 'kimicode',

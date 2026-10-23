@@ -2,11 +2,12 @@
 
 import { createContext, useContext, useLayoutEffect, useReducer, useRef } from 'react';
 import type { ReactNode, RefObject } from 'react';
-import { supportsEnhancedTool } from '../lib/chat-tools';
+import { isClaudeConversation, supportsEnhancedTool } from '../lib/chat-tools';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type ToolType = 'claude' | 'qwen' | 'installer' | 'hermes' | 'opencode' | 'mimocode' | 'kilo' | 'openclaw' | 'codex' | 'grok' | 'antigravity' | 'pi' | 'crush' | 'aider' | 'kimicode' | 'goose' | 'copilot' | 'cursor' | 'cline' | 'omp' | 'codebuddy' | 'muse' | 'kiro' | 'minimax' | 'terminal' | 'remote' | 'two-split' | 'three-split' | 'four-split' | null;
+export type ClaudeMode = 'conversation' | 'terminal';
 
 /**
  * Tab status shown as an animated 9-dot glyph. Three states only —
@@ -159,6 +160,7 @@ export interface TerminalSession {
   id: string;
   tool: ToolType;
   toolData?: string;  // Extra context for the tool (e.g. SSH connection JSON for remote)
+  claudeMode?: ClaudeMode;
   folderPath: string | null;
   /// Live terminal title set by the tool via OSC 0/2 (e.g. Claude Code's
   /// conversation summary). When set, the tab shows this instead of the cwd
@@ -349,11 +351,11 @@ type Action =
   | { type: 'SET_ICON_THEME'; theme: IconTheme }
   | { type: 'SET_LANG'; lang: string }
   | { type: 'ADD_TERMINAL'; session: TerminalSession }
-  | { type: 'LAUNCH_TERMINAL_TOOL'; id: string; tool: ToolType; cwd?: string; toolData?: string; resumeToken?: string; strictCwd?: boolean }
+  | { type: 'LAUNCH_TERMINAL_TOOL'; id: string; tool: ToolType; cwd?: string; toolData?: string; resumeToken?: string; strictCwd?: boolean; claudeMode?: ClaudeMode }
   | { type: 'REMOVE_TERMINAL'; id: string }
   | { type: 'REORDER_TAB'; tabId: string; beforeId: string | null }
   | { type: 'SET_ACTIVE_TERMINAL'; id: string | null }
-  | { type: 'SET_TERMINAL_TOOL'; id: string; tool: ToolType; toolData?: string; resumeToken?: string }
+  | { type: 'SET_TERMINAL_TOOL'; id: string; tool: ToolType; toolData?: string; resumeToken?: string; claudeMode?: ClaudeMode }
   | { type: 'SET_TERMINAL_HIDDEN'; id: string; isHidden: boolean }
   | { type: 'RESTART_TERMINAL'; id: string; newId: string }
   | { type: 'OPEN_HYPER_AGENT_TAB' }
@@ -373,6 +375,7 @@ type Action =
   | { type: 'SET_GAMBIT_DRAFT'; id: string; draft: string }
   | { type: 'APPEND_GAMBIT_DRAFT'; id: string; text: string }
   | { type: 'SET_SESSION_VIEW'; id: string; viewMode: 'terminal' | 'chat' }
+  | { type: 'SET_SESSION_TOKEN'; id: string; token: string }
   | { type: 'SET_CHAT_PENDING'; id: string; pending?: { text: string; sentAt: number } }
   | { type: 'SET_PANE_TOOL'; tabId: string; paneIdx: number; tool: ToolType; toolData?: string; folderPath?: string | null }
   | { type: 'SET_PANE_SENTINEL'; tabId: string; paneIdx: number; enabled: boolean }
@@ -475,6 +478,7 @@ function reducer(state: AppState, action: Action): AppState {
         ...previous, id: action.id, tool: action.tool,
         folderPath: action.cwd ?? previous?.folderPath ?? null,
         toolData: action.toolData, resumeToken: action.resumeToken, strictCwd: action.strictCwd,
+        claudeMode: action.tool === 'claude' ? action.claudeMode ?? 'conversation' : undefined,
         toolTitle: undefined, agentStatus: undefined, viewMode: 'terminal', chatPending: undefined, startedAt: Date.now(),
       };
       if (action.cwd) {
@@ -527,7 +531,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'SET_TERMINAL_TOOL':
       return {
         ...state,
-        terminals: state.terminals.map(t => t.id === action.id ? { ...t, tool: action.tool, toolData: action.toolData, resumeToken: action.resumeToken, toolTitle: undefined, agentStatus: undefined, viewMode: 'terminal', chatPending: undefined, startedAt: Date.now() } : t)
+        terminals: state.terminals.map(t => t.id === action.id ? { ...t, tool: action.tool, claudeMode: action.tool === 'claude' ? action.claudeMode ?? 'conversation' : undefined, toolData: action.toolData, resumeToken: action.resumeToken, toolTitle: undefined, agentStatus: undefined, viewMode: 'terminal', chatPending: undefined, startedAt: Date.now() } : t)
       };
     case 'SET_TERMINAL_HIDDEN':
       return {
@@ -575,6 +579,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'SET_DEFAULT_SHELL':
       return { ...state, defaultShell: action.shell };
     case 'TOGGLE_GAMBIT':
+      if (!state.agentPageActive && !state.diffTabActive && isClaudeConversation(state.terminals.find(t => t.id === state.activeTerminalId))) return state;
       return { ...state, gambitOpen: !state.gambitOpen };
     case 'TOGGLE_SETTINGS':
       return { ...state, settingsOpen: !state.settingsOpen };
@@ -598,6 +603,8 @@ function reducer(state: AppState, action: Action): AppState {
           ? { ...t, gambitDraft: `${t.gambitDraft ?? ''}${action.text}` }
           : t),
       };
+    case 'SET_SESSION_TOKEN':
+      return { ...state, terminals: state.terminals.map(t => t.id === action.id && t.resumeToken !== action.token ? { ...t, resumeToken: action.token } : t) };
     case 'SET_SESSION_VIEW':
       return {
         ...state,

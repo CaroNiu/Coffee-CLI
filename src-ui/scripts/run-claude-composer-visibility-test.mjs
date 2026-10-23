@@ -1,0 +1,95 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+import ts from 'typescript';
+
+function declaration(file, name) {
+  const source = ts.createSourceFile(file, fs.readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const node = source.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.text === name);
+  assert.ok(node, name);
+  return node.getText(source).replace(/^export /, '');
+}
+function evaluate(file, name, context = {}) {
+  return vm.runInNewContext(ts.transpileModule(`${declaration(file, name)}; ${name}`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React },
+  }).outputText, context);
+}
+const isClaudeConversation = evaluate('lib/chat-tools.ts', 'isClaudeConversation');
+const reducer = evaluate('store/app-state.tsx', 'reducer', { isClaudeConversation, getTabOrder: state => state.tabOrder });
+const terminals = [{ id: 'claude', tool: 'claude' }, { id: 'terminal', tool: null }];
+let state;
+const effects = [];
+const terminalSends = [], claudeSends = [];
+const context = {
+  isClaudeConversation,
+  useAppState: () => ({ state, dispatch: action => { state = reducer(state, action); } }),
+  useAppDispatch: () => context.useAppState().dispatch,
+  useCallback: fn => fn, useEffect: fn => effects.push(fn), useT: () => key => key,
+  useClaudeSession: () => ({ busy: false }), getToolIcon: () => '', supportsConversationTool: () => false,
+  schemeLabels: () => ({ left: 'Alt+Q', gambit: 'Alt+W', right: 'Alt+E' }),
+  React: { createElement: (type, props, ...children) => ({ type, props, children }) },
+  Gambit: 'gambit', IS_MACOS: false,
+  isSplitTool: () => false,
+  submitTerminalPrompt: async (id, text) => terminalSends.push({ id, text }),
+  sendClaudeMessage: async (id, text) => { claudeSends.push({ id, text }); return true; },
+};
+const host = evaluate('components/center/ActiveGambit.tsx', 'ActiveGambit', context);
+const titlebar = evaluate('components/common/TitleBar.tsx', 'TitleBar', context);
+function buttons(node) {
+  if (!node || typeof node !== 'object') return [];
+  return [...(node.type === 'button' ? [node] : []), ...(node.children ?? []).flat(Infinity).flatMap(buttons)];
+}
+const toggle = () => buttons(titlebar()).find(b => b.props['aria-label']?.startsWith('Gambit compose'));
+for (const preference of [false, true]) {
+  state = { terminals, activeTerminalId: 'claude', gambitOpen: preference, agentPageActive: null, diffTabActive: false };
+  assert.equal(host().type, 'gambit', 'Claude always has its input, including a previously closed preference');
+  assert.equal(toggle().props.disabled, true);
+  assert.equal(toggle().props['aria-pressed'], true);
+  const before = state;
+  toggle().props.onClick();
+  assert.equal(state, before, 'titlebar toggle cannot close Claude or change the terminal preference');
+  host().props.onClose();
+  assert.equal(state, before, 'composer close cannot close Claude');
+  state = reducer(state, { type: 'TOGGLE_GAMBIT' });
+  assert.equal(state, before, 'hotkey uses the same guarded reducer');
+  state = { ...state, activeTerminalId: 'terminal' };
+  assert.equal(!!host(), preference, 'switching to a terminal restores its existing preference');
+  assert.equal(toggle().props.disabled, false);
+  toggle().props.onClick();
+  assert.equal(state.gambitOpen, !preference);
+  assert.equal(!!host(), !preference);
+  console.log(`OK: Claude is always open and ordinary terminal preference ${preference} survives tab switches`);
+}
+for (const surface of [{ agentPageActive: 'agent' }, { diffTabActive: true }]) {
+  state = { terminals, activeTerminalId: 'claude', gambitOpen: false, agentPageActive: null, diffTabActive: false, ...surface };
+  assert.equal(host(), null, 'hidden Claude does not mount an extra composer on another surface');
+  assert.equal(toggle().props.disabled, false);
+  toggle().props.onClick();
+  assert.equal(state.gambitOpen, true, 'other surfaces retain their existing toggle behavior');
+}
+state = { terminals, activeTerminalId: null, gambitOpen: false };
+assert.equal(host(), null, 'no composer without an active terminal');
+console.log('OK: Agent, diff and no-tab surfaces retain their existing behavior');
+
+state = { terminals: [{ id: 'native', tool: 'claude', claudeMode: 'terminal' }], activeTerminalId: 'native', gambitOpen: false };
+assert.equal(host(), null, 'native Claude terminal can keep Gambit closed');
+assert.equal(toggle().props.disabled, false);
+toggle().props.onClick();
+assert.equal(host().props.claude, false, 'native Claude uses ordinary terminal compose controls');
+assert.equal(host().props.canUseChat, false, 'native Claude does not restore the retired bubble view');
+console.log('OK: native Claude terminal retains its ordinary composer controls and toggle');
+assert.equal(await host().props.onSend('/plan keep this native'), true);
+assert.equal(terminalSends[0].text, '/plan keep this native');
+assert.equal(claudeSends.length, 0, 'native terminal prompts never go to the structured session');
+state = { ...state, terminals: [{ id: 'native', tool: 'claude', claudeMode: 'conversation' }] };
+assert.equal(await host().props.onSend('structured prompt'), true);
+assert.equal(claudeSends[0].text, 'structured prompt');
+assert.equal(terminalSends.length, 1, 'conversation prompts never go to the terminal');
+for (const mode of ['conversation', 'terminal']) {
+  const launched = reducer({ terminals: [{ id: 'new', tool: null }], tabOrder: ['new'] }, { type: 'LAUNCH_TERMINAL_TOOL', id: 'new', tool: 'claude', claudeMode: mode });
+  assert.equal(launched.terminals[0].claudeMode, mode);
+  assert.equal(isClaudeConversation(launched.terminals[0]), mode === 'conversation');
+  const restarted = reducer({ ...launched, activeTerminalId: 'new' }, { type: 'RESTART_TERMINAL', id: 'new', newId: 'restarted' });
+  assert.equal(restarted.terminals[0].claudeMode, mode, 'reconnect retains the tab mode');
+}
+console.log('OK: both launch modes route prompts to the correct backend and retain mode on restart');

@@ -221,6 +221,9 @@ async fn pick_folder(app: tauri::AppHandle) -> Result<String, String> {
 /// `~/.config/opencode/`, etc. on machines where the user hasn't
 /// installed the upstream CLI yet.
 pub(crate) fn binary_on_path(bin: &str) -> bool {
+    if bin == "claude" && dirs::home_dir().is_some_and(|home| home.join(".local/bin").join(if cfg!(windows) { "claude.exe" } else { "claude" }).is_file()) {
+        return true;
+    }
     #[cfg(target_os = "windows")]
     {
         check_tool_windows(bin)
@@ -5167,12 +5170,19 @@ pub fn start_ui(pending_launch: Option<crate::launch::LaunchRequest>) -> anyhow:
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(crate::channels::ChannelRuntime::default())
+        .manage(crate::claude_session::ClaudeSessions::default())
         .manage(AppState {
             terminal_session,
             fs_watcher: Mutex::new(None),
             pending_launch: Mutex::new(pending_launch),
         })
         .invoke_handler(tauri::generate_handler![
+            crate::claude_session::claude_session_start,
+            crate::claude_session::claude_session_history,
+            crate::claude_session::claude_session_send,
+            crate::claude_session::claude_session_control,
+            crate::claude_session::claude_session_respond,
+            crate::claude_session::claude_session_close,
             crate::fonts::list_system_fonts,
             agent_bridge_ready,
             crate::agent::agent_get_model,
@@ -5382,6 +5392,7 @@ pub fn start_ui(pending_launch: Option<crate::launch::LaunchRequest>) -> anyhow:
             }
 
             if matches!(event, tauri::RunEvent::ExitRequested { .. }) {
+                crate::claude_session::shutdown(&app_handle.state::<crate::claude_session::ClaudeSessions>());
                 let state = app_handle.state::<AppState>();
                 let mut n = 0usize;
                 if let Ok(mut map) = state.terminal_session.lock() {

@@ -28,7 +28,7 @@ pub static BACKGROUND_MODE: AtomicBool = AtomicBool::new(false);
 // and held the session lock under `~/.claude/`, so the next launch's Claude
 // Code tab failed to start (issue #28).
 #[cfg(target_os = "windows")]
-mod windows_job {
+pub(crate) mod windows_job {
     use std::sync::OnceLock;
     use windows::Win32::Foundation::{CloseHandle, HANDLE};
     use windows::Win32::System::JobObjects::{

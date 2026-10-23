@@ -223,6 +223,7 @@
     align-items: center;
     gap: 6px;
     flex: 0 1 auto;
+    margin-right: auto;
     min-width: 0;
     max-width: 200px;
     height: 30px; /* matches .gambit-send exactly */
@@ -340,48 +341,68 @@
     }
 }
 
-/* ─── Thumbnail strip (derived view of image paths in draft) ─ */
-/* Pure visual — no state of its own. Regex scans draft text for
-   absolute image paths; each unique match gets a thumb. Clicking a
-   thumb selects the matching path in the textarea, so Backspace
-   deletes the path (and hence the thumb) in one stroke. */
-/* Lives inside .gambit-footer as the left flex item. Thumbs align
-   left (default), send button sits flush right. Scrolls horizontally
-   when too many. min-width:0 so the flex item can actually shrink
-   below its content width (default would push the send button
-   off-screen with many thumbs). Thumb size matches the send button
-   (30×30) so the footer height stays constant whether thumbs are
-   present or not. */
-.gambit-thumb-strip {
+/* Shared attachment row above the input, derived from draft paths. */
+.gambit-attachments {
     display: flex;
     align-items: center;
     gap: 6px;
-    flex: 1;
-    min-width: 0;
-    overflow-x: auto;
-    /* Scrollbar hidden via global rule. */
-}
-
-.gambit-thumb {
     flex-shrink: 0;
-    width: 30px;
-    height: 30px;
-    border-radius: var(--shape-radius-btn, 6px);
-    overflow: hidden;
-    cursor: pointer;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    min-width: 0;
+    padding: 4px 12px 7px;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
 }
-.gambit-thumb img {
-    width: 100%;
-    height: 100%;
+.gambit-attachment {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 5px;
+    max-width: 260px;
+    height: 28px;
+    padding: 0 4px 0 6px;
+    border-radius: var(--shape-radius-btn, 6px);
+    background: var(--bg-hover);
+    color: var(--text-2);
+}
+.gambit-attachment-content {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text-1);
+    font: 12px var(--font);
+}
+.gambit-attachment-content span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gambit-attachment-content svg { flex-shrink: 0; }
+.gambit-attachment-content img {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
     object-fit: cover;
     display: block;
+    border-radius: var(--shape-radius-btn, 6px);
     user-select: none;
     -webkit-user-drag: none;
 }
-.gambit-thumb--broken {
-    display: none;
+.gambit-attachment-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--shape-radius-btn, 6px);
+    background: transparent;
+    color: var(--text-3);
+}
+.gambit-attachment-remove:hover, .gambit-attachment-remove:focus-visible {
+    background: var(--bg-panel);
+    color: var(--text-1);
 }
 
 /* ─── Preview overlay (fullscreen zoom-in) ───────────────────── */

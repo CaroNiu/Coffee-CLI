@@ -11,8 +11,8 @@
 // - Hands a stable set of props to the memoized Gambit component so parent
 //   re-renders don't ripple into it.
 //
-// Visibility is global (state.gambitOpen) so the panel doesn't flicker
-// in/out when the user switches tabs. Draft content remains per-tab —
+// Terminal visibility follows state.gambitOpen; Claude always needs its composer.
+// Draft content remains per-tab —
 // switching tabs swaps what's shown inside the (still-open) panel so
 // text can't be misdirected to the wrong terminal.
 
@@ -20,9 +20,10 @@ import { useCallback, useEffect } from 'react';
 import { useAppState, isSplitTool, paneSessionId, matchHotkeyScheme } from '../../store/app-state';
 import { submitTerminalPrompt } from '../../lib/terminal-control';
 import { getFocusedPane } from '../../lib/pane-focus';
-import { supportsConversationTool } from '../../lib/chat-tools';
+import { isClaudeConversation, supportsConversationTool } from '../../lib/chat-tools';
 import { getToolIcon } from './CenterPanel';
 import { Gambit } from './Gambit';
+import { controlClaude, sendClaudeMessage, useClaudeSession } from '../../lib/claude-session';
 
 // Last path segment of a folder, Windows ("\") and POSIX ("/") safe. Local copy
 // (CenterPanel has the same helper) — tiny, not worth a shared util yet.
@@ -55,8 +56,10 @@ export function ActiveGambit() {
     ? state.terminals.find(t => t.id === activeId)
     : undefined;
 
-  const gambitOpen = state.gambitOpen;
   const gambitDraft = activeSession?.gambitDraft ?? '';
+  const isClaude = isClaudeConversation(activeSession);
+  const gambitOpen = isClaude || state.gambitOpen;
+  const claude = useClaudeSession(isClaude ? activeId ?? '' : '');
   // Footer label telling the user where Send will land. Local sessions show
   // their working-folder name; SSH/WebSocket sessions show their connection
   // host, since folderPath may still contain the launchpad's previous folder.
@@ -70,7 +73,7 @@ export function ActiveGambit() {
   // Gambit target chip reads as "tool + target" (mirrors the tab's
   // icon+name pairing). null session → undefined → Gambit hides the icon.
   const toolIcon = activeSession ? getToolIcon(activeSession.tool) : undefined;
-  const canUseChat = supportsConversationTool(activeSession?.tool);
+  const canUseChat = activeSession?.tool !== 'claude' && supportsConversationTool(activeSession?.tool);
   const viewMode = canUseChat ? (activeSession?.viewMode ?? 'terminal') : 'terminal';
 
   const handleDraftChange = useCallback((draft: string) => {
@@ -104,6 +107,13 @@ export function ActiveGambit() {
   const handleSend = useCallback(async (text: string): Promise<boolean> => {
     if (!activeId) return false;
     const tool = activeSession?.tool ?? null;
+    if (isClaude) {
+      if (/^\/plan\s+\S/.test(text)) {
+        try { await controlClaude(activeId, { subtype: 'set_permission_mode', mode: 'plan' }); } catch { return false; }
+        return sendClaudeMessage(activeId, text.replace(/^\/plan\s+/, ''));
+      }
+      return sendClaudeMessage(activeId, text);
+    }
     let targetId = activeId;
     if (isSplitTool(tool)) {
       const paneIdx = getFocusedPane(activeId);
@@ -116,7 +126,7 @@ export function ActiveGambit() {
       dispatch({ type: 'SET_CHAT_PENDING', id: activeId, pending: { text, sentAt: Date.now() } });
     }
     return sent;
-  }, [activeId, activeSession?.tool, canUseChat, dispatch]);
+  }, [activeId, activeSession?.tool, isClaude, canUseChat, dispatch]);
 
   const handleViewModeChange = useCallback((next: 'terminal' | 'chat') => {
     if (!activeId || (next === 'chat' && !canUseChat)) return;
@@ -181,6 +191,9 @@ export function ActiveGambit() {
       onDraftChange={handleDraftChange}
       onClose={handleClose}
       onSend={handleSend}
+      claude={isClaude}
+      running={isClaude && claude.busy}
+      onCancel={isClaude ? () => { void controlClaude(activeId, { subtype: 'interrupt' }).catch(() => {}); } : undefined}
       leftPanelHidden={state.leftPanelHidden}
       rightPanelHidden={state.rightPanelHidden}
     />

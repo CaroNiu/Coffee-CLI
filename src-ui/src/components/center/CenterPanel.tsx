@@ -5,14 +5,16 @@ import { onWindowForeground } from '../../lib/window-focus-filter';
 import { TierTerminal } from './TierTerminal';
 import { AgentPages } from '../agent/AgentPages';
 import { ConversationView } from './ConversationView';
+import { ClaudeConversation } from './ClaudeConversation';
+import { ClaudeLaunchMode } from './ClaudeLaunchMode';
 import { FourSplitGrid } from './FourSplitGrid';
 import { ToolConfigModal } from './ToolConfigModal';
 import { ContributionHeatmap } from './ContributionHeatmap';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { DiffPanel } from '../right/DiffPanel';
-import { getTabOrder, supportsAgentStatus, useAppState, type ToolType } from '../../store/app-state';
+import { getTabOrder, supportsAgentStatus, useAppState, type ClaudeMode, type ToolType } from '../../store/app-state';
 import { isFrostShape } from '../../lib/personalization';
-import { supportsConversationTool } from '../../lib/chat-tools';
+import { isClaudeConversation, supportsConversationTool } from '../../lib/chat-tools';
 
 // Dropdown shown when a tool card's folder icon is clicked: the globally
 // recent project folders (any tool that used one) + "Open folder…" last.
@@ -755,7 +757,16 @@ export function CenterPanel() {
     });
   };
   const [connStatus, setConnStatus] = useState<'idle' | 'connecting' | 'failed'>('idle');
-  const [lastCwdByTool, setLastCwdByTool] = useState<Record<string, string>>({});
+  const [lastCwdByTool, setLastCwdByTool] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem('coffee:last-cwd-by-tool') || '{}'); } catch { return {}; }
+  });
+  const [claudeLaunchMode, setClaudeLaunchMode] = useState<ClaudeMode>(() => {
+    try { return localStorage.getItem('coffee:claude-launch-mode') === 'terminal' ? 'terminal' : 'conversation'; } catch { return 'conversation'; }
+  });
+  const changeClaudeLaunchMode = (mode: ClaudeMode) => {
+    setClaudeLaunchMode(mode);
+    try { localStorage.setItem('coffee:claude-launch-mode', mode); } catch { /* optional preference */ }
+  };
   // Global recent project folders (across all folder-using tools) — backs the
   // folder-icon dropdown. Separate from the per-tool last-cwd above.
   const [recentFolders, setRecentFolders] = useState<string[]>(() => {
@@ -928,6 +939,7 @@ export function CenterPanel() {
   // already runs a session; otherwise opens a fresh tab (no cap — matches
   // the + button, which is also uncapped so launcher scripts never stall).
   const launchCtxRef = useRef({ terminals, activeTerminalId });
+  const coldLaunchRef = useRef<ReturnType<typeof commands.takePendingLaunch> | null>(null);
   useEffect(() => { launchCtxRef.current = { terminals, activeTerminalId }; });
   const applyLaunchRequest = (tool: ToolType, cwd?: string) => {
     if (!BUILTIN_AI_CLI_FALLBACK.some(item => item.key === tool)) return;
@@ -964,7 +976,7 @@ export function CenterPanel() {
   useEffect(() => {
     if (!isTauri) return;
     let cancelled = false;
-    commands.takePendingLaunch()
+    (coldLaunchRef.current ??= commands.takePendingLaunch())
       .then(req => { if (!cancelled && req) applyLaunchRequest(req.tool as ToolType, req.cwd); })
       .catch(() => {});
     let unlisten: (() => void) | undefined;
@@ -1154,6 +1166,7 @@ export function CenterPanel() {
   };
 
   const selectTool = (tool: ToolType, toolData?: string, cwd?: string) => {
+    if (tool === 'claude' && !cwd) { void handlePickFolder(tool); return; }
     // Concurrent multi-agent Tabs are now supported as of the per-pane
     // MCP / per-pane system-prompt rework: each pane has its own MCP
     // listener (different port), Claude panes write zero workspace
@@ -1169,7 +1182,7 @@ export function CenterPanel() {
         });
         pushRecentFolder(cwd);
       }
-      dispatch({ type: 'LAUNCH_TERMINAL_TOOL', id: activeTerminalId, tool, toolData, cwd });
+      dispatch({ type: 'LAUNCH_TERMINAL_TOOL', id: activeTerminalId, tool, toolData, cwd, claudeMode: tool === 'claude' ? claudeLaunchMode : undefined });
     }
   };
 
@@ -1184,6 +1197,12 @@ export function CenterPanel() {
     } catch (err) {
       console.error('[CenterPanel] Folder picker failed:', err);
     }
+  };
+
+  const openToolFolderMenu = (tool: ToolType, anchor: HTMLElement) => {
+    if (recentFolders.length === 0) { void handlePickFolder(tool); return; }
+    const rect = anchor.getBoundingClientRect();
+    setFolderMenu({ x: rect.left, y: rect.bottom + 4, tool });
   };
 
   const handleRemoteConnect = async () => {
@@ -1507,6 +1526,17 @@ export function CenterPanel() {
                 bgType={bgType}
                 paneCount={4}
               />
+            ) : isClaudeConversation(t) ? (
+              <ClaudeConversation
+                key={`claude-${t.id}-${t.restartKey ?? 0}`}
+                sessionId={t.id}
+                cwd={t.folderPath}
+                resumeToken={t.resumeToken}
+                isActive={t.id === activeTerminalId && !diffTabActive && !agentPageActive}
+                hasBg={hasBg}
+                bgUrl={bgUrl}
+                bgType={bgType}
+              />
             ) : (
               <>
                 <div className="terminal-mode-surface" style={{ display: supportsConversationTool(t.tool) && t.viewMode === 'chat' ? 'none' : 'flex' }}>
@@ -1532,7 +1562,7 @@ export function CenterPanel() {
                     />
                   </ErrorBoundary>
                 </div>
-                {supportsConversationTool(t.tool) && (
+                {t.tool !== 'claude' && supportsConversationTool(t.tool) && (
                   <div
                     className="conversation-mode-surface"
                     style={{ display: t.viewMode === 'chat' ? 'flex' : 'none' }}
@@ -1642,8 +1672,9 @@ export function CenterPanel() {
                               <div key={`agent-${tool.key}`} className={`launchpad-card-group ${disabled ? 'launchpad-card-disabled' : ''}`}>
                                 <div
                                   className="launchpad-card"
-                                  onClick={() => {
+                                  onClick={(event) => {
                                     if (disabled) return;
+                                    if (tool.key === 'claude' && !lastCwdByTool.claude) { openToolFolderMenu(tool.key, event.currentTarget); return; }
                                     // The "Coffee 101" card (key kept as
                                     // 'installer' for backward compat with
                                     // pinned-state in localStorage) is no
@@ -1664,7 +1695,7 @@ export function CenterPanel() {
                                   }}
                                 >
                                   <div className="launchpad-icon">{tool.icon}</div>
-                                  <div className="launchpad-card-info">
+                                  <div className={`launchpad-card-info${tool.key === 'claude' ? ' launchpad-card-info--claude' : ''}`}>
                                     <span style={isTerminal ? { display: 'inline-flex', alignItems: 'center', gap: '6px' } : undefined}>
                                       {tool.label}
                                       {isTerminal && (
@@ -1680,20 +1711,21 @@ export function CenterPanel() {
                                         </span>
                                       )}
                                     </span>
-                                    {tool.requiresCwd && lastCwdByTool[tool.key!] && (
+                                    {tool.key === 'claude' ? <button type="button" className="claude-launch-directory" disabled={disabled} aria-label={lastCwdByTool.claude || t('claude.launch.choose_directory')} onClick={event => { event.stopPropagation(); openToolFolderMenu(tool.key, event.currentTarget); }}>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
+                                        <span>{lastCwdByTool.claude ? formatCwd(lastCwdByTool.claude) : t('claude.launch.choose_directory')}</span>
+                                    </button> : tool.requiresCwd && lastCwdByTool[tool.key!] && (
                                       <span className="launchpad-card-cwd">
                                         {formatCwd(lastCwdByTool[tool.key!])}
                                       </span>
                                     )}
                                   </div>
-                                  {tool.requiresCwd && (
+                                  {tool.key === 'claude' && <ClaudeLaunchMode value={claudeLaunchMode} disabled={disabled} onChange={changeClaudeLaunchMode} />}
+                                  {tool.key !== 'claude' && tool.requiresCwd && (
                                     <div className="launchpad-folder-btn" onClick={(e) => {
                                       e.stopPropagation();
                                       if (disabled) return;
-                                      // No recents yet → behave like before (straight to the picker).
-                                      if (recentFolders.length === 0) { handlePickFolder(tool.key!); return; }
-                                      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                                      setFolderMenu({ x: r.left, y: r.bottom + 4, tool: tool.key! });
+                                      openToolFolderMenu(tool.key!, e.currentTarget);
                                     }}>
                                       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                                         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>

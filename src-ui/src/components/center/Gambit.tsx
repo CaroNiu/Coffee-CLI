@@ -9,8 +9,8 @@
 //
 // Image paste behavior: pasted images are saved to a temp file via Rust, and
 // the absolute path is inserted directly into the textarea as plain text at
-// the cursor position. No attachment chips, no thumbnails — just a visible,
-// editable path string. AI CLI agents that support local image paths (e.g.
+// the cursor position. The attachment row above the input derives from those
+// editable path strings. AI CLI agents that support local image paths (e.g.
 // Claude Code) will read the file; agents that don't just see the raw path.
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -22,6 +22,8 @@ import { useT } from '../../i18n/useT';
 import { useAppState } from '../../store/app-state';
 import { registerFileDropTarget, formatPathsForInsert } from '../../lib/file-drop';
 import { bindAutoHideScrollbar } from '../../lib/auto-hide-scrollbar';
+import { ClaudeComposerControls } from './ClaudeComposerControls';
+import { gambitAttachments, removeGambitAttachment } from '../../lib/gambit-attachments';
 import './Gambit.css';
 
 interface GambitProps {
@@ -36,6 +38,7 @@ interface GambitProps {
    *  the text so the user never loses what they typed. */
   onSend: (text: string) => boolean | Promise<boolean>;
   running?: boolean;
+  claude?: boolean;
   onCancel?: () => void;
   sendFailedHint?: string;
   /** Whether the left/right side panels are currently hidden. When Gambit
@@ -98,11 +101,13 @@ const DOCK_MAX_HEIGHT_RATIO = 0.7; // never let the dock eat more than 70% of vi
 const LS_DOCK_H = 'cc-gambit-dock-h';
 
 function GambitImpl({
+  sessionId,
   draft,
   onDraftChange,
   onClose,
   onSend,
   running = false,
+  claude = false,
   onCancel,
   sendFailedHint,
   leftPanelHidden,
@@ -116,6 +121,7 @@ function GambitImpl({
   const t = useT();
   const rootRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const claudeKeyHandler = useRef<((event: React.KeyboardEvent<HTMLTextAreaElement>) => boolean) | undefined>(undefined);
   const sendingRef = useRef(false);
   const latestDraftRef = useRef(draft);
   latestDraftRef.current = draft;
@@ -253,10 +259,8 @@ function GambitImpl({
   // attachment state. User edits/deletes the path string → thumbnails
   // update automatically. Paths remain the only source of truth; they
   // travel with the text through copy/paste/send.
-  const pastedImagePaths = useMemo(() => {
-    const matches = draft.match(IMAGE_PATH_RE);
-    return matches ? Array.from(new Set(matches)) : [];
-  }, [draft]);
+  const attachments = useMemo(() => Array.from(new Map(gambitAttachments(draft).map(item => [item.path, item])).values()), [draft]);
+  const pastedImagePaths = useMemo(() => attachments.filter(item => item.image).map(item => item.path), [attachments]);
   const [thumbUrls, setThumbUrls] = useState<Record<string, string>>({});
   // Use a stable key so the effect only re-fires when the set of paths
   // actually changes, not on every keystroke that leaves paths intact.
@@ -313,6 +317,11 @@ function GambitImpl({
   // matching path text in the textarea (so once the overlay closes, the
   // caret is conveniently placed at the path for easy Backspace-delete).
   const [previewPath, setPreviewPath] = useState<string | null>(null);
+  const removeAttachment = (path: string) => {
+    onDraftChange(removeGambitAttachment(latestDraftRef.current, path));
+    if (previewPath === path) setPreviewPath(null);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
   const openThumbPreview = (path: string) => {
     setPreviewPath(path);
     const textarea = textareaRef.current;
@@ -552,7 +561,7 @@ function GambitImpl({
   }, [history, draft, onDraftChange]);
 
   const handleSend = useCallback(async () => {
-    if (running) return;
+    if (running && !claude) return;
     // CRITICAL: the draft text is the ONLY thing that gets sent.
     // Thumbnails rendered from pastedImagePaths are a pure derived view
     // with zero data-side responsibility. DO NOT re-append paths or
@@ -564,7 +573,7 @@ function GambitImpl({
       setSendEmpty(true);
       return;
     }
-    const body = wrapImagePathsForSend(text);
+    const body = claude ? text : wrapImagePathsForSend(text);
     if (sendingRef.current) return;
     sendingRef.current = true;
     let ok = false;
@@ -581,12 +590,13 @@ function GambitImpl({
     // the newest entry (which is the one we just pushed).
     historyCursorRef.current = null;
     if (latestDraftRef.current === draft) onDraftChange('');
-  }, [draft, onSend, onDraftChange, running]);
+  }, [draft, onSend, onDraftChange, running, claude]);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // IME composition in progress — let the IME keep Enter for confirming
     // candidates. nativeEvent.isComposing is the canonical flag.
     if (e.nativeEvent.isComposing) return;
+    if (claude && claudeKeyHandler.current?.(e)) return;
     // History recall is gated behind Alt+↑/↓. Bare ↑/↓ stays native caret
     // movement — users complained that hijacking them stole vertical caret
     // positioning inside a multi-line draft. Alt+arrow has no native
@@ -656,7 +666,7 @@ function GambitImpl({
     const after = draft.slice(selEnd);
     const leftPad = before.length > 0 && !/\s$/.test(before) ? ' ' : '';
     const rightPad = after.length > 0 && !/^\s/.test(after) ? ' ' : '';
-    const inserted = leftPad + paths.join(' ') + rightPad;
+    const inserted = leftPad + paths.map(path => claude && /\s/.test(path) ? `"${path}"` : path).join(' ') + rightPad;
     const newDraft = before + inserted + after;
     onDraftChange(newDraft);
     requestAnimationFrame(() => {
@@ -702,6 +712,16 @@ function GambitImpl({
       {/* Top-edge handle for vertical height resize (VS Code bottom-panel style). */}
       <div className="gambit-dock-resize" onMouseDown={onDockResizeStart} />
 
+      {attachments.length > 0 && <div className="gambit-attachments">
+        {attachments.map(({ path, image }) => <div className="gambit-attachment" key={path}>
+          <button className="gambit-attachment-content" aria-label={t(image ? 'gambit.preview_attachment' : 'gambit.attachment', { path })} onClick={() => { if (image) openThumbPreview(path); }}>
+            {image && thumbUrls[path] ? <img src={thumbUrls[path]} alt="" draggable={false} onError={e => { e.currentTarget.style.display = 'none'; }} /> : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M14 2H6v20h12V6zM14 2v5h5M8 12h8M8 16h8" /></svg>}
+            <span>{path.split(/[\\/]/).pop()}</span>
+          </button>
+          <button className="gambit-attachment-remove" aria-label={t('gambit.remove_attachment', { path })} onClick={() => removeAttachment(path)}><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><path d="m3 3 6 6m0-6-6 6" /></svg></button>
+        </div>)}
+      </div>}
+
       {/* Input box: the textarea auto-grows to fit its content. */}
       <div
         className="gambit-input"
@@ -740,39 +760,15 @@ function GambitImpl({
             Deliberately no hover tooltip — the visible name is the info.
             No folder icon: every directory would get the same glyph, so it's
             pure noise (and read as a different brightness than the text). */}
-        {workspaceName && (
+        {workspaceName && !claude && (
           <span className="gambit-workspace">
             {toolIcon != null && <span className="gambit-workspace-icon">{toolIcon}</span>}
             <span className="gambit-workspace-name">{workspaceName}</span>
           </span>
         )}
 
-        {/* Thumbnail strip lives in the footer, left-aligned, so it shares
-            the same row as the send button. Empty when no image paths are
-            present — keeps the footer visually stable either way. */}
-        <div className="gambit-thumb-strip">
-          {pastedImagePaths.map((path) => (
-            <div
-              key={path}
-              className="gambit-thumb"
-              onClick={() => openThumbPreview(path)}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              {thumbUrls[path] && (
-                <img
-                  src={thumbUrls[path]}
-                  alt=""
-                  draggable={false}
-                  onError={(e) => {
-                    // File doesn't exist or can't be loaded — hide silently.
-                    // The path text stays; the AI can still try to read it.
-                    (e.currentTarget.parentElement as HTMLElement).classList.add('gambit-thumb--broken');
-                  }}
-                />
-              )}
-            </div>
-          ))}
-        </div>
+        {claude && <ClaudeComposerControls sessionId={sessionId} draft={draft} onDraftChange={onDraftChange} keyHandler={claudeKeyHandler} />}
+
         {sendFailed && (
           <span className="gambit-send-hint" role="status">
             {sendFailedHint ?? t('gambit.send_failed_hint')}
@@ -783,7 +779,7 @@ function GambitImpl({
             {t('gambit.send_empty_hint')}
           </span>
         )}
-        {canUseChat && (
+        {canUseChat && !claude && (
           <div
             className="gambit-view-toggle"
             data-view-mode={viewMode}
@@ -815,11 +811,11 @@ function GambitImpl({
         )}
         <button
           className={`gambit-send${sendFailed ? ' gambit-send--failed' : ''}${!running && !draft.trim() ? ' gambit-send--empty' : ''}`}
-          aria-label={t(running ? 'gambit.stop' : 'gambit.send')}
+          aria-label={t(running && (!claude || !draft.trim()) ? 'gambit.stop' : 'gambit.send')}
           disabled={running && !onCancel}
-          onClick={running ? onCancel : handleSend}
+          onClick={running && (!claude || !draft.trim()) ? onCancel : handleSend}
         >
-          {running ? <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1" /></svg> : <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          {running && (!claude || !draft.trim()) ? <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1" /></svg> : <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M8 14 V3 M3 8 L8 3 L13 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>}
         </button>

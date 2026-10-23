@@ -13,6 +13,7 @@ import { commands, isTauri } from '../../tauri';
 import { useAppState, useAppDispatch, schemeLabels } from '../../store/app-state';
 import { IS_MACOS } from '../../lib/platform';
 import { useT } from '../../i18n/useT';
+import { isClaudeConversation } from '../../lib/chat-tools';
 import './TitleBar.css';
 
 export function TitleBar() {
@@ -45,6 +46,8 @@ export function TitleBar() {
   // Show the 2×2 / 1×4 layout picker only for the independent four-split view.
   const activeTab = state.terminals.find(t => t.id === state.activeTerminalId);
   const showMaLayout = activeTab?.tool === 'four-split';
+  const claudeComposerLocked = isClaudeConversation(activeTab) && !state.agentPageActive && !state.diffTabActive;
+  const gambitOpen = claudeComposerLocked || state.gambitOpen;
 
   // Drag is wired as a single JS path: mousedown anywhere on the bar (except
   // on a child <button>) calls `startDragging()`, double-click toggles
@@ -125,10 +128,11 @@ export function TitleBar() {
             hidden. Keyboard glyph; open state reads from the .is-active bg, so
             no need to swap the icon to an X. */}
         <button
-          className={`titlebar-btn titlebar-btn--layout titlebar-btn--hinted${state.gambitOpen ? ' is-active' : ''}`}
+          className={`titlebar-btn titlebar-btn--layout titlebar-btn--hinted${gambitOpen ? ' is-active' : ''}`}
           onClick={() => dispatch({ type: 'TOGGLE_GAMBIT' })}
+          disabled={claudeComposerLocked}
           aria-label={`Gambit compose (${hk.gambit})`}
-          aria-pressed={state.gambitOpen}
+          aria-pressed={gambitOpen}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="2" y="4" width="20" height="16" rx="2" />

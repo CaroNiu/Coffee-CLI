@@ -471,11 +471,7 @@
   border-radius: var(--radius-md);
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0,0,0,0.02);
-  transition: transform 0.25s, box-shadow 0.25s;
-}
-
-.launchpad-card-group:hover {
-  transform: translateY(-2px);
+  transition: box-shadow 0.25s;
 }
 
 /* Frosted glass cards when wallpaper is active.

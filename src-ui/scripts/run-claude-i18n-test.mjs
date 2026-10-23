@@ -1,0 +1,54 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+import ts from 'typescript';
+import { build } from 'esbuild';
+
+const languages = ['en', 'zh-CN', 'zh-TW', 'ja', 'ko', 'es', 'fr', 'de', 'pt', 'ru', 'vi'];
+const dictionaries = {};
+for (const lang of languages) {
+  const file = new URL(`../src/i18n/${lang}.ts`, import.meta.url);
+  const code = fs.readFileSync(file, 'utf8');
+  const tree = ts.createSourceFile(file.pathname, code, ts.ScriptTarget.Latest, true);
+  const keys = [];
+  function visit(node) {
+    if (ts.isPropertyAssignment(node) && ts.isStringLiteral(node.name)) keys.push(node.name.text);
+    ts.forEachChild(node, visit);
+  }
+  visit(tree);
+  assert.equal(new Set(keys).size, keys.length, `${lang}: no duplicate dictionary keys`);
+  const module = { exports: {} };
+  vm.runInNewContext(ts.transpileModule(code, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module, exports: module.exports });
+  dictionaries[lang] = Object.values(module.exports)[0];
+}
+const keys = Object.keys(dictionaries.en).filter(key => key.startsWith('claude.') || ['gambit.attachment', 'gambit.preview_attachment', 'gambit.remove_attachment'].includes(key));
+const placeholders = value => [...value.matchAll(/\{(\w+)\}/g)].map(match => match[1]).sort();
+for (const lang of languages) {
+  for (const key of keys) {
+    assert.ok(dictionaries[lang][key]?.trim(), `${lang}: ${key} must not fall back to English`);
+    assert.deepEqual(placeholders(dictionaries[lang][key]), placeholders(dictionaries.en[key]), `${lang}: ${key} retains its variables`);
+  }
+  console.log(`OK: ${lang}, ${keys.length} translated keys and matching interpolation variables`);
+}
+const result = await build({ entryPoints: ['src/lib/claude-i18n.ts', 'src/lib/claude-protocol.ts'], bundle: true, platform: 'node', format: 'cjs', write: false, outdir: 'unused' });
+const modules = result.outputFiles.map(file => {
+  const module = { exports: {} };
+  vm.runInNewContext(file.text, { module, exports: module.exports });
+  return module.exports;
+});
+const { claudeEffortLabel } = modules.find(module => module.claudeEffortLabel);
+for (const lang of languages) {
+  const t = key => dictionaries[lang][key];
+  for (const level of ['low', 'medium', 'high', 'xhigh', 'max']) assert.equal(claudeEffortLabel(level, t), t(`claude.effort.${level}`));
+  assert.equal(claudeEffortLabel('ultracode', t), 'Ultracode');
+  assert.equal(claudeEffortLabel('provider-custom-level', t), 'provider-custom-level');
+}
+const { emptyClaudeState, reduceClaudeEvent } = modules.find(module => module.reduceClaudeEvent);
+const failed = reduceClaudeEvent(emptyClaudeState(), { type: 'result', is_error: true, errors: [] });
+assert.equal(failed.errorKey, 'claude.error.request_failed');
+const exited = reduceClaudeEvent(emptyClaudeState(), { type: 'coffee_exit', code: 1 });
+assert.equal(exited.errorKey, 'claude.error.process_exited');
+const nativeError = reduceClaudeEvent(failed, { type: 'assistant', error: 'Provider diagnostic: E123', message: {} });
+assert.equal(nativeError.errorKey, undefined);
+assert.equal(nativeError.error, 'Provider diagnostic: E123', 'native diagnostics never get replaced with stale translated errors');
+console.log('OK: six localized effort labels, unknown provider values and native diagnostics preserved');
