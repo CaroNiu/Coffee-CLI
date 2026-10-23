@@ -168,6 +168,13 @@ textarea,
 .cc-scrollbar.is-dragging .cc-scrollbar-slider {
     opacity: 0.56;
 }
+.cc-scrollbar-wide {
+    width: 12px;
+}
+.cc-scrollbar-wide .cc-scrollbar-slider {
+    width: 8px;
+    border-radius: 4px;
+}
 .cc-scrollbar-slim {
     width: 7px;
 }

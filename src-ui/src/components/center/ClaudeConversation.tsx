@@ -11,7 +11,7 @@ import { controlClaude, loadClaudeHistory, respondClaude, retainClaudeSession, u
 import { object, list, text, number, resultText, type ClaudeMessage, type ClaudeRequest } from '../../lib/claude-protocol';
 import { useConversationVirtualizer } from './conversation-virtualizer';
 import { MarkdownContent } from './MarkdownContent';
-import { MessageCopyButton } from './ConversationControls';
+import { ConversationNavigation, MessageCopyButton, type ConversationNavigationItem } from './ConversationControls';
 import { commands } from '../../tauri';
 import CLAWD_SVG from '../../icons-inline/clawd.svg?raw';
 import CLAUDE_WORKING_MARK from '../../icons-inline/claude-working-mark.webp';
@@ -176,10 +176,11 @@ export function ClaudeConversation({ sessionId, cwd, resumeToken, isActive, bgUr
   const [scrolled, setScrolled] = useState(false);
   const [expandedThinking, setExpandedThinking] = useState(false);
   const virtual = useConversationVirtualizer(s.messages, scrollRef);
+  const navigationItems = useMemo<ConversationNavigationItem[]>(() => s.messages.flatMap((message, messageIndex) => message.role === 'user' ? [{ id: message.id, sourceMessageId: message.id, content: message.content, messageIndex, top: (virtual.offsets[messageIndex] ?? 0) + 32, cursor: null }] : []), [s.messages, virtual.offsets]);
   useEffect(() => retainClaudeSession(sessionId, cwd, initialToken.current), [sessionId, cwd]);
   useEffect(() => { dispatch({ type: 'SET_AGENT_STATUS', id: sessionId, status: s.requests.length ? 'wait_input' : s.busy ? 'working' : 'idle' }); }, [sessionId, s.busy, s.requests.length, dispatch]);
   useEffect(() => { if (s.nativeId) dispatch({ type: 'SET_SESSION_TOKEN', id: sessionId, token: s.nativeId }); }, [sessionId, s.nativeId, dispatch]);
-  useEffect(() => { const scroll = scrollRef.current; if (!scroll) return; return bindAutoHideScrollbar(scroll); }, []);
+  useEffect(() => { const scroll = scrollRef.current; if (!scroll) return; return bindAutoHideScrollbar(scroll, { wide: true }); }, []);
   const syncScroll = useCallback(() => {
     const scroll = scrollRef.current;
     if (!scroll || !isActive || !scroll.clientHeight) return;
@@ -203,7 +204,7 @@ export function ClaudeConversation({ sessionId, cwd, resumeToken, isActive, bgUr
       anchor.applied = true;
     }
     syncScroll();
-  }, [s.messages, s.requests, virtual.total, isActive, syncScroll]);
+  }, [s.messages, s.requests, virtual.total, virtual.start, virtual.end, isActive, syncScroll]);
   useEffect(() => {
     const scroll = scrollRef.current;
     if (!scroll) return;
@@ -218,6 +219,16 @@ export function ClaudeConversation({ sessionId, cwd, resumeToken, isActive, bgUr
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
   }, [isActive, s.busy, s.requests.length, sessionId]);
   const pauseFollow = useCallback(() => { prependAnchor.current = null; pinned.current = false; setScrolled(true); }, []);
+  const jumpToTurn = (item: ConversationNavigationItem) => {
+    pauseFollow();
+    virtual.scrollToIndex(item.messageIndex, 'instant');
+    const scroll = scrollRef.current;
+    if (scroll) {
+      // Keep the selected turn aligned while virtual rows finish measuring.
+      prependAnchor.current = { firstId: s.messages[0].id, messageId: item.id, offset: 24, top: scroll.scrollTop, height: scroll.scrollHeight, applied: true };
+      syncScroll();
+    }
+  };
   const onScroll = useCallback(() => {
     const scroll = scrollRef.current;
     if (!scroll || !scroll.clientHeight) return;
@@ -243,7 +254,7 @@ export function ClaudeConversation({ sessionId, cwd, resumeToken, isActive, bgUr
   const empty = !s.messages.length && s.ready && !s.busy && !s.requests.length && !s.error;
   const model = s.models.find(m => m.value === s.model) ?? s.models.find(m => m.resolvedModel === s.model);
   const summary = !empty && !s.busy && s.endedAt && <div className="claude-turn-summary">{t('claude.worked_for', { duration: elapsed(s.endedAt - (s.startedAt ?? s.endedAt), t) })}{used > 0 && <> · {t('claude.tokens', { count: count(used) })}</>}{s.totalCost !== undefined && s.totalCost > 0 && <> · ~${s.totalCost.toFixed(4)}</>}</div>;
-  return <div className={`claude-conversation${hasBg && bgUrl ? ' has-background' : ''}`}>
+  return <div className={`claude-conversation${hasBg && bgUrl ? ' has-background' : ''}${navigationItems.length > 1 ? ' has-navigation' : ''}`}>
     {hasBg && bgUrl && <div className="conversation-background">{bgType === 'video' ? <video src={bgUrl} autoPlay loop muted /> : <img src={bgUrl} alt="" />}</div>}
     <div className="claude-scroll" ref={scrollRef} onScroll={onScroll} onWheelCapture={event => { if (event.deltaY < 0 && !event.ctrlKey) pauseFollow(); }} onTouchMoveCapture={pauseFollow} onKeyDownCapture={event => { if ((['ArrowUp', 'PageUp', 'Home'].includes(event.key) || event.key === ' ' && event.shiftKey) && !(event.target as HTMLElement).closest('input,textarea,select,[contenteditable="true"]')) pauseFollow(); }}>
       <div className={`claude-thread${empty ? ' is-empty' : ''}`}>
@@ -269,6 +280,7 @@ export function ClaudeConversation({ sessionId, cwd, resumeToken, isActive, bgUr
         {!s.messages.length && summary}
       </div>
     </div>
+    {navigationItems.length > 1 && isActive && <ConversationNavigation items={navigationItems} scrollRef={scrollRef} onJump={jumpToTurn} />}
     {scrolled && <button className="gambit-send claude-scroll-bottom" aria-label={t('claude.scroll_latest')} onClick={() => { prependAnchor.current = null; pinned.current = true; syncScroll(); setScrolled(false); }}>
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v11M3 8l5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
     </button>}

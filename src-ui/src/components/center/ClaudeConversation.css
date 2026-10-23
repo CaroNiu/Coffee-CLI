@@ -5,6 +5,9 @@
 body.gambit-docked .claude-scroll { height:calc(100% - var(--gambit-dock-h,200px) - 16px); }
 body.gambit-docked .claude-scroll-bottom { bottom:calc(var(--gambit-dock-h,200px) + 30px); }
 .claude-thread { width:min(960px,calc(100% - 64px)); margin:0 auto; padding:32px 0 52px; overflow-anchor:none; font-size:14px; line-height:1.65; }
+.claude-conversation .conversation-navigation { left:max(8px,calc(50% - 528px)); }
+.claude-conversation .conversation-navigation-tooltip { font-size:12px; }
+@container(min-width:761px) { .claude-conversation.has-navigation .claude-thread { width:min(960px,calc(100% - 112px)); } }
 .claude-row { position:relative; padding:0 0 26px 22px; border-left:1px solid var(--border); margin-left:10px; min-width:0; }
 .claude-row::before { content:''; position:absolute; top:8px; left:-4px; width:7px; height:7px; background:var(--text-3); border-radius:50%; }
 .claude-row--tool::before,.claude-row--done::before { background:var(--success,#79c99e); }

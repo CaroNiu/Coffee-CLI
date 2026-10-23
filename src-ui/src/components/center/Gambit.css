@@ -106,6 +106,7 @@
 .gambit.gambit--docked {
     animation: none;     /* fade-in is jarring when opening mid-session */
     will-change: auto;   /* not GPU-translated when docked */
+    overflow: visible;   /* let the resize grip straddle the top border */
 }
 
 .gambit.gambit--docked .gambit-textarea {
@@ -122,7 +123,7 @@
    starts below, no spatial overlap, cursor switches reliably.
 
    Hit area (6px) is decoupled from the visible affordance — a short
-   rounded grip bar centred under the top edge that surfaces on hover and
+   rounded grip bar centred on the top edge that surfaces on hover and
    lengthens+deepens while dragging (the note panel's bottom-edge handle
    style). Bar width scales with the dock (clamp on a % of width) since
    Gambit spans the whole centre panel. */
@@ -139,6 +140,7 @@
        with its own !important rule; we follow the same pattern here. */
     cursor: ns-resize !important;
     position: relative;  /* pseudo positioning context */
+    transform: translateY(-50%);
     background: transparent;
 }
 /* Grip bar — a short centred pill, hidden at rest. On hover it surfaces in

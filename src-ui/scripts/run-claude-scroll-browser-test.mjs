@@ -16,10 +16,12 @@ await build({
   stdin: { resolveDir: project, loader: 'tsx', contents: `
     import React,{useState} from 'react';import {createRoot} from 'react-dom/client';
     import {ClaudeConversation} from './src/components/center/ClaudeConversation';
+    import './src/styles/global.css';
     function Fixture(){const [active,setActive]=useState(true);window.setActive=setActive;return <div className="host" style={{display:active?'flex':'none'}}><ClaudeConversation sessionId="scroll" cwd={null} isActive={active}/></div>}
     createRoot(document.getElementById('root')).render(<Fixture/>);
   ` },
   bundle: true, outfile: join(directory, 'fixture.js'), jsx: 'automatic',
+  external: ['/fonts/*', '/monogram.svg'],
   nodePaths: [join(project, 'node_modules')], loader: { '.webp': 'dataurl' },
   define: { 'process.env.NODE_ENV': '"development"' },
   plugins: [{ name: 'isolated-session', setup(builder) {
@@ -72,7 +74,7 @@ const scroll = page.locator('.claude-scroll');
 const metrics = () => scroll.evaluate(el => ({ top: el.scrollTop, distance: el.scrollHeight - el.clientHeight - el.scrollTop }));
 const atBottom = () => page.waitForFunction(() => { const el = document.querySelector('.claude-scroll'); return el.scrollHeight - el.clientHeight - el.scrollTop < 2; });
 const wheelUp = async (pixels = 30) => {
-  const box = await scroll.boundingBox(); await page.mouse.move(box.x + box.width - 25, box.y + box.height - 5);
+  const box = await scroll.boundingBox(); await page.mouse.move(box.x + box.width - 70, box.y + box.height - 5);
   await page.mouse.wheel(0, -pixels); await page.waitForTimeout(150);
 };
 const returnBottom = async () => {
@@ -144,7 +146,53 @@ try {
   const anchor = page.locator('[data-message-id="history-0"]');
   const before = await anchor.boundingBox(); await page.getByRole('button', { name: 'Load earlier messages', exact: true }).click(); await page.waitForTimeout(400);
   const after = await anchor.boundingBox(); assert.ok(Math.abs(after.y - before.y) < 2, `loading earlier history preserves its visible anchor: ${JSON.stringify({ before, after, scroll: await metrics() })}`);
+  assert.equal(await page.locator('.conversation-navigation-item').count(), 72, 'navigation includes newly loaded history turns');
   console.log('ok history prepend anchor');
+  await page.setViewportSize({ width: 1100, height: 800 });
+  await page.evaluate(() => window.reset('assistant')); await page.waitForTimeout(400); await returnBottom();
+  const navigation = page.locator('.conversation-navigation');
+  assert.equal(await navigation.locator('button').count(), 48, 'each loaded user turn has one navigation tick');
+  const turn = navigation.locator('[data-conversation-navigation-target="history-10"]');
+  await turn.hover();
+  assert.ok((await navigation.getByRole('tooltip').textContent()).startsWith('History 10'), 'hover previews the user prompt');
+  const railBox = await navigation.boundingBox(), tooltipBox = await navigation.getByRole('tooltip').boundingBox();
+  assert.ok(tooltipBox.x > railBox.x + railBox.width, 'left-side preview opens to the right');
+  await turn.click(); await page.mouse.move(5, 5); await page.waitForTimeout(450);
+  const target = await page.locator('[data-message-id="history-10"]').boundingBox();
+  const viewport = await scroll.boundingBox();
+  assert.ok(target && target.y >= viewport.y && target.y < viewport.y + 120, `navigation lands on its turn: ${JSON.stringify({ target, viewport })}`);
+  const jumped = await metrics(); await page.evaluate(() => window.startStream()); await page.waitForTimeout(350);
+  assert.ok(Math.abs((await metrics()).top - jumped.top) < 2, 'navigation pauses streaming follow');
+  await wheelUp(90); const afterJumpWheel = await metrics(); await page.waitForTimeout(200);
+  assert.ok(afterJumpWheel.top < jumped.top - 30 && Math.abs((await metrics()).top - afterJumpWheel.top) < 2, 'manual scrolling releases the navigation anchor');
+  await returnBottom(); await page.waitForTimeout(200); await atBottom(); await page.evaluate(() => window.stopStream());
+  await turn.click(); await page.waitForTimeout(300);
+  assert.ok(Math.abs((await page.locator('[data-message-id="history-10"]').boundingBox()).y - 24) < 2, 'repeat jumps use measured rows accurately');
+  await returnBottom();
+  const slider = page.locator('.cc-scrollbar-wide .cc-scrollbar-slider');
+  await scroll.hover(); await page.waitForTimeout(100);
+  const sliderBox = await slider.boundingBox();
+  assert.equal(sliderBox.width, 8, 'conversation scrollbar thumb is wider');
+  assert.equal((await slider.locator('..').boundingBox()).width, 12, 'scrollbar hit area matches its wider layout');
+  await page.mouse.move(sliderBox.x + 4, sliderBox.y + sliderBox.height / 2);
+  await page.mouse.down(); await page.mouse.move(sliderBox.x + 4, sliderBox.y + sliderBox.height / 2 - 20, { steps: 5 }); await page.mouse.up();
+  const dragged = await metrics(); assert.ok(dragged.distance > 10, 'wider thumb supports dragging upward');
+  await page.evaluate(() => window.startStream()); await page.waitForTimeout(250); await page.evaluate(() => window.stopStream());
+  assert.ok(Math.abs((await metrics()).top - dragged.top) < 2, 'dragging the wider thumb pauses follow');
+  console.log('ok wider conversation scrollbar geometry and drag');
+  for (const width of [1100, 850, 761]) {
+    await page.setViewportSize({ width, height: 800 }); await page.waitForTimeout(150);
+    const rail = await navigation.boundingBox(), thread = await page.locator('.claude-thread').boundingBox();
+    assert.ok(rail && rail.x + rail.width + 12 <= thread.x, `left navigation stays outside the text at ${width}px`);
+    assert.ok(rail.y + rail.height <= (await scroll.boundingBox()).height + 1, 'navigation clears the docked composer');
+  }
+  for (const width of [760, 390]) {
+    await page.setViewportSize({ width, height: 800 }); await page.waitForTimeout(150);
+    assert.equal(await navigation.isVisible(), false, `navigation hides at ${width}px instead of crowding the conversation`);
+  }
+  await page.evaluate(() => window.setSession({messages:[],busy:false}));
+  assert.equal(await navigation.count(), 0, 'empty conversations have no navigation');
+  console.log('ok left-side navigation preview, jump, paused follow, responsive spacing and empty state');
   assert.deepEqual(errors, []);
 } finally {
   await page.evaluate(() => window.stopStream?.()).catch(() => {});
