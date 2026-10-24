@@ -29,6 +29,10 @@ function listen() {
 export function useCodexSession(id: string): CodexState {
   return useSyncExternalStore(fn => { const c = client(id); c.listeners.add(fn); return () => { c.listeners.delete(fn); }; }, () => clients.get(id)?.state ?? EMPTY, () => EMPTY);
 }
+export function getCodexConnection(id: string) {
+  const c = clients.get(id);
+  return c && c.owners > 0 ? { generation: c.generation, state: c.state, ready: c.state.ready && !c.connecting, inputBusy: c.state.busy || c.sending } : undefined;
+}
 function rpc(c: Client, id: string, method: string, params: Json): Promise<Json> {
   return invoke('codex_session_request', { id, generation: c.generation, method, params: { ...params, threadId: c.state.nativeId } });
 }

@@ -161,8 +161,14 @@ pub(crate) fn expert_inspect(tool: &str, cwd: &str, launch_config: Option<&ToolC
 }
 
 pub(crate) fn expert_inspect_session(app: &tauri::AppHandle, session_id: &str, tool: &str, cwd: &str) -> Result<Value, String> {
-    let state = app.try_state::<crate::server::AppState>().ok_or("Terminal state unavailable")?;
-    let (launch_config, launch_cwd) = {
+    let desktop = match tool {
+        "claude" => crate::claude_session::launch_context(app, session_id),
+        "codex" => crate::codex_session::launch_context(app, session_id),
+        _ => None,
+    };
+    let source = if desktop.is_some() { "desktop-launch-snapshot" } else { "terminal-launch-snapshot" };
+    let (launch_config, launch_cwd) = if let Some((config, path)) = desktop { (config, Some(path)) } else {
+        let state = app.try_state::<crate::server::AppState>().ok_or("Terminal state unavailable")?;
         let sessions = state.terminal_session.lock().map_err(|_| "Terminal state unavailable")?;
         let session = sessions.get(session_id).ok_or("Terminal is no longer running")?;
         if session.tool_name.as_deref() != Some(tool) { return Err("Terminal tool changed; read the current screen again".into()); }
@@ -173,7 +179,7 @@ pub(crate) fn expert_inspect_session(app: &tauri::AppHandle, session_id: &str, t
         return Ok(json!({"tool":tool,"cwd":dunce::simplified(&canonical).to_string_lossy(),"state":"unknown","capabilities":[],"reason":"The workspace changed after launch; configuration loading needs runtime verification"}));
     }
     let mut result = expert_inspect(tool, cwd, Some(&launch_config))?;
-    result["configurationSource"] = json!("terminal-launch-snapshot");
+    result["configurationSource"] = json!(source);
     Ok(result)
 }
 

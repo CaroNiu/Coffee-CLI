@@ -56,6 +56,7 @@ jobs:
           node scripts/run-terminal-observer-test.mjs
           node scripts/run-terminal-control-test.mjs
           node scripts/run-agent-tools-test.mjs
+          node scripts/run-agent-desktop-session-test.mjs
           node scripts/run-agent-sentinel-test.mjs
           node scripts/run-agent-mode-toggle-test.mjs
           node scripts/run-tab-drag-test.mjs

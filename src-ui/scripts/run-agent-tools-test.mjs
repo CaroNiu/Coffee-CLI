@@ -25,7 +25,7 @@ function fixture({ deferOpen = false } = {}) {
   let cancelled = false;
   runInNewContext(compiled.outputFiles[0].text, {
     module, exports: module.exports, require, console, Date, performance, setTimeout, clearTimeout, crypto: { randomUUID },
-    localStorage: { setItem() {} }, requestAnimationFrame: () => {},
+    localStorage: { getItem: () => 'terminal', setItem() {} }, requestAnimationFrame: () => {},
     window: { __TAURI_INTERNALS__: { invoke: async (command, args) => {
       if (command === 'list_tools') return [{ id: 'claude', displayName: 'Claude Code' }, { id: 'codex', displayName: 'Codex' }];
       if (command === 'check_tools_installed') return { claude: true, codex: true };
@@ -52,6 +52,8 @@ function fixture({ deferOpen = false } = {}) {
     mounted.set(id, () => { stopObserver(); stopControl(); api.unregisterSession(id); term.dispose(); });
   }
   const dispatch = action => {
+    if (action.type === 'ADD_TERMINAL' && action.session.tool === 'claude') action = { ...action, session: { ...action.session, claudeMode: 'terminal' } };
+    if (action.type === 'LAUNCH_TERMINAL_TOOL' && action.tool === 'claude') action = { ...action, claudeMode: 'terminal' };
     if ((action.type === 'ADD_TERMINAL' || action.type === 'LAUNCH_TERMINAL_TOOL') && deferOpen) {
       deferOpen = false;
       setTimeout(() => dispatch(action), 10);

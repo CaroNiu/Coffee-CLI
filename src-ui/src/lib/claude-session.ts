@@ -41,6 +41,10 @@ export function useClaudeSession(id: string): ClaudeState {
   return useSyncExternalStore(fn => { const c = client(id); c.listeners.add(fn); return () => { c.listeners.delete(fn); }; }, () => clients.get(id)?.state ?? EMPTY, () => EMPTY);
 }
 export function getClaudeSession(id: string): ClaudeState { return clients.get(id)?.state ?? EMPTY; }
+export function getClaudeConnection(id: string) {
+  const c = clients.get(id);
+  return c && c.owners > 0 ? { generation: c.generation, state: c.state, ready: c.state.ready && !c.connecting && !c.restarting, inputBusy: c.state.busy || !!c.restarting } : undefined;
+}
 
 async function readSettings(id: string, c: Client) {
   const settings = await invoke<Json>('claude_session_control', { id, generation: c.generation, request: { subtype: 'get_settings' } });
