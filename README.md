@@ -38,7 +38,7 @@
 
 ### What is Coffee CLI?
 
-Coffee CLI is a **native desktop workspace** for AI CLI agents — Claude Code, OpenAI Codex, Qwen, OpenCode, and more. Run multiple agents in parallel tabs, drive them with keyboard shortcuts via Gambit, automate them with hooks, and keep everything organized in one true desktop app — all with a **fully localized interface in 11 languages**.
+Coffee CLI is a **native desktop workspace** for AI CLI agents — Claude Code, OpenAI Codex, Qwen, OpenCode, and more. Use desktop-style conversations or native terminals, run multiple agents in parallel tabs, and drive them with keyboard shortcuts via Gambit — all with a **fully localized interface in 11 languages**.
 
 This is not a web app. Not an Electron wrapper. A **true native desktop app** built with Tauri (Rust core), engineered for performance and low resource usage.
 
@@ -48,20 +48,24 @@ This is not a web app. Not an Electron wrapper. A **true native desktop app** bu
 
 ### Supported AI CLIs
 
-Coffee CLI can launch **any** command-line agent — but the ones below get deeper, purpose-built integration. **T1 means the complete Coffee desktop experience: Dynamic Island live status plus desktop-style conversation**, including conversation bubbles and permission/input cards. Lower tiers remain native terminal experiences, with the additional capabilities listed below.
+Coffee CLI can launch **any** command-line agent — but the ones below get deeper, purpose-built integration. **T1 provides enhanced status and interaction handling. Dedicated Desktop mode is available for Claude Code and Codex CLI; Kimi Code uses the enhanced terminal interface.** Lower tiers remain native terminal experiences, with the additional capabilities listed below.
 
 | Tier | What you get | CLIs |
 |---|---|---|
-| **T1** | **Dynamic Island · Desktop-style conversation** (bubbles + permission/input cards) · History · Heatmap · Changes · Brand icon · One-click launch · Custom launch args | **Claude Code** · **Codex CLI** · **Kimi Code** |
+| **T1** | **Dynamic Island · Enhanced interaction · Desktop mode (Claude Code / Codex CLI)** · History · Heatmap · Changes · Brand icon · One-click launch · Custom launch args | **Claude Code** · **Codex CLI** · **Kimi Code** |
 | **T2** | Native terminal · History · Heatmap · Changes · Brand icon · One-click launch · Custom launch args | OpenCode · mimocode · Grok Build · OpenClaw · Hermes Agent · Qwen Code · Pi · Kilo Code · Oh-My-Pi · CodeBuddy |
 | **T3** | Brand icon · One-click launch | Crush · Aider · Goose · Copilot CLI · Cursor · Cline · Antigravity · Muse Code |
 | **T4** | Open a terminal tab and type the command to launch | any other CLI |
 
-*T1 status and interaction detection is hook-free and currently available only for Claude Code, Codex CLI, and Kimi Code. Coffee CLI reads verified native-title or rendered-terminal state; it does not install status hooks. Other tools stay in their native terminal UI even when Coffee CLI can read their history.*
+*T1 status and interaction detection is hook-free and currently available only for Claude Code, Codex CLI, and Kimi Code. Coffee CLI reads native session events, native titles, or verified rendered-terminal state. Other tools stay in their native terminal UI even when Coffee CLI can read their history.*
 
 *T1 and T2 CLIs ship today; T3 integrations are rolling in.*
 
 Muse Code launches `muse` in your selected directory. Its session history and heatmap are not integrated into Coffee CLI yet.
+
+### Desktop & Terminal Modes
+
+**Claude Code and Codex CLI** offer `Desktop / Terminal` tabs on their launch cards. Desktop is the default for new installations; saved preferences are preserved. Desktop mode displays conversations, tool activity, permission/input cards, and conversation navigation while staying connected to the native background session. Coffee Agent can read and operate that same desktop-mode session without opening a separate terminal.
 
 ---
 
@@ -108,6 +112,7 @@ The Coffee CLI app ships with a fully localized UI in 11 languages — menus, di
 
 | Feature | Description |
 |---|---|
+| **Desktop Conversations** | Claude Code and Codex CLI support Desktop or Terminal launch modes, with native background sessions and same-session Coffee Agent control |
 | **Multi-Tab Sessions** | Run multiple agents side by side, each with its own independent process and context |
 | **Session History** | Every session auto-saved and searchable; resume any conversation from where you left off |
 | **Built-In File Explorer** | Browse your workspace, copy paths, drag references directly into your prompt |
@@ -115,11 +120,11 @@ The Coffee CLI app ships with a fully localized UI in 11 languages — menus, di
 | **Agent Installer** | One-click install of Claude Code, Codex, and more — no terminal required |
 | **Remote Terminal** | SSH into remote machines and run agents on servers without leaving the app |
 | **External Launch** | Open the app straight into a fresh agent tab at a chosen folder from scripts, launchers, and file-manager context menus |
-| **Orca Residue Cleanup** | Automatically removes the status hooks Orca silently injects into Claude Code / Codex / Cursor / Grok / Kimi configs, restoring your tools — only Orca's entries are removed, your own hooks stay intact, and it skips while Orca is running |
+| **Hook Compatibility** | Hook-free status detection; existing user and third-party status hooks and hook plugins are preserved |
 
 **11 languages supported out of the box:** English · 简体中文 · 繁體中文 · Deutsch · Español · Français · 日本語 · 한국어 · Português · Русский · Tiếng Việt
 
-> **Orca polluted your AI tools?** Orca (stablyai/orca) writes status hooks into a dozen+ AI CLI configs (Claude Code, Codex, Cursor, Grok, Kimi…). Those tools already ship their own status logic, so the injection breaks them — hook errors on every session, Codex configs that fail to parse and refuse to start, hook commands that pop a black console per tool call or swallow stdin, even config directories created for tools you never installed. **Uninstalling Orca does not remove the residue** — it keeps re-installing the entries on every launch, which is why hand-deleting them is a losing battle and non-technical users have almost no way to clean up. Coffee CLI detects and removes the Orca-written entries automatically on launch: only Orca's rows are deleted, your own hooks stay untouched, and it skips entirely while Orca is running (no conflicts).
+**Hook policy:** Startup and tool scans do not install, migrate, or remove status hooks or hook plugins. Existing user hooks, third-party integrations, and hooks left by older Coffee CLI versions remain untouched.
 
 ### External Launch (CLI)
 
@@ -184,15 +189,19 @@ cargo tauri build
 
 ### Coffee CLI 是什么？
 
-Coffee CLI 是专为 AI CLI Agent 打造的**原生桌面工作台**，支持 Claude Code、OpenAI Codex、Qwen、OpenCode 等主流 Agent。多 Tab 并行运行、Gambit 快捷操控、Hook 自动化——所有 AI CLI 工具在一个真正的桌面应用里井然有序，**原生支持 11 种界面语言**。
+Coffee CLI 是专为 AI CLI Agent 打造的**原生桌面工作台**，支持 Claude Code、OpenAI Codex、Qwen、OpenCode 等主流 Agent。桌面式对话与原生终端、多 Tab 并行运行、Gambit 快捷操控——所有 AI CLI 工具在一个真正的桌面应用里井然有序，**原生支持 11 种界面语言**。
 
 这不是网页应用，不是 Electron 壳，而是基于 Tauri（Rust 内核）构建的**真正原生桌面应用**，性能优异，资源占用极低。
 
 ### AI CLI 支持级别
 
-**T1 的定义：同时支持灵动岛和桌面端式对话**，包括泡泡对话以及权限/输入选择卡片。目前 T1 支持 **Claude Code、Codex CLI 和 Kimi Code**。OpenCode、mimocode、Grok Build 等其他工具保持原生终端界面；即使 Coffee CLI 可以读取其历史记录，也不代表它们支持 T1 界面。
+**T1 提供增强的状态识别与交互支持**，目前包括 **Claude Code、Codex CLI 和 Kimi Code**。其中，Claude Code 和 Codex CLI 支持独立的桌面式对话模式，Kimi Code 保持增强终端界面。OpenCode、mimocode、Grok Build 等其他工具保持原生终端界面；可读取历史记录不代表支持桌面式模式。
 
 Muse Code 目前支持在所选目录启动 `muse`，暂未接入 Coffee CLI 的会话记录和热力图。
+
+### 桌面式与终端式
+
+**Claude Code 和 Codex CLI** 的启动卡片提供 `Desktop / Terminal` 切换。新安装默认使用 Desktop，已有用户的选择会保留。桌面式支持对话、工具执行、权限/输入卡片和对话导航，并持续连接原生后台会话。Coffee Agent 也能读取和操作同一个桌面式后台会话，无需另开终端。
 
 ### 为谁而生？
 
@@ -207,11 +216,11 @@ Coffee CLI 同时消除两道门槛：**不需要终端经验，不需要懂英�
 
 ### 核心功能
 
-**多 Tab 会话** · **Gambit 快捷命令** · **Hook 自动化** · **会话历史** · **内置文件浏览器** · **任务板** · **Agent 安装器** · **远程终端** · **外部唤起** · **Orca 残留清理**
+**桌面式对话** · **多 Tab 会话** · **Gambit 快捷命令** · **会话历史** · **内置文件浏览器** · **任务板** · **Agent 安装器** · **远程终端** · **外部唤起** · **Hook 配置保留**
 
 原生支持 11 种语言，开箱即用。
 
-> **被 Orca 污染了 AI 工具？** Orca(stablyai/orca)会往十多个 AI CLI 工具的配置文件里偷偷写状态钩子(Claude Code、Codex、Cursor、Grok、Kimi……)。这些工具本来自带完整状态逻辑，被写坏后：每次会话报 hook 错误、Codex 配置解析失败无法启动、hook 命令每次工具调用都弹黑窗或吞 stdin、甚至为从没装过的工具创建配置目录。**卸载 Orca 不会清掉这些残留**——它每次启动都会重新写入，手动删是一条打不赢的仗，小白用户几乎无从下手。Coffee CLI 启动时自动检测并清除：只删 Orca 写的那几行，你自己的钩子原样保留，Orca 运行中自动跳过(绝不冲突)。
+**Hook 兼容策略：** Coffee CLI 的状态识别不依赖 Hook。启动与工具扫描时不会安装、迁移或清理状态 Hook 及相关插件；用户已有配置、第三方工具写入的 Hook，以及旧版 Coffee CLI 留下的 Hook 均保持原样。
 
 ### 外部唤起（命令行）
 
@@ -252,6 +261,8 @@ Coffee CLI 是專為 AI CLI Agent 打造的**原生桌面伴侶應用**，支援
 
 Coffee CLI 同時消除兩道門檻：**不需要終端經驗，不需要懂英語**。
 
+Claude Code 與 Codex CLI 支援 `Desktop / Terminal` 兩種啟動方式。既有的使用者、第三方與舊版 Coffee CLI 狀態 Hook 及相關外掛會原樣保留，不會安裝、遷移或清理。
+
 **核心功能：** 即時終端翻譯 · 多 Tab 會話 · 會話歷史 · 內建檔案瀏覽器 · 任務板 · Agent 安裝器 · 遠端終端
 
 原生支援 11 種語言，開箱即用。
@@ -267,6 +278,8 @@ Coffee CLI ist eine **native Desktop-Begleit-App** für KI-CLI-Agenten — Claud
 Keine Web-App. Kein Electron-Wrapper. Eine **echte native Desktop-Anwendung**, gebaut mit Tauri (Rust-Kern).
 
 Coffee CLI beseitigt beide Hürden gleichzeitig: **Keine Terminal-Kenntnisse erforderlich, kein Englisch erforderlich.**
+
+Claude Code und Codex CLI unterstützen die Startmodi `Desktop / Terminal`. Bestehende Status-Hooks und Hook-Plugins von Nutzern, Drittanbietern und älteren Coffee-CLI-Versionen bleiben erhalten; sie werden weder installiert noch migriert oder entfernt.
 
 **Hauptfunktionen:** Echtzeit-Terminal-Übersetzung · Multi-Tab-Sitzungen · Sitzungsverlauf · Datei-Explorer · Aufgaben-Board · Agent-Installer · Remote-Terminal
 
@@ -284,6 +297,8 @@ No es una aplicación web. No es un envoltorio de Electron. Es una **aplicación
 
 Coffee CLI elimina ambas barreras a la vez: **sin necesidad de experiencia en terminal, sin necesidad de saber inglés.**
 
+Claude Code y Codex CLI admiten los modos `Desktop / Terminal`. Se conservan los hooks de estado y sus plugins existentes, incluidos los del usuario, de terceros y de versiones anteriores de Coffee CLI; no se instalan, migran ni eliminan.
+
 **Funciones principales:** Traducción de terminal en tiempo real · Sesiones multi-pestaña · Historial de sesiones · Explorador de archivos · Tablero de tareas · Instalador de agentes · Terminal remota
 
 10 idiomas compatibles de serie.
@@ -299,6 +314,8 @@ Coffee CLI est une **application de bureau native** conçue pour les agents IA e
 Ce n'est pas une application web. Pas un wrapper Electron. Une **vraie application de bureau native**, construite avec Tauri (cœur Rust).
 
 Coffee CLI supprime les deux barrières à la fois : **aucune expertise terminal requise, aucune connaissance de l'anglais requise.**
+
+Claude Code et Codex CLI proposent les modes `Desktop / Terminal`. Les hooks de statut et leurs plugins existants, qu’ils proviennent de l’utilisateur, de tiers ou d’anciennes versions de Coffee CLI, sont conservés ; ils ne sont ni installés, ni migrés, ni supprimés.
 
 **Fonctionnalités clés :** Traduction de terminal en temps réel · Sessions multi-onglets · Historique des sessions · Explorateur de fichiers · Tableau de tâches · Installeur d'agents · Terminal distant
 
@@ -316,6 +333,8 @@ Coffee CLI は、AI CLI エージェント（Claude Code、OpenAI Codex など�
 
 Coffee CLI はその2つのハードルを同時に取り除きます：**ターミナルの知識不要、英語不要**。
 
+Claude Code と Codex CLI は `Desktop / Terminal` の両モードに対応しています。ユーザー、サードパーティー、旧バージョンの Coffee CLI による既存のステータス Hook と関連プラグインはそのまま保持し、インストール・移行・削除は行いません。
+
 **主な機能：** リアルタイム翻訳 · マルチタブセッション · セッション履歴 · ファイルエクスプローラー · タスクボード · エージェントインストーラー · リモートターミナル
 
 11言語をネイティブサポート。
@@ -331,6 +350,8 @@ Coffee CLI는 AI CLI 에이전트(Claude Code, OpenAI Codex 등)를 위한 **네
 웹 앱도 아니고 Electron 래퍼도 아닙니다. Tauri(Rust 코어)로 구축된 **진정한 네이티브 데스크톱 앱**입니다.
 
 Coffee CLI는 두 가지 장벽을 동시에 제거합니다: **터미널 지식 불필요, 영어 불필요**.
+
+Claude Code와 Codex CLI는 `Desktop / Terminal` 실행 모드를 지원합니다. 사용자, 타사 도구 및 이전 Coffee CLI 버전의 기존 상태 Hook과 관련 플러그인은 그대로 보존하며 설치, 이전 또는 삭제하지 않습니다.
 
 **주요 기능:** 실시간 번역 · 멀티탭 세션 · 세션 히스토리 · 파일 탐색기 · 작업 보드 · 에이전트 설치 관리자 · 원격 터미널
 
@@ -348,6 +369,8 @@ Não é um aplicativo web. Não é um wrapper Electron. É um **verdadeiro aplic
 
 Coffee CLI elimina as duas barreiras ao mesmo tempo: **sem necessidade de experiência em terminal, sem necessidade de saber inglês.**
 
+Claude Code e Codex CLI oferecem os modos `Desktop / Terminal`. Os hooks de estado e plugins existentes do utilizador, de terceiros e de versões anteriores do Coffee CLI são preservados, sem instalação, migração ou remoção.
+
 **Recursos principais:** Tradução de terminal em tempo real · Sessões multi-aba · Histórico de sessões · Explorador de arquivos · Quadro de tarefas · Instalador de agentes · Terminal remoto
 
 10 idiomas suportados nativamente.
@@ -363,6 +386,8 @@ Coffee CLI — это **нативное десктопное приложени
 Это не веб-приложение. Не обёртка на Electron. Настоящее **нативное десктопное приложение**, построенное на Tauri (ядро на Rust).
 
 Coffee CLI устраняет оба барьера одновременно: **не нужно знать терминал, не нужно знать английский**.
+
+Claude Code и Codex CLI поддерживают режимы `Desktop / Terminal`. Существующие хуки состояния и связанные плагины пользователя, сторонних инструментов и прежних версий Coffee CLI сохраняются без установки, переноса или удаления.
 
 **Ключевые функции:** Перевод терминала в реальном времени · Мультивкладочные сессии · История сессий · Файловый проводник · Доска задач · Установщик агентов · Удалённый терминал
 
