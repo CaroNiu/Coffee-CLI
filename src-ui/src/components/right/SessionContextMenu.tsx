@@ -14,7 +14,6 @@ import { useT } from '../../i18n/useT';
 import type { SavedSession } from '../../tauri';
 import { commands } from '../../tauri';
 import { clipboardWrite } from '../../lib/clipboard';
-import { hideSession } from '../../lib/hidden-sessions';
 import { togglePin, isPinned } from '../../lib/pinned-sessions';
 import { buildResumeCommand } from '../../lib/resume-command';
 
@@ -35,7 +34,7 @@ const ICON_PROPS = {
   strokeLinejoin: 'round' as const,
 };
 
-export function SessionContextMenu({ menu, onClose, onRename, onOpenSplit, splitFull }: { menu: SessionCtxMenuState; onClose: () => void; onRename: (session: SavedSession) => void; onOpenSplit?: (session: SavedSession) => void; splitFull?: boolean }) {
+export function SessionContextMenu({ menu, onClose, onRename, onDelete, onOpenSplit, splitFull }: { menu: SessionCtxMenuState; onClose: () => void; onRename: (session: SavedSession) => void; onDelete: (session: SavedSession) => void; onOpenSplit?: (session: SavedSession) => void; splitFull?: boolean }) {
   const t = useT();
   const menuRef = useRef<HTMLDivElement>(null);
   const { session } = menu;
@@ -66,7 +65,7 @@ export function SessionContextMenu({ menu, onClose, onRename, onOpenSplit, split
   const copy = (text: string) => { clipboardWrite(text); onClose(); };
   const handlePin = () => { togglePin(session.tool ?? '', session.id); onClose(); };
   const handleRename = () => { onRename(session); onClose(); };
-  const handleDelete = () => { hideSession(session.tool ?? '', session.id); onClose(); };
+  const handleDelete = () => { onDelete(session); onClose(); };
   const handleShowInFolder = async () => {
     onClose();
     if (!filePath) return;

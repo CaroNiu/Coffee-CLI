@@ -15,7 +15,7 @@ const mock = `
   let state={currentLang:'en',terminals:[{id:'a',tool:'claude',resumeToken:'one',agentStatus:'working',folderPath:'D:/same'},{id:'b',tool:'claude',resumeToken:'two',agentStatus:'idle',folderPath:'D:/same'}]};
   const listeners=new Set();
   window.updateStatus=status=>{state={...state,terminals:state.terminals.map(t=>t.id==='a'?{...t,agentStatus:status}:t)};listeners.forEach(fn=>fn())};
-  export function useAppState(){return {state:useSyncExternalStore(fn=>{listeners.add(fn);return()=>listeners.delete(fn)},()=>state),dispatch(){window.opened=true}}}
+  export function useAppState(){return {state:useSyncExternalStore(fn=>{listeners.add(fn);return()=>listeners.delete(fn)},()=>state),dispatch(action){if(action.type==='REMOVE_TERMINAL')(window.removed??=[]).push(action.id);else window.opened=true}}}
   export function useAppLanguage(){return 'en'};
   export function useAppStateRef(){return {current:state}};
   const sessions=[{id:'one',tool:'claude',session_token:'one',name:'Working on the first task',cwd:'D:/same',saved_at:'2026-10-23T00:00:00Z'},{id:'two',tool:'claude',session_token:'two',name:'Another task in the same folder',cwd:'D:/same',saved_at:'2026-10-22T00:00:00Z'},{id:'other',tool:'codex',session_token:'one',name:'Different tool with the same token',cwd:'D:/same',saved_at:'2026-10-21T00:00:00Z'}];
@@ -23,10 +23,10 @@ const mock = `
   export const commands={async gitProjectStatus(folder){window.gitReadCount=(window.gitReadCount||0)+1;const p=new URLSearchParams(location.search),pr=p.get('pr')||'open';if(p.has('deferGit'))await new Promise(resolve=>{window.resolveGitStatus=resolve});return {repo_root:folder,branch:'feature/ui',github:'ok',pull_request:pr==='branch'?null:{number:42,url:'https://github.com/example/repo/pull/42',state:pr,ci:pr==='open'?(p.get('ci')||'success'):null}}}},isTauri=true;
   export const subscribeHistory=()=>()=>{},getHistorySnapshot=()=>snapshot,prefetchHistory=()=>{},refreshHistory=()=>{},sortByMtime=s=>s;
   export const subscribeHidden=()=>()=>{},getHiddenSnapshot=()=>emptySet,hideSession=()=>{window.deleted=true};
-  export const subscribePinned=()=>()=>{},getPinnedSnapshot=()=>emptySet;
+  export const subscribePinned=()=>()=>{},getPinnedSnapshot=()=>emptySet,togglePin=()=>{},isPinned=()=>false;
   export const subscribeRenamed=()=>()=>{},getRenamedSnapshot=()=>emptyObject,setCustomName=()=>{};
   export const useAgentClient=()=>agent,refreshAgentConversations=async()=>{},openAgentConversation=async()=>{};
-  export const useTextContextMenu=()=>({menu:null,openMenu(){}}),SessionContextMenu=()=>null;
+  export const useTextContextMenu=()=>({menu:null,openMenu(){}});
 `;
 await build({
   stdin: { resolveDir: project, loader: 'tsx', contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {HistoryBoard} from './src/components/right/HistoryBoard';createRoot(document.getElementById('root')).render(<HistoryBoard/>);` },
@@ -34,7 +34,7 @@ await build({
   nodePaths: [join(project, 'node_modules')], loader: { '.png': 'dataurl' },
   define: { 'process.env.NODE_ENV': '"development"' },
   plugins: [{ name: 'isolated-history', setup(builder) {
-    builder.onResolve({ filter: /(?:store\/app-state|tauri|lib\/(?:history-cache|hidden-sessions|pinned-sessions|renamed-sessions|agent-client|use-text-context-menu)|SessionContextMenu)$/ }, () => ({ path: 'mock', namespace: 'fixture' }));
+    builder.onResolve({ filter: /(?:store\/app-state|tauri|lib\/(?:history-cache|hidden-sessions|pinned-sessions|renamed-sessions|agent-client|use-text-context-menu))$/ }, () => ({ path: 'mock', namespace: 'fixture' }));
     builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: mock, resolveDir: project, loader: 'js' }));
     builder.onResolve({ filter: /\.(?:svg|png)\?(?:inline|raw)$/ }, args => ({ path: resolve(args.resolveDir, args.path.split('?')[0]), namespace: 'asset' }));
     builder.onLoad({ filter: /.*/, namespace: 'asset' }, async args => ({ contents: `export default ${JSON.stringify(args.path.endsWith('.svg') ? await readFile(args.path, 'utf8') : '')}`, loader: 'js' }));
@@ -88,9 +88,14 @@ try {
   await working.hover();
   await working.locator('.history-card-delete-btn').click();
   assert.equal(await page.evaluate(() => window.deleted && !window.opened), true, 'delete does not resume/open a task');
+  assert.deepEqual(await page.evaluate(() => window.removed), ['a'], 'row deletion also closes its matching tab');
+  await rows.nth(1).click({ button: 'right' });
+  await page.locator('.ctx-menu').getByRole('button', { name: 'Delete', exact: true }).click();
+  assert.deepEqual(await page.evaluate(() => window.removed), ['a', 'b'], 'context menu deletion also closes its matching tab');
   for(const [state,ci] of [['open','failure'],['open','pending'],['draft',null],['merged',null],['closed',null]]) {
     await page.evaluate(()=>localStorage.setItem('cc-history-layout','list'));
     await page.goto(`http://127.0.0.1:${server.address().port}/?pr=${state}&ci=${ci??''}`);
+    await page.mouse.move(500, 300);
     const mark=page.locator('.history-card').nth(1).locator('.history-git-mark');
     await mark.waitFor();
     assert.ok((await mark.getAttribute('class')).includes('is-'+state));

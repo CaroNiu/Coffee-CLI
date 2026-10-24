@@ -371,6 +371,26 @@ export function HistoryBoard() {
     });
   };
 
+  const handleDeleteHistory = async (saved: SavedSession) => {
+    setAgentError('');
+    setPreview(null);
+    const closing = state.terminals.filter(tab => tab.tool === saved.tool &&
+      (`live:${tab.id}` === saved.id || !!saved.session_token && tab.resumeToken === saved.session_token));
+    if (!closing.length && isTauri && saved.session_token) {
+      try {
+        const candidates = state.terminals.filter(tab => tab.tool === saved.tool && !tab.resumeToken);
+        const tokens = await Promise.all(candidates.map(tab => commands.getTerminalSessionToken(tab.id)));
+        closing.push(...candidates.filter((_, index) => tokens[index] === saved.session_token));
+      } catch (error) {
+        setAgentError(String(error));
+        return;
+      }
+    }
+    hideSession(saved.tool ?? '', saved.id);
+    for (const tab of closing) dispatch({ type: 'REMOVE_TERMINAL', id: tab.id });
+    if (saved.tool === 'coffee-agent' && saved.id === activeAgentConversation) dispatch({ type: 'CLOSE_AGENT_PAGE', page: 'agent' });
+  };
+
   const renderSession = (session: SavedSession, grouped = false) => {
         // Parse saved_at carefully to handle unix ms strings or invalid SystemTime strings
         let savedMs = Date.parse(session.saved_at);
@@ -487,8 +507,7 @@ export function HistoryBoard() {
                       aria-label={t('menu.delete')}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setPreview(null);
-                        hideSession(session.tool ?? '', session.id);
+                        void handleDeleteHistory(session);
                       }}
                     >
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -600,7 +619,7 @@ export function HistoryBoard() {
       </div>
       <footer className="history-search-footer">{t('history.search_hint')}</footer>
     </dialog>, document.body)}
-    {ctxMenu && <SessionContextMenu menu={ctxMenu} onClose={() => setCtxMenu(null)} onRename={startRename}
+    {ctxMenu && <SessionContextMenu menu={ctxMenu} onClose={() => setCtxMenu(null)} onRename={startRename} onDelete={handleDeleteHistory}
       onOpenSplit={state.terminals.some(tab => tab.id === state.activeTerminalId && tab.tool) && (ctxMenu.session.session_token || liveSessions.some(tab => `live:${tab.id}` === ctxMenu.session.id)) ? saved => { void handleViewHistory(saved, { targetId: state.activeTerminalId!, edge: 'right' }); } : undefined}
       splitFull={splitSessionIds(state.sessionSplit).includes(state.activeTerminalId ?? '') && splitSessionIds(state.sessionSplit).length >= 4 && !state.terminals.some(tab => splitSessionIds(state.sessionSplit).includes(tab.id) && (`live:${tab.id}` === ctxMenu.session.id || tab.tool === ctxMenu.session.tool && tab.resumeToken === ctxMenu.session.session_token))} />}
     {splitDrag.overlay}

@@ -172,3 +172,60 @@ await openHistory({ ...saved, tool: 'coffee-agent', session_token: null });
 assert.equal(context.agentOpened, saved.id);
 assert.equal(context.state.terminals.length, 0, 'Coffee Agent keeps its existing page-based open flow');
 console.log('OK: repeat/rapid history opens, hidden/closed tabs, cross-tool identity, live native IDs, live row activation/split reuse, draft/process preservation, lookup failure and Agent flow');
+
+context.setPreview = () => {};
+context.hideSession = (tool, id) => { context.hiddenCalls.push([tool, id]); };
+context.activeAgentConversation = null;
+const deleteHistory = evaluate('handleDeleteHistory');
+for (const tool of ['claude', 'codex']) for (const mode of ['terminal', 'conversation']) {
+  reset([
+    { id: 'closing', tool, resumeToken: 'native-1', [`${tool}Mode`]: mode },
+    { id: 'duplicate', tool, resumeToken: 'native-1' },
+    { id: 'unrelated', tool, resumeToken: 'native-2', folderPath: saved.cwd },
+    { id: 'other-tool', tool: tool === 'claude' ? 'codex' : 'claude', resumeToken: 'native-1', folderPath: saved.cwd },
+  ]);
+  context.hiddenCalls = [];
+  context.dispatch({ type: 'OPEN_SESSION_SPLIT', id: 'unrelated', targetId: 'closing', edge: 'right' });
+  context.state.activeTerminalId = 'closing';
+  await deleteHistory({ ...saved, tool });
+  assert.deepEqual(context.state.terminals.map(tab => tab.id), ['unrelated', 'other-tool'], `${tool}/${mode}: remove only matching conversation tabs`);
+  assert.equal(context.state.activeTerminalId, 'unrelated');
+  assert.deepEqual(Array.from(context.splitSessionIds(context.state.sessionSplit)), ['unrelated']);
+  assert.deepEqual(context.hiddenCalls, [[tool, saved.id]]);
+  assert.ok(!context.state.tabOrder.includes('closing') && !context.state.tabOrder.includes('duplicate'));
+}
+reset([{ id: 'last-tab', tool: 'claude' }]);
+context.hiddenCalls = [];
+await deleteHistory({ ...saved, id: 'live:last-tab', session_token: null });
+assert.equal(context.state.terminals.length, 1);
+assert.equal(context.state.terminals[0].tool, null, 'deleting the last live row returns to the launcher');
+assert.notEqual(context.state.activeTerminalId, 'last-tab');
+
+reset([{ id: 'probe-match', tool: 'claude' }, { id: 'probe-other', tool: 'claude', folderPath: saved.cwd }], true);
+context.hiddenCalls = [];
+context.commands.getTerminalSessionToken = async id => id === 'probe-match' ? saved.session_token : 'different-token';
+await deleteHistory(saved);
+assert.deepEqual(context.state.terminals.map(tab => tab.id), ['probe-other'], 'native identity resolves a terminal before its UI token arrives');
+assert.deepEqual(context.hiddenCalls, [['claude', saved.id]]);
+
+reset([{ id: 'unknown', tool: 'claude', folderPath: saved.cwd }], true);
+context.hiddenCalls = [];
+context.commands.getTerminalSessionToken = async () => { throw new Error('native lookup failed'); };
+await deleteHistory(saved);
+assert.equal(context.state.terminals[0].id, 'unknown');
+assert.equal(context.hiddenCalls.length, 0, 'failed identity checks neither close nor hide a possibly open session');
+assert.match(context.error, /native lookup failed/);
+context.commands.getTerminalSessionToken = async () => null;
+await deleteHistory({ ...saved, session_token: null });
+assert.equal(context.state.terminals[0].id, 'unknown', 'legacy records never close a tab based on its directory');
+
+reset();
+context.state.agentPages = ['agent', 'config'];
+context.state.agentPageActive = 'agent';
+context.activeAgentConversation = 'current-agent';
+context.hiddenCalls = [];
+await deleteHistory({ ...saved, tool: 'coffee-agent', id: 'older-agent', session_token: null });
+assert.equal(context.state.agentPageActive, 'agent', 'deleting another Agent conversation preserves the open page');
+await deleteHistory({ ...saved, tool: 'coffee-agent', id: 'current-agent', session_token: null });
+assert.deepEqual(context.state.agentPages, ['config']);
+console.log('OK: history deletion closes exact desktop/terminal tabs, updates split/tab order, preserves unrelated sessions, returns to the launcher, probes native IDs and closes only the matching Agent page');
