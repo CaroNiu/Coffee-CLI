@@ -17,6 +17,7 @@ export function RightPanel() {
   const t = useT();
   const tabId = useId();
   const changes = useGitStatus();
+  const [taskCount, setTaskCount] = useState(0);
   const selection = state.diffSelection;
   const [resting, setResting] = useState<{ view: RightView; selection: DiffSelection | null; mode: 'overlay' | 'tab' }>(() => {
     let view: RightView = 'changes';
@@ -53,9 +54,9 @@ export function RightPanel() {
         const next = event.key === 'Home' ? 0 : event.key === 'End' ? enabled.length - 1 : (current + (event.key === 'ArrowLeft' ? -1 : 1) + enabled.length) % enabled.length;
         event.preventDefault(); enabled[next]?.focus(); enabled[next]?.click();
       }}>
-        {tabs.map(tab => <button type="button" role="tab" key={tab.key} id={`${tabId}-${tab.key}-tab`} aria-controls={`${tabId}-${tab.key}`} aria-selected={view === tab.key} tabIndex={view === tab.key ? 0 : -1} disabled={tab.key === 'detail' && !selection} onClick={() => selectView(tab.key)}><span className="right-tab-label">{tab.label}</span>{tab.key === 'changes' && <span className="changes-title-count">{count}</span>}</button>)}
+        {tabs.map(tab => <button type="button" role="tab" key={tab.key} id={`${tabId}-${tab.key}-tab`} aria-controls={`${tabId}-${tab.key}`} aria-selected={view === tab.key} tabIndex={view === tab.key ? 0 : -1} disabled={tab.key === 'detail' && !selection} onClick={() => selectView(tab.key)}><span className="right-tab-label">{tab.label}</span>{tab.key !== 'detail' && <span className="changes-title-count">{tab.key === 'tasks' ? taskCount : count}</span>}</button>)}
       </div>
-      <div className="right-task-host" id={`${tabId}-tasks`} role="tabpanel" aria-labelledby={`${tabId}-tasks-tab`} hidden={view !== 'tasks'}><TaskBoard /></div>
+      <div className="right-task-host" id={`${tabId}-tasks`} role="tabpanel" aria-labelledby={`${tabId}-tasks-tab`} hidden={view !== 'tasks'}><TaskBoard onCountChange={setTaskCount} /></div>
       <div className="right-review-host" hidden={view === 'tasks'}>
         <ChangesBoard key={resolveDiffContext(state.terminals.find(session => session.id === state.activeTerminalId))?.folderPath ?? ''} selectedPath={selectedPath} diffMode={state.diffMode} view={view === 'detail' ? 'detail' : 'changes'} active={view !== 'tasks'} idPrefix={tabId} />
       </div>

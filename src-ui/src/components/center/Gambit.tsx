@@ -94,7 +94,6 @@ function wrapImagePathsForSend(text: string): string {
 // Docked height: Gambit lives flush at the bottom of the center panel.
 // Height is user-resizable via the top edge and persists across sessions,
 // mirroring how VS Code's bottom panel works.
-const DOCK_DEFAULT_HEIGHT = 200;
 const DOCK_MIN_HEIGHT = 120;
 const DOCK_MAX_HEIGHT_RATIO = 0.7; // never let the dock eat more than 70% of viewport height
 const LS_DOCK_H = 'cc-gambit-dock-h';
@@ -163,7 +162,7 @@ function GambitImpl({
       const n = raw ? parseInt(raw, 10) : NaN;
       if (Number.isFinite(n) && n >= DOCK_MIN_HEIGHT) return n;
     } catch { /* optional preference */ }
-    return DOCK_DEFAULT_HEIGHT;
+    return DOCK_MIN_HEIGHT;
   });
   // Caches the latest height written to the DOM during a resize drag, so
   // onUp commits it back to React state once without thrashing intermediate

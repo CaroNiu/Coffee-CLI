@@ -245,8 +245,8 @@ body.gambit-docked .has-session-split .conversation-navigation { bottom: 16px; }
   z-index: 210;
   touch-action: none;
 }
-.session-split-divider.is-horizontal { min-width: 6px; transform: translateX(-3px); cursor: col-resize; }
-.session-split-divider.is-vertical { min-height: 6px; transform: translateY(-3px); cursor: row-resize; }
+.session-split-divider.is-horizontal { min-width: 6px; transform: translateX(-3px); cursor: col-resize !important; }
+.session-split-divider.is-vertical { min-height: 6px; transform: translateY(-3px); cursor: row-resize !important; }
 .session-split-divider:hover, .session-split-divider:focus-visible { background: color-mix(in srgb, var(--accent) 45%, transparent); outline: none; }
 .session-split-drop-target {
   position: fixed;
