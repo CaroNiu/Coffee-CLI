@@ -20,7 +20,7 @@ const mock = `
   export function useAppStateRef(){return {current:state}};
   const sessions=[{id:'one',tool:'claude',session_token:'one',name:'Working on the first task',cwd:'D:/same',saved_at:'2026-10-23T00:00:00Z'},{id:'two',tool:'claude',session_token:'two',name:'Another task in the same folder',cwd:'D:/same',saved_at:'2026-10-22T00:00:00Z'},{id:'other',tool:'codex',session_token:'one',name:'Different tool with the same token',cwd:'D:/same',saved_at:'2026-10-21T00:00:00Z'}];
   const snapshot={sessions,status:'ready'}, emptySet=new Set(), emptyObject={}, agent={conversations:[]};
-  export const commands={async gitProjectStatus(folder){window.gitReadCount=(window.gitReadCount||0)+1;const p=new URLSearchParams(location.search),pr=p.get('pr')||'open';return {repo_root:folder,branch:'feature/ui',github:'ok',pull_request:{number:42,url:'https://github.com/example/repo/pull/42',state:pr,ci:pr==='open'?(p.get('ci')||'success'):null}}}},isTauri=true;
+  export const commands={async gitProjectStatus(folder){window.gitReadCount=(window.gitReadCount||0)+1;const p=new URLSearchParams(location.search),pr=p.get('pr')||'open';if(p.has('deferGit'))await new Promise(resolve=>{window.resolveGitStatus=resolve});return {repo_root:folder,branch:'feature/ui',github:'ok',pull_request:pr==='branch'?null:{number:42,url:'https://github.com/example/repo/pull/42',state:pr,ci:pr==='open'?(p.get('ci')||'success'):null}}}},isTauri=true;
   export const subscribeHistory=()=>()=>{},getHistorySnapshot=()=>snapshot,prefetchHistory=()=>{},refreshHistory=()=>{},sortByMtime=s=>s;
   export const subscribeHidden=()=>()=>{},getHiddenSnapshot=()=>emptySet,hideSession=()=>{window.deleted=true};
   export const subscribePinned=()=>()=>{},getPinnedSnapshot=()=>emptySet;
@@ -102,8 +102,29 @@ try {
     await page.locator('.history-layout-toggle').click();
     await page.locator('.history-project-row .history-git-mark').waitFor();
   }
+  for (const layout of ['projects', 'list']) {
+    for (const [state, ci] of [['branch', null], ['open', 'success'], ['open', 'failure'], ['open', 'pending'], ['draft', null], ['merged', null], ['closed', null]]) {
+      await page.evaluate(layout => localStorage.setItem('cc-history-layout', layout), layout);
+      await page.goto(`http://127.0.0.1:${server.address().port}/?deferGit=1&pr=${state}&ci=${ci ?? ''}`);
+      await page.mouse.move(500, 300);
+      await page.waitForFunction(() => typeof window.resolveGitStatus === 'function');
+      const items = page.locator('.history-project-row, .history-card');
+      const geometry = () => items.evaluateAll(nodes => nodes.map(node => {
+        const { top, height } = node.getBoundingClientRect();
+        return { top, height };
+      }));
+      const before = await geometry();
+      assert.equal(await page.locator('.history-git-mark').count(), 0, 'measure before metadata arrives');
+      await page.evaluate(() => window.resolveGitStatus());
+      await page.locator(layout === 'projects' ? '.history-project-row .history-git-mark' : '.history-card .history-git-mark').waitFor();
+      assert.deepEqual(await geometry(), before, `${layout}/${state}/${ci}: status arrival must not resize or move any row`);
+      await page.locator('.history-card').nth(1).hover();
+      assert.deepEqual(await geometry(), before, `${layout}/${state}/${ci}: hover actions must not resize or move any row`);
+    }
+  }
   assert.deepEqual(errors, []);
   console.log('OK: real history rows, exact status identity, spinner/hover/keyboard actions, reduced motion, state clearing, deletion and Git/PR/CI project marks');
+  console.log('OK: project/list row heights and positions stay unchanged across delayed branch/PR/CI marks and hover actions');
   console.log(`Screenshot: ${join(directory, 'history-working.png')}`);
 } finally {
   await browser.close();

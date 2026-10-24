@@ -304,7 +304,7 @@
   position:relative; display:inline-flex; align-items:center; justify-content:center;
   flex:0 0 22px; height:22px; margin-left:6px; color:var(--text-2);
 }
-.history-project-row > .history-git-mark { flex:0 0 22px; }
+.history-project-row > .history-git-mark { flex:0 0 22px; height:18px; }
 .history-git-mark.is-open { color:var(--success,#79c99e); }
 .history-git-mark.is-merged { color:#a78bdb; }
 .history-git-mark.is-closed { color:var(--danger,#df735f); }

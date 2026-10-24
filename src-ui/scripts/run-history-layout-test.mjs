@@ -82,8 +82,13 @@ assert.equal(evaluate('workingSessions').size, 0, 'closing a tab clears its indi
 console.log('OK: history working state uses exact native identity and clears for waiting, completion and closed tabs');
 
 // Exercise the real history click handler together with the shared reducer.
+context.nativeSessions = [];
+Object.defineProperty(context, 'liveSessions', { get: () => evaluate('liveSessions') });
+const splitExports = {};
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/lib/session-split-layout.ts', import.meta.url), 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText, { exports: splitExports });
+Object.assign(context, splitExports);
 const store = ts.createSourceFile('app-state.tsx', readFileSync(new URL('../src/store/app-state.tsx', import.meta.url), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-const declarations = ['getTabOrder', 'reducer'].map(name => store.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === name).getText(store).replace(/^export\s+/, ''));
+const declarations = ['getTabOrder', 'splitForSession', 'reducer'].map(name => store.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === name).getText(store).replace(/^export\s+/, ''));
 let nextId = 0;
 context.crypto = { randomUUID: () => `history-tab-${++nextId}` };
 context.localStorage = { setItem() {}, removeItem() {} };
@@ -94,7 +99,7 @@ context.dispatch = action => { context.state = context.reducer(context.state, ac
 const openHistory = evaluate('handleViewHistory');
 const saved = { ...session('history-id', 'D:/Coffee-CLI'), session_token: 'native-1' };
 function reset(terminals = [], native = false) {
-  context.state = { terminals, tabOrder: terminals.map(tab => tab.id), activeTerminalId: terminals[0]?.id ?? null, agentPages: [], agentPageActive: null, diffTabActive: false };
+  context.state = { terminals, tabOrder: terminals.map(tab => tab.id), activeTerminalId: terminals[0]?.id ?? null, sessionSplit: null, agentPages: [], agentPageActive: null, diffTabActive: false };
   context.isTauri = native;
   context.error = '';
   context.commands = { getTerminalSessionToken: async () => null };
@@ -150,8 +155,20 @@ reset([{ id: 'live-cli', tool: 'claude', folderPath: saved.cwd }], true);
 await openHistory(saved);
 assert.equal(context.state.terminals.length, 2, 'same cwd alone cannot identify a native conversation');
 
+const liveTab = { id: 'live-no-token', tool: 'claude', folderPath: saved.cwd, gambitDraft: 'keep live draft' };
+reset([liveTab, { id: 'split-target', tool: 'codex', folderPath: saved.cwd }], true);
+context.state.activeTerminalId = 'split-target';
+const liveEntry = { ...saved, id: `live:${liveTab.id}`, session_token: null };
+await openHistory(liveEntry);
+assert.equal(context.state.activeTerminalId, liveTab.id, 'a live row without a native token activates its existing tab');
+assert.equal(context.state.terminals.length, 2);
+assert.equal(context.state.terminals[0], liveTab, 'live row activation preserves the session and draft');
+await openHistory(liveEntry, { targetId: 'split-target', edge: 'right' });
+assert.deepEqual(Array.from(context.splitSessionIds(context.state.sessionSplit)), ['split-target', liveTab.id]);
+assert.equal(context.state.terminals.length, 2, 'splitting a live row reuses its existing session');
+
 reset();
 await openHistory({ ...saved, tool: 'coffee-agent', session_token: null });
 assert.equal(context.agentOpened, saved.id);
 assert.equal(context.state.terminals.length, 0, 'Coffee Agent keeps its existing page-based open flow');
-console.log('OK: repeat/rapid history opens, hidden/closed tabs, cross-tool identity, live native IDs, draft/process preservation, lookup failure and Agent flow');
+console.log('OK: repeat/rapid history opens, hidden/closed tabs, cross-tool identity, live native IDs, live row activation/split reuse, draft/process preservation, lookup failure and Agent flow');
