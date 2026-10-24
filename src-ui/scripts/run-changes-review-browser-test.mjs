@@ -5,25 +5,30 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
-import { build } from 'esbuild';
+import { build, transform } from 'esbuild';
 const { chromium } = await import(process.env.COFFEE_PLAYWRIGHT_MODULE || 'playwright-core');
 const project = fileURLToPath(new URL('..', import.meta.url));
 const directory = await mkdtemp(join(tmpdir(), 'coffee-changes-review-'));
+const stateSource = await readFile(join(project, 'src/store/app-state.tsx'), 'utf8');
+const resolver = stateSource.match(/export function resolveDiffContext\([\s\S]*?\n}/)?.[0];
+assert.ok(resolver, 'exercise the actual workspace resolver');
+const { code: diffContextResolver } = await transform(resolver, { loader: 'ts' });
 const mock = `
 import {useSyncExternalStore} from 'react';
 const listeners=new Set();
-let state={currentLang:'zh-CN',iconTheme:'material',taskViewMode:'list',activeTerminalId:'a',terminals:[{id:'a',tool:'claude',folderPath:'D:/test'}],diffMode:'overlay',diffSelection:null};
+let state={currentLang:'zh-CN',iconTheme:'material',taskViewMode:'list',activeTerminalId:'a',terminals:[{id:'a',tool:null,folderPath:'D:/test'}],diffMode:'overlay',diffSelection:null};
 function emit(){state={...state};listeners.forEach(fn=>fn())}
 function dispatch(action){if(action.type==='SET_DIFF_SELECTION')state={...state,diffSelection:action.selection};if(action.type==='CLEAR_DIFF')state={...state,diffSelection:null};if(action.type==='SET_DIFF_MODE')state={...state,diffMode:action.mode};emit()}
 export function useAppState(){return {state:useSyncExternalStore(fn=>{listeners.add(fn);return()=>listeners.delete(fn)},()=>state),dispatch}}
 export function useAppLanguage(){return 'zh-CN'}
-export function resolveDiffContext(session){return session?{folderPath:session.folderPath,sessionId:session.id,tool:session.tool}:null}
+${diffContextResolver}
 const entry=(rel,added=3,deleted=1)=>({path:'D:/test/'+rel,rel,status:'M',added,deleted});
 const fixture={state:'ok',branch:'feature/sidebar',repo_root:'D:/test',uncommitted:[entry('src/HistoryBoard.tsx'),entry('src/DiffPanel.tsx'),entry('lib/git-status.tsx')],untracked:[{...entry('docs/notes.md',4,0),status:'?'}],session_commits:[{hash:'abc1234',message:'Improve review layout',time:1,author:'Fixture'},{hash:'def5678',message:'Keep file identity',time:2,author:'Fixture'}]};
 let changes=fixture;
 window.setChanges=kind=>{changes=kind==='ok'?fixture:{state:kind};emit();window.dispatchEvent(new CustomEvent('fs-refresh',{detail:{dirPath:'D:/test'}}))};
 window.makeLongList=()=>{fixture.uncommitted=Array.from({length:60},(_,i)=>entry('src/file-'+i+'.tsx'));changes=fixture;emit();window.dispatchEvent(new CustomEvent('fs-refresh',{detail:{dirPath:'D:/test'}}))};
 window.setFolder=folder=>{state={...state,terminals:[{...state.terminals[0],folderPath:folder}]};emit()};
+window.setTool=tool=>{state={...state,terminals:[{...state.terminals[0],tool}]};emit()};
 window.setTaskMode=mode=>{state={...state,taskViewMode:mode};emit()};
 window.getSelection=()=>state.diffSelection;
 window.movePreview=mode=>dispatch({type:'SET_DIFF_MODE',mode});
@@ -31,7 +36,7 @@ window.calls={commits:0,init:0,taskLoads:0,taskSaves:0,gitReads:0,fileReads:0};
 export const isTauri=true;
 export const commands={
  async gitCaptureBaseline(){},
- async gitChanges(){window.calls.gitReads++;if(changes.state==='error')throw new Error('fixture read failure');return structuredClone(changes)},
+ async gitChanges(){window.calls.gitReads++;if(window.holdGit)await new Promise(resolve=>window.resolveGit=resolve);if(changes.state==='error')throw new Error('fixture read failure');return structuredClone(changes)},
  async loadTasks(){window.calls.taskLoads++;return JSON.stringify([{id:'task-one',title:'保留原有任务',status:'todo',createdAt:1}])},
  async saveTasks(data){window.calls.taskSaves++;window.savedTasks=JSON.parse(data)},
  async gitProjectStatus(){return {repo_root:'D:/test',branch:'feature/sidebar',github:'ok',pull_request:{number:42,url:'https://github.com/example/repo/pull/42',state:'open',ci:'success'}}},
@@ -65,7 +70,23 @@ const browser=await chromium.launch({headless:true,...(process.env.COFFEE_CHROMI
 try{
  const page=await browser.newPage({viewport:{width:900,height:800}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://127.0.0.1:'+server.address().port);
+ await page.getByText('选择工作区后查看修改记录。',{exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>window.calls.gitReads),0,'a remembered directory without an open tool does not query Git');
+ assert.equal(await page.locator('.changes-title-count').textContent(),'0');
+ await page.evaluate(()=>{window.setFolder(null);window.setTool('claude')});
+ await page.getByText('选择工作区后查看修改记录。',{exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>window.calls.gitReads),0,'a tool without a directory also remains idle');
+ await page.evaluate(()=>{window.holdGit=true;window.setFolder('D:/test')});
+ await page.waitForFunction(()=>window.resolveGit);
+ await page.getByText('加载中…',{exact:true}).waitFor();
+ await page.evaluate(()=>{window.holdGit=false;window.resolveGit()});
  const rows=page.locator('.changes-row');await rows.first().waitFor();assert.equal(await rows.count(),4);
+ await page.evaluate(()=>window.setTool(null));
+ await page.getByText('选择工作区后查看修改记录。',{exact:true}).waitFor();
+ assert.equal(await rows.count(),0,'closing the tool hides its cached Git files');
+ assert.equal(await page.locator('.changes-title-count').textContent(),'0','closing the tool clears the visible change count');
+ await page.evaluate(()=>window.setTool('claude'));await rows.first().waitFor();
+ console.log('OK: launchpad with a remembered directory stays idle; real loading, tool launch and close recover correctly');
  const pickScope=async scope=>{await page.getByRole('combobox').click();await page.getByRole('option',{name:{all:'全部修改',working:'未提交',committed:'本次会话提交'}[scope],exact:true}).click()};
  const typography=await page.evaluate(()=>{
   const reference=document.createElement('div');reference.className='explorer-panel';reference.style.cssText='position:absolute;left:-9999px';reference.innerHTML='<span class="tree-file">字体参考 Aa</span>';document.body.append(reference);

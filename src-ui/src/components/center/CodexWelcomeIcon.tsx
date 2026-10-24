@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import mascotUrl from '../../icons-inline/codex-mascot.webp';
 import './CodexWelcomeIcon.css';
 
-// Native Codex atlas rows and frame holds. Idle is deliberately six times slower.
+// Native Codex frame holds: actions play three times, then loop the slow idle.
 const WELCOME_ANIMATIONS = [
   { id: 'idle', row: 0, holds: [1680, 660, 660, 840, 840, 1920] },
   { id: 'walking-right', row: 1, holds: [120, 120, 120, 120, 120, 120, 120, 220] },
@@ -27,15 +27,23 @@ export function CodexWelcomeIcon({ isActive }: { isActive: boolean }) {
   }, []);
   useEffect(() => {
     if (!ref.current || !isActive || !motionAllowed) return;
-    const duration = icon.holds.reduce((total, hold) => total + hold, 0);
-    let elapsed = 0;
-    const frames = icon.holds.map((hold, column) => {
-      const frame = { backgroundPosition: `${column / 7 * 100}% ${icon.row * 10}%`, offset: elapsed / duration, easing: 'step-end' };
-      elapsed += hold;
-      return frame;
-    });
-    const animation = ref.current.animate([...frames, { ...frames[frames.length - 1], offset: 1 }], { duration, iterations: Infinity });
-    return () => animation.cancel();
+    const element = ref.current;
+    const play = (action: typeof icon, iterations: number) => {
+      const duration = action.holds.reduce((total, hold) => total + hold, 0);
+      let elapsed = 0;
+      const frames = action.holds.map((hold, column) => {
+        const frame = { backgroundPosition: `${column / 7 * 100}% ${action.row * 10}%`, offset: elapsed / duration, easing: 'step-end' };
+        elapsed += hold;
+        return frame;
+      });
+      return element.animate([...frames, { ...frames[frames.length - 1], offset: 1 }], { duration, iterations });
+    };
+    let animation = play(icon, icon.id === 'idle' ? Infinity : 3);
+    if (icon.id !== 'idle') animation.onfinish = () => {
+      animation.cancel();
+      animation = play(WELCOME_ANIMATIONS[0], Infinity);
+    };
+    return () => { animation.onfinish = null; animation.cancel(); };
   }, [icon, isActive, motionAllowed]);
   return <span ref={ref} className="codex-welcome-icon" style={{ backgroundImage: `url("${mascotUrl}")`, backgroundPosition: `0% ${icon.row * 10}%` }} data-welcome-icon={icon.id} data-paused={!isActive || !motionAllowed || undefined} aria-hidden="true" />;
 }

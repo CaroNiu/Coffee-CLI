@@ -52,7 +52,7 @@ await build({
       export async function listen(name,fn){window.codexListener=fn;return()=>{}};
     ` : `
       window.calls=[];let turn=0;
-      const history=(prefix,count)=>Array.from({length:count},(_,i)=>({id:prefix+i,status:'completed',items:[{id:'u',type:'userMessage',content:[{type:'text',text:prefix+i+' '+ 'Readable history. '.repeat(30)}]},{id:'a',type:'agentMessage',text:'Answer '+i+' '+ 'Earlier context. '.repeat(30)}]}));
+      const history=(prefix,count)=>Array.from({length:count},(_,i)=>({id:prefix+i,status:'completed',items:[{id:'u',type:'userMessage',content:[{type:'text',text:prefix+i+' '+ 'Readable history. '.repeat(30)}]},...(i===1?[{id:'exec-1',type:'commandExecution',command:'echo first',status:'completed'},{id:'exec-2',type:'commandExecution',command:'echo second',status:'completed'}]:[]),{id:'a',type:'agentMessage',text:'Answer '+i+' '+ 'Earlier context. '.repeat(30)}]}));
       window.emit=(id,method,params={},requestId)=>{const start=window.calls.find(c=>c.name==='codex_session_start'&&c.id===id);window.codexListener({payload:{id,generation:start.generation,event:{method,params:{threadId:'thread-'+id,...params},...(requestId===undefined?{}:{id:requestId})}}})};
       export const isTauri=false,commands=new Proxy({},{get:(_,name)=>async(...args)=>{(window.nativeActions??=[]).push({name,args});if(name==='computerName')return 'TEST-DESKTOP'}});
       export async function invoke(name,args){window.calls.push({name,...args});
@@ -92,6 +92,7 @@ try {
   await page.waitForFunction(()=>window.resolveStartup&&document.querySelector('.host .claude-empty-title'));
   assert.equal(await page.locator('.host:visible .codex-working').count(),0,'startup does not insert a Connecting row');
   assert.equal(await page.locator('.host:visible .claude-session-error').count(),0);
+  assert.equal(await page.locator('.host:visible .conversation-navigation').count(),0,'empty conversations have no navigation');
   await page.evaluate(()=>window.resolveStartup());
   await page.waitForFunction(()=>window.currentState.ready);
   const input=page.locator('.gambit-textarea');
@@ -117,12 +118,21 @@ try {
     await page.waitForFunction(id=>{const el=document.querySelector('.host .codex-welcome-icon');return el?.dataset.welcomeIcon===id&&el.getAnimations().length===1},id);
     const duration=holds.reduce((total,hold)=>total+hold,0);
     assert.equal(await mascot.evaluate(el=>el.getAnimations()[0].effect.getTiming().duration),duration,`${id} keeps its original speed`);
+    assert.equal(await mascot.evaluate(el=>el.getAnimations()[0].effect.getTiming().iterations),id==='idle'?Infinity:3,`${id} follows the native repetition limit`);
     let elapsed=0;
     for(const [column,hold] of holds.entries()){
       const [x,y]=await mascot.evaluate((el,time)=>{const animation=el.getAnimations()[0];animation.pause();animation.currentTime=time;return getComputedStyle(el).backgroundPosition.split(' ').map(parseFloat)},elapsed+hold/2);
       assert.ok(Math.abs(x-column/7*100)<.001);assert.equal(y,row*10,`${id} stays on the intended atlas row`);elapsed+=hold;
     }
     assert.deepEqual(await mascot.boundingBox(),bounds,`${id} does not shift the layout`);
+    if(id!=='idle'){
+      await mascot.evaluate(el=>el.getAnimations()[0].finish());
+      await page.waitForFunction(()=>document.querySelector('.host .codex-welcome-icon')?.getAnimations()[0]?.effect.getTiming().duration===6600);
+      assert.equal(await mascot.evaluate(el=>el.getAnimations()[0].effect.getTiming().iterations),Infinity,'finished actions settle into slow idle');
+      const y=await mascot.evaluate(el=>{const a=el.getAnimations()[0];a.pause();a.currentTime=3000;return parseFloat(getComputedStyle(el).backgroundPosition.split(' ')[1])});
+      assert.equal(y,0,'idle uses its own atlas row after every random action');
+      assert.deepEqual(await mascot.boundingBox(),bounds,'settling into idle does not move the layout');
+    }
     await mascot.evaluate(el=>el.getAnimations()[0].play());
     await page.evaluate(()=>{Math.random=()=>.99});await input.fill('rerender');await input.fill('');
     assert.equal(await mascot.getAttribute('data-welcome-icon'),id,'composer rerenders do not reroll the current mascot');
@@ -167,6 +177,7 @@ try {
   await input.fill('Hello Coffee');await input.press('Enter');
   await page.waitForFunction(()=>window.currentState.busy);
   assert.equal(await input.inputValue(),'');
+  assert.equal(await page.locator('.host:visible .conversation-navigation').count(),0,'one user turn does not need navigation');
   const turnId=await page.evaluate(()=>window.turn);
   await emit('item/started',{turnId,item:{id:'exec',type:'commandExecution',command:'echo Coffee',status:'inProgress',aggregatedOutput:''}});
   const group=page.locator('.host:visible .codex-group-heading');await group.click();
@@ -273,10 +284,37 @@ try {
   await page.evaluate(()=>{window.emit('b','turn/started',{turn:{id:'live'}});window.emit('b','item/agentMessage/delta',{turnId:'live',itemId:'answer',delta:'New answer. '.repeat(90)})});
   await page.waitForTimeout(200);
   assert.ok(Math.abs((await metrics()).top-reading.top)<2,'streaming preserves upward reading position');
+  const navigation=page.locator('.host:visible .conversation-navigation');
+  assert.equal(await navigation.locator('button').count(),48,'only user turns become navigation ticks, including history with grouped tools');
+  const turn=navigation.locator('[data-conversation-navigation-target="history-10:u"]');
+  await turn.hover();
+  assert.ok((await navigation.getByRole('tooltip').textContent()).startsWith('history-10 '),'hover previews the user prompt');
+  await turn.click();await page.waitForTimeout(300);
+  const target=page.locator('[data-message-id="history-10:u"]');
+  const targetOffset=async()=>{const box=await target.boundingBox(),viewport=await scroller.boundingBox();assert.ok(box,'the target is rendered by the virtualizer');return box.y-viewport.y};
+  assert.ok(Math.abs(await targetOffset()-24)<2,'navigation jumps to the correct row after tool grouping');
+  assert.equal(await turn.getAttribute('aria-current'),'step','the selected turn is highlighted');
+  const jumped=await metrics();
+  await page.evaluate(()=>window.emit('b','item/agentMessage/delta',{turnId:'live',itemId:'answer',delta:'More streamed content. '.repeat(30)}));await page.waitForTimeout(200);
+  assert.ok(Math.abs(await targetOffset()-24)<2,'streaming keeps the navigation target aligned');
+  await scroller.hover();await page.mouse.wheel(0,-150);await page.waitForTimeout(200);
+  const manual=await metrics();await page.waitForTimeout(150);
+  assert.ok(manual.top<jumped.top-30&&Math.abs((await metrics()).top-manual.top)<2,'manual scrolling releases the navigation anchor');
   await scroller.evaluate(el=>{el.scrollTop=0;el.dispatchEvent(new Event('scroll'))});await page.waitForTimeout(300);
   const first=page.locator('[data-message-id="history-0:u"]'),before=await first.boundingBox();
   await page.getByRole('button',{name:'Load earlier messages',exact:true}).click();await page.waitForTimeout(500);
   const after=await first.boundingBox();assert.ok(after&&Math.abs(after.y-before.y)<2,`history prepend preserves its visible anchor: ${JSON.stringify({before,after,metrics:await metrics()})}`);
+  assert.equal(await navigation.locator('button').count(),68,'navigation includes newly loaded history');
+  await turn.focus();await turn.press('Enter');await page.waitForTimeout(300);
+  assert.ok(Math.abs(await targetOffset()-24)<2,'keyboard navigation still finds the same turn after history is prepended');
+  const rail=await navigation.boundingBox(),thread=await page.locator('.host:visible .claude-thread').boundingBox(),view=await scroller.boundingBox();
+  assert.ok(rail.x+rail.width+12<=thread.x,'navigation leaves room for the conversation text');
+  assert.ok(rail.y+rail.height<=view.y+view.height+1,'navigation clears the docked composer');
+  for(const width of [520,360]){await page.setViewportSize({width,height:800});assert.equal(await navigation.isVisible(),false,'narrow panes hide navigation at '+width+'px')}
+  await page.setViewportSize({width:1000,height:800});
+  await page.evaluate(()=>window.setActive('a'));assert.equal(await page.locator('.host').nth(1).locator('.conversation-navigation').count(),0,'inactive sessions do not retain an interactive navigation rail');
+  await page.evaluate(()=>window.setActive('b'));await navigation.waitFor();
+  console.log('ok shared conversation navigation, preview, grouped virtual rows, keyboard jump, streaming, history prepend and narrow panes');
   await page.evaluate(()=>{document.documentElement.style.setProperty('--bg-terminal','#eee9e2');document.documentElement.style.setProperty('--text-2','#51473d');document.documentElement.style.setProperty('--bg-panel','#e7dfd4')});
   assert.equal(await page.locator('.host:visible .codex-conversation').evaluate(el=>getComputedStyle(el).color),'rgb(81, 71, 61)');
   await page.evaluate(()=>window.setProvider('claude'));await page.getByRole('button',{name:'Context used: 25%',exact:true}).click();

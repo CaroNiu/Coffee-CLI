@@ -11,7 +11,7 @@ import { WelcomeGreeting } from './WelcomeGreeting';
 import { CodexWelcomeIcon } from './CodexWelcomeIcon';
 import { ConversationDirectory } from '../../lib/conversation-links';
 import { useConversationMenu } from '../../lib/use-conversation-menu';
-import { MessageCopyButton } from './ConversationControls';
+import { ConversationNavigation, MessageCopyButton, type ConversationNavigationItem } from './ConversationControls';
 import './ConversationView.css';
 import './ClaudeConversation.css';
 import './CodexConversation.css';
@@ -80,6 +80,9 @@ export function CodexConversation({ sessionId, cwd, resumeToken, isActive, isVis
     return result;
   }, [s.messages]);
   const virtual = useConversationVirtualizer(rows, scroll);
+  const navigationItems = useMemo<ConversationNavigationItem[]>(() => rows.flatMap((row, messageIndex) => row.role === 'user' ? [{
+    id: row.id, sourceMessageId: row.id, content: row.content, messageIndex, top: (virtual.offsets[messageIndex] ?? 0) + 32, cursor: null,
+  }] : []), [rows, virtual.offsets]);
   const sync = useCallback(() => {
     const node = scroll.current; if (!node || !isVisible || !node.clientHeight) return;
     const resized = viewport.current.width !== node.clientWidth || viewport.current.height !== node.clientHeight;
@@ -106,6 +109,16 @@ export function CodexConversation({ sessionId, cwd, resumeToken, isActive, isVis
     window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key);
   }, [isActive, s.busy, sessionId]);
   const pause = () => { anchor.current = null; pinned.current = false; setScrolled(true); };
+  const jumpToTurn = (item: ConversationNavigationItem) => {
+    pause();
+    virtual.scrollToIndex(item.messageIndex, 'instant');
+    const node = scroll.current;
+    if (node) {
+      // Keep the selected turn aligned while virtual rows finish measuring.
+      anchor.current = { firstId: s.messages[0].id, messageId: item.id, offset: 24, top: node.scrollTop, height: node.scrollHeight, applied: true };
+      sync();
+    }
+  };
   const loadEarlier = () => {
     const node = scroll.current;
     pause();
@@ -122,7 +135,7 @@ export function CodexConversation({ sessionId, cwd, resumeToken, isActive, isVis
     <div className="codex-tool-heading"><button type="button" className="claude-tool-heading" aria-expanded={!!expanded[message.id]} onClick={() => toggle(message.id)}><span className="codex-chevron" aria-hidden="true">{expanded[message.id] ? '⌄' : '›'}</span><strong>{message.role === 'reasoning' ? t('conversation.reasoning') : message.item.type === 'fileChange' ? t('codex.files') : message.item.type === 'commandExecution' ? t('codex.command') : str(message.item.type)}</strong><span>{title(message)}</span></button><MessageCopyButton copied={copied === message.id} onCopy={() => copy(message.id, [title(message), message.content].join('\n'))} /></div>
     {expanded[message.id] && (message.role === 'reasoning' ? <MarkdownContent content={message.content} /> : <pre className="codex-tool-body">{message.content || pretty(message.item)}</pre>)}
   </div>;
-  return <ConversationDirectory.Provider value={cwd}><div className={`claude-conversation codex-conversation${hasBg && bgUrl ? ' has-background' : ''}`}>
+  return <ConversationDirectory.Provider value={cwd}><div className={`claude-conversation codex-conversation${hasBg && bgUrl ? ' has-background' : ''}${navigationItems.length > 1 ? ' has-navigation' : ''}`}>
     {hasBg && bgUrl && <div className="conversation-background">{bgType === 'video' ? <video src={bgUrl} autoPlay loop muted /> : <img src={bgUrl} alt="" />}</div>}
     <div className="claude-scroll" ref={scroll} onContextMenu={conversationMenu.onContextMenu} onCopy={conversationMenu.onCopy} onWheelCapture={e => { if (e.deltaY < 0 && !e.ctrlKey) pause(); }} onTouchMoveCapture={pause} onKeyDownCapture={e => { if (['ArrowUp', 'PageUp', 'Home'].includes(e.key) && !(e.target as HTMLElement).closest('input,textarea,select')) pause(); }} onScroll={() => {
       const node = scroll.current; if (!node?.clientHeight) return;
@@ -154,6 +167,7 @@ export function CodexConversation({ sessionId, cwd, resumeToken, isActive, isVis
         {!rows.length && <div className="claude-empty"><CodexWelcomeIcon isActive={isVisible} /><WelcomeGreeting /><div className="claude-empty-meta"><bdi dir="ltr">{cwd || '—'}</bdi></div></div>}
       </div>
     </div>
+    {navigationItems.length > 1 && isActive && <ConversationNavigation items={navigationItems} scrollRef={scroll} onJump={jumpToTurn} />}
     {scrolled && <button type="button" className="gambit-send claude-scroll-bottom" aria-label={t('claude.scroll_latest')} onClick={() => { anchor.current = null; pinned.current = true; lastTop.current = scroll.current?.scrollTop ?? 0; sync(); }}>
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v11M3 8l5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
     </button>}

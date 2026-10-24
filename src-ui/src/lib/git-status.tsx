@@ -126,6 +126,7 @@ export function GitStatusProvider({ children }: { children: ReactNode }) {
   const debounceRef = useRef<number | null>(null);
   const lastSigRef = useRef<string>('');
   useEffect(() => {
+    if (!activeSessionId) lastSigRef.current = '';
     if (!pollEnabled || !activeFolderPath || !activeSessionId || !activeTool || cwdAgnostic) return;
     const folder = activeFolderPath;
     const sid = activeSessionId;

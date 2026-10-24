@@ -266,7 +266,7 @@ interface DiffContext {
 }
 
 export function resolveDiffContext(session: TerminalSession | null | undefined): DiffContext | null {
-  if (!session) return null;
+  if (!session?.tool) return null;
   if (!session.folderPath) return null;
   return { sessionId: session.id, folderPath: session.folderPath, tool: session.tool };
 }
