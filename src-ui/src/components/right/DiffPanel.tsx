@@ -1,6 +1,7 @@
-// DiffPanel.tsx — unified diff view for the right-side Changes tab.
+// DiffPanel.tsx — content view for the right-side Changes tab.
 // Shows baseline (session-start) vs. current content for the file the user
-// clicked in ChangesBoard. Read-only audit view: no edit, no save.
+// clicked in ChangesBoard. Markdown files render their current side as a
+// document; other text files keep the unified diff view. Read-only: no edits.
 //
 // Step 4 wired in: i18n placeholders + Shiki syntax highlighting. The
 // highlighter loads asynchronously (and the file's language grammar loads
@@ -16,6 +17,7 @@ import { commands } from '../../tauri';
 import { useT } from '../../i18n/useT';
 import { useDataAttr } from '../../lib/use-data-attr';
 import { tokenizeFile, getShikiTheme, type LineTokens } from '../../lib/shiki';
+import { MarkdownContent } from '../center/MarkdownContent';
 import './DiffPanel.css';
 
 type DiffLine = {
@@ -43,7 +45,7 @@ type DiffResult =
   | { state: 'loading' }
   | { state: 'error'; reason: string }
   | { state: 'too_large'; added: number; deleted: number }
-  | { state: 'ok'; rows: DiffRow[]; added: number; deleted: number };
+  | { state: 'ok'; rows: DiffRow[]; added: number; deleted: number; newText: string };
 
 // Render guards. Past these a per-line diff is both unhelpful and a
 // main-thread hazard: computeUnifiedDiff allocates one object per line and
@@ -121,6 +123,7 @@ export function DiffPanel({ path, repoRoot, rel, kind, fileSize, commitHash, onC
     activeRef.current = isActive;
     if (isActive) refreshRef.current?.();
   }, [isActive]);
+  const markdown = useMemo(() => kind !== 'file' && /\.md$/i.test(path), [kind, path]);
   // `expanded` (tab mode) is the legacy name kept locally so the keyboard +
   // sizing logic below reads as before; the prop surface is `mode`.
   const expanded = mode === 'tab';
@@ -286,7 +289,7 @@ export function DiffPanel({ path, repoRoot, rel, kind, fileSize, commitHash, onC
           ? tokenized.map(line => ({ type: 'line', line }))
           : collapseToHunks(tokenized);
         previousText = { oldText, newText };
-        setResult({ state: 'ok', rows, added: addedLines, deleted: deletedLines });
+        setResult({ state: 'ok', rows, added: addedLines, deleted: deletedLines, newText });
       } catch {
         if (cancelled || refreshPending) return;
         previousText = null;
@@ -440,10 +443,15 @@ export function DiffPanel({ path, repoRoot, rel, kind, fileSize, commitHash, onC
             {kind === 'file' && openExternal}
           </div>
         )}
-        {result.state === 'ok' && (kind === 'file' ? result.rows.length === 0 : result.added === 0 && result.deleted === 0) && (
+        {result.state === 'ok' && markdown && (
+          <div className="diff-markdown-preview">
+            <MarkdownContent content={result.newText} />
+          </div>
+        )}
+        {result.state === 'ok' && !markdown && (kind === 'file' ? result.rows.length === 0 : result.added === 0 && result.deleted === 0) && (
           <div className="diff-empty">{t(kind === 'file' ? 'file.empty' : 'diff.no_changes')}</div>
         )}
-        {result.state === 'ok' && (kind === 'file' || result.added > 0 || result.deleted > 0) && (
+        {result.state === 'ok' && !markdown && (kind === 'file' || result.added > 0 || result.deleted > 0) && (
           <pre className="diff-pre">
             {result.rows.map(row => {
               if (row.type === 'line') return renderDiffLine(row.line);
