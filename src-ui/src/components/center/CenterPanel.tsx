@@ -621,11 +621,11 @@ export function CenterPanel() {
   // decision is that software is bundled with the app (delete-logic-not-add).
   // AI CLIs and utilities are both hardcoded below.
   // - `type`: semantic category ('ai-cli' | 'utility'). Lets future code group/filter items.
-  // - `requiresCwd`: behavior flag — drives folder-button + cwd display on Desktop cards.
+  // - `requiresCwd`: opens the directory chooser before launching from a Desktop card.
   const AGENT_CATALOG: { key: ToolType; label: string; icon: React.ReactNode; type: 'ai-cli' | 'utility'; requiresCwd: boolean }[] = (() => {
     // OpenClaw (persona forge) is directory-agnostic — its primary
     // workflow is global persona/skill management, not a project folder.
-    // Skip the folder-picker + cwd display so it launches in one click,
+    // Skip the folder-picker so it launches in one click,
     // like utilities. Hermes Agent IS folder-aware (its splash screen
     // displays the launch cwd, and its tools can scope to a project),
     // so it gets the folder-picker on its launchpad card just like
@@ -757,9 +757,6 @@ export function CenterPanel() {
     });
   };
   const [connStatus, setConnStatus] = useState<'idle' | 'connecting' | 'failed'>('idle');
-  const [lastCwdByTool, setLastCwdByTool] = useState<Record<string, string>>(() => {
-    try { return JSON.parse(localStorage.getItem('coffee:last-cwd-by-tool') || '{}'); } catch { return {}; }
-  });
   const [claudeLaunchMode, setClaudeLaunchMode] = useState<ClaudeMode>(() => {
     try { return localStorage.getItem('coffee:claude-launch-mode') === 'terminal' ? 'terminal' : 'conversation'; } catch { return 'conversation'; }
   });
@@ -774,8 +771,7 @@ export function CenterPanel() {
     setCodexLaunchMode(mode);
     try { localStorage.setItem('coffee:codex-launch-mode', mode); } catch { /* optional preference */ }
   };
-  // Global recent project folders (across all folder-using tools) — backs the
-  // folder-icon dropdown. Separate from the per-tool last-cwd above.
+  // Shared recent project folders, most recently used first.
   const [recentFolders, setRecentFolders] = useState<string[]>(() => {
     try { const r = localStorage.getItem('coffee:recent-folders'); return r ? JSON.parse(r) : []; } catch { return []; }
   });
@@ -886,10 +882,6 @@ export function CenterPanel() {
       commands.checkToolsInstalled()
         .then(applyToolsInstalled)
         .catch(() => {});
-      try {
-        const raw = localStorage.getItem('coffee:last-cwd-by-tool');
-        if (raw) setLastCwdByTool(JSON.parse(raw));
-      } catch { /* Best-effort operation; failure is non-fatal. */ }
     }, 300);
     return () => clearTimeout(handle);
   }, [isLaunchpadMode, showLibrary]);
@@ -972,11 +964,6 @@ export function CenterPanel() {
     }
     if (cwd) {
       dispatch({ type: 'SET_FOLDER', path: cwd });
-      setLastCwdByTool(prev => {
-        const next = { ...prev, [tool as string]: cwd };
-        try { localStorage.setItem('coffee:last-cwd-by-tool', JSON.stringify(next)); } catch { /* storage full/blocked — non-fatal */ }
-        return next;
-      });
       pushRecentFolder(cwd);
     }
     dispatch({ type: 'SET_TERMINAL_TOOL', id, tool });
@@ -1159,24 +1146,6 @@ export function CenterPanel() {
     return shift ? { transform: `translateX(${shift}px)` } : undefined;
   };
 
-  const formatCwd = (cwd: string): string => {
-    if (!cwd) return '';
-    // Detect Windows path (e.g. C:\... or c:/...)
-    const isWin = /^[a-zA-Z]:/.test(cwd);
-    if (isWin) {
-      // Uppercase drive letter, normalize to backslashes
-      const formatted = cwd[0].toUpperCase() + ':' + cwd.slice(2).replace(/\//g, '\\');
-      return formatted.length > 30 ? '\u2026' + formatted.slice(-28) : formatted;
-    }
-    // Unix path — show last 2 segments
-    const parts = cwd.split('/').filter(Boolean);
-    if (parts.length === 0) return cwd;
-    const label = parts.length >= 2
-      ? `${parts[parts.length - 2]}/${parts[parts.length - 1]}`
-      : parts[parts.length - 1];
-    return label.length > 30 ? '\u2026' + label.slice(-28) : label;
-  };
-
   const selectTool = (tool: ToolType, toolData?: string, cwd?: string) => {
     if (tool === 'claude' && !cwd) { void handlePickFolder(tool); return; }
     // Concurrent multi-agent Tabs are now supported as of the per-pane
@@ -1187,11 +1156,6 @@ export function CenterPanel() {
     // The old single-instance lock that lived here has been removed.
     if (activeTerminalId) {
       if (cwd) {
-        setLastCwdByTool(prev => {
-          const next = { ...prev, [tool as string]: cwd };
-          try { localStorage.setItem('coffee:last-cwd-by-tool', JSON.stringify(next)); } catch { /* Best-effort operation; failure is non-fatal. */ }
-          return next;
-        });
         pushRecentFolder(cwd);
       }
       dispatch({ type: 'LAUNCH_TERMINAL_TOOL', id: activeTerminalId, tool, toolData, cwd, claudeMode: tool === 'claude' ? claudeLaunchMode : undefined, codexMode: tool === 'codex' ? codexLaunchMode : undefined });
@@ -1213,7 +1177,8 @@ export function CenterPanel() {
 
   const openToolFolderMenu = (tool: ToolType, anchor: HTMLElement) => {
     if (recentFolders.length === 0) { void handlePickFolder(tool); return; }
-    const rect = anchor.getBoundingClientRect();
+    const button = anchor.closest('.launchpad-card')?.querySelector('.launchpad-directory');
+    const rect = (button ?? anchor).getBoundingClientRect();
     setFolderMenu({ x: rect.left, y: rect.bottom + 4, tool });
   };
 
@@ -1647,7 +1612,7 @@ export function CenterPanel() {
                                   className="launchpad-card"
                                   onClick={(event) => {
                                     if (disabled) return;
-                                    if (tool.requiresCwd && !lastCwdByTool[tool.key!]) { openToolFolderMenu(tool.key, event.currentTarget); return; }
+                                    if (tool.requiresCwd) { openToolFolderMenu(tool.key, event.currentTarget); return; }
                                     // The "Coffee 101" card (key kept as
                                     // 'installer' for backward compat with
                                     // pinned-state in localStorage) is no
@@ -1664,7 +1629,7 @@ export function CenterPanel() {
                                       commands.openUrl('https://coffeecli.com/courses/claude-code').catch(() => {});
                                       return;
                                     }
-                                    selectTool(tool.key, undefined, lastCwdByTool[tool.key!]);
+                                    selectTool(tool.key);
                                   }}
                                 >
                                   <div className="launchpad-icon">{tool.icon}</div>
@@ -1684,11 +1649,10 @@ export function CenterPanel() {
                                         </span>
                                       )}
                                     </span>
-                                    {tool.requiresCwd && <button type="button" className="launchpad-directory" disabled={disabled} aria-label={lastCwdByTool[tool.key!] || t('claude.launch.choose_directory')} onClick={event => { event.stopPropagation(); openToolFolderMenu(tool.key, event.currentTarget); }}>
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></svg>
-                                        <span>{lastCwdByTool[tool.key!] ? formatCwd(lastCwdByTool[tool.key!]) : t('claude.launch.choose_directory')}</span>
-                                    </button>}
                                   </div>
+                                  {tool.requiresCwd && <button type="button" className="launchpad-directory" disabled={disabled} aria-label={t('claude.launch.choose_directory')} onClick={event => { event.stopPropagation(); openToolFolderMenu(tool.key, event.currentTarget); }}>
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></svg>
+                                  </button>}
                                   {tool.type === 'ai-cli' && <LaunchModeControl value={tool.key === 'claude' ? claudeLaunchMode : tool.key === 'codex' ? codexLaunchMode : 'terminal'} disabled={disabled} label={tool.key === 'codex' ? 'Codex' : undefined} onChange={tool.key === 'claude' ? changeClaudeLaunchMode : tool.key === 'codex' ? changeCodexLaunchMode : undefined} />}
                                 </div>
                               </div>

@@ -38,7 +38,7 @@ await build({
       export async function tokenizeFile(){return null};export async function tokenizeByLang(){return null};export function getShikiTheme(){return 'light'};
     ` : args.path === 'clipboard' ? `
       export async function clipboardWrite(text){window.copiedText=text};export async function clipboardRead(){return 'pasted text'};
-    ` : args.path === 'tauri' ? `export const commands=new Proxy({},{get:(_,name)=>async(...args)=>{(window.nativeActions??=[]).push({name,args})}});` : `
+    ` : args.path === 'tauri' ? `export const commands=new Proxy({},{get:(_,name)=>async(...args)=>{(window.nativeActions??=[]).push({name,args});if(name==='computerName')return 'TEST-DESKTOP'}});` : `
       import {useSyncExternalStore} from 'react';import {emptyClaudeState,reduceClaudeEvent} from './src/lib/claude-protocol';
       let state={...emptyClaudeState(),ready:true};const listeners=new Set();
       window.setSession=patch=>{state={...state,...patch};listeners.forEach(fn=>fn())};
@@ -282,7 +282,14 @@ try {
   assert.equal(await page.locator('[role="status"].claude-interrupted').count(),0);
   console.log('ok user interruption is neutral, keeps partial output and never hides a real API failure');
 
-  await page.evaluate(() => { window.originalRandom = Math.random; Math.random = () => 0; window.setSession({ messages: [], busy: false, requests: [], endedAt: undefined }); });
+  await page.evaluate(() => { window.originalRandom = Math.random; Math.random = () => 0; window.setSession({ messages: [], ready: false, status: 'starting', busy: false, requests: [], error: undefined, endedAt: undefined }); });
+  await page.waitForFunction(()=>document.querySelector('.claude-empty-title'));
+  assert.equal(await page.locator('.claude-working').count(),0,'startup shows the welcome screen without a Connecting row');
+  await page.evaluate(()=>window.setSession({error:'Startup unavailable'}));
+  await page.waitForFunction(()=>document.querySelector('.claude-reconnect'));
+  assert.equal(await page.locator('.claude-session-error').count(),0,'connection failures do not become red conversation messages');
+  assert.equal(await page.locator('.claude-reconnect').getAttribute('title'),'Startup unavailable');
+  await page.evaluate(()=>window.setSession({ready:true,status:'idle',error:undefined}));
   const welcome = page.locator('.claude-empty-icon'), mascot = welcome.locator('video');
   await page.waitForFunction(() => { const video = document.querySelector('.claude-empty-icon video'); return video?.readyState >= 2 && !video.paused; });
   assert.ok(await mascot.evaluate(video => video.muted && video.loop && video.playsInline), 'welcome mascot plays silently and loops inline');
@@ -339,6 +346,9 @@ try {
   }
   await page.evaluate(() => { Math.random = window.originalRandom; });
   console.log('ok welcome animation frames, stable layout, reduced motion, inactive tab pause and static fallback');
+  await page.clock.setFixedTime(new Date(2026,9,24,12,0));await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await page.waitForFunction(()=>document.querySelector('.claude-empty-title')?.textContent==='Good afternoon, TEST-DESKTOP');assert.equal(await page.locator('.claude-empty-title').getAttribute('lang'),'en');
+  console.log('ok Claude shares the English time greeting and native computer name');
+
   await page.evaluate(()=>window.setSession({busy:false,ready:true,messages:[{id:'link',role:'assistant',content:'[Open page](./test%20page.html) [Website](https://example.com)',timestamp:Date.now()}]}));
   const local=page.getByRole('link',{name:'Open page',exact:true});await local.click();assert.deepEqual(await page.evaluate(()=>window.nativeActions.at(-1)),{name:'openUrl',args:['D:/Test/test page.html']});
   await page.getByRole('link',{name:'Website',exact:true}).click();assert.deepEqual(await page.evaluate(()=>window.nativeActions.at(-1).args),['https://example.com']);

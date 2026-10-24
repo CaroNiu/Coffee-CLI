@@ -7,6 +7,8 @@ import { clipboardWrite } from '../../lib/clipboard';
 import { bindAutoHideScrollbar } from '../../lib/auto-hide-scrollbar';
 import { useConversationVirtualizer } from './conversation-virtualizer';
 import { MarkdownContent } from './MarkdownContent';
+import { WelcomeGreeting } from './WelcomeGreeting';
+import { CodexWelcomeIcon } from './CodexWelcomeIcon';
 import { ConversationDirectory } from '../../lib/conversation-links';
 import { useConversationMenu } from '../../lib/use-conversation-menu';
 import { MessageCopyButton } from './ConversationControls';
@@ -147,14 +149,15 @@ export function CodexConversation({ sessionId, cwd, resumeToken, isActive, hasBg
         </Measured>)}
         <div style={{ height: virtual.bottomSpacer }} aria-hidden="true" />
         {s.requests.map(request => <RequestCard key={JSON.stringify(request.id)} sessionId={sessionId} request={request} />)}
-        {(!s.ready && !s.error || s.busy) && <div className="codex-working" role="status"><span className="codex-spinner" aria-hidden="true" />{t(!s.ready ? 'claude.status.connecting' : s.interrupting ? 'codex.stopping' : s.requests.length ? 'codex.waiting' : 'claude.status.working')}…</div>}
-        {s.error && <div className="claude-session-error" role="alert">{s.error}{!s.ready && <button className="claude-expand" onClick={() => dispatch({ type: 'RESTART_TERMINAL', id: sessionId, newId: crypto.randomUUID() })}>{t('codex.reconnect')}</button>}</div>}
-        {!rows.length && <div className="claude-empty"><div className="codex-welcome-mark" aria-hidden="true">&gt;_</div><div className="claude-empty-title">Coffee and Codex time</div><div className="claude-empty-meta"><bdi dir="ltr">{cwd || '—'}</bdi></div></div>}
+        {s.ready && s.busy && <div className="codex-working" role="status"><span className="codex-spinner" aria-hidden="true" />{t(s.interrupting ? 'codex.stopping' : s.requests.length ? 'codex.waiting' : 'claude.status.working')}…</div>}
+        {s.error && s.ready && <div className="claude-session-error" role="alert">{s.error}</div>}
+        {!rows.length && <div className="claude-empty"><CodexWelcomeIcon isActive={isActive} /><WelcomeGreeting /><div className="claude-empty-meta"><bdi dir="ltr">{cwd || '—'}</bdi></div></div>}
       </div>
     </div>
     {scrolled && <button type="button" className="gambit-send claude-scroll-bottom" aria-label={t('claude.scroll_latest')} onClick={() => { anchor.current = null; pinned.current = true; lastTop.current = scroll.current?.scrollTop ?? 0; sync(); }}>
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v11M3 8l5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
     </button>}
+    {s.error && !s.ready && <button type="button" className="claude-expand claude-reconnect" title={s.error} onClick={() => dispatch({ type: 'RESTART_TERMINAL', id: sessionId, newId: crypto.randomUUID() })}>{t('codex.reconnect')}</button>}
     {conversationMenu.menu}
   </div></ConversationDirectory.Provider>;
 }

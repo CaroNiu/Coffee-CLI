@@ -285,6 +285,7 @@ export const commands = {
     invoke<void>('delete_password', { host, username }),
   openUrl: (url: string) =>
     invoke<void>('open_url', { url }),
+  computerName: () => invoke<string>('computer_name'),
 
   // In-app self-update (Windows): download the latest installer from
   // coffeecli.com/download/<os> with streamed progress, launch it, exit.

@@ -4952,6 +4952,24 @@ async fn check_network_port(host: String, port: u16) -> Result<bool, String> {
 }
 
 #[tauri::command]
+fn computer_name() -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    if let Ok(name) = std::env::var("COMPUTERNAME") {
+        if !name.trim().is_empty() { return Ok(name.trim().to_string()); }
+    }
+    let mut command = std::process::Command::new("hostname");
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000);
+    }
+    let output = command.output().map_err(|e| e.to_string())?;
+    let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if !output.status.success() || name.is_empty() { return Err("Could not read computer name".into()); }
+    Ok(name)
+}
+
+#[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
     if url.is_empty() || url.starts_with('-') || url.contains('\0') {
         return Err("Invalid URL or file path".into());
@@ -5267,6 +5285,7 @@ pub fn start_ui(pending_launch: Option<crate::launch::LaunchRequest>) -> anyhow:
             save_password,
             load_password,
             delete_password,
+            computer_name,
             open_url,
             download_and_install_update,
             get_tool_config,

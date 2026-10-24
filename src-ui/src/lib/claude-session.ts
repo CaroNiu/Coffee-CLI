@@ -12,6 +12,8 @@ interface Client {
   publishTimer?: ReturnType<typeof setTimeout>;
   cwd?: string | null;
   restarting?: boolean;
+  connecting?: boolean;
+  startupExit?: string;
 }
 const clients = new Map<string, Client>();
 let listening: Promise<unknown> | undefined;
@@ -30,6 +32,7 @@ function listen() {
   return listening ??= import('@tauri-apps/api/event').then(({ listen }) => listen<{ id: string; generation: string; event: Json }>('claude-session-event', ({ payload }) => {
     const c = clients.get(payload.id);
     if (!c || c.generation !== payload.generation) return;
+    if (c.connecting && !c.state.ready && payload.event.type === 'coffee_exit') { c.startupExit = text(payload.event.detail) || 'Claude process exited'; return; }
     c.state = reduceClaudeEvent(c.state, payload.event);
     publish(c, ['control_request', 'result', 'coffee_exit'].includes(text(payload.event.type)));
   }));
@@ -56,6 +59,7 @@ async function initializeClaude(id: string, c: Client, cwd: string | null, resum
   const init = result.initialization;
   c.state = { ...c.state, nativeId: result.sessionId, historyCursor: restoreHistory ? result.history.cursor : c.state.historyCursor, models: list(init.models) as ClaudeModel[], commands: list(init.commands) as ClaudeCommand[], permissionMode: text(init.current_permission_mode) || 'default', bypassAvailable: result.bypassAvailable === true };
   await readSettings(id, c);
+  if (c.startupExit) throw new Error(c.startupExit);
   c.state = { ...c.state, ready, status: ready ? 'idle' : 'starting', error: undefined, errorKey: undefined };
   publish(c, true);
 }
@@ -65,7 +69,22 @@ export function retainClaudeSession(id: string, cwd: string | null, resumeToken?
   c.cwd = cwd;
   clearTimeout(c.closeTimer); c.owners++;
   if (!c.starting) {
-    c.starting = initializeClaude(id, c, cwd, resumeToken).catch(error => { c.state = { ...c.state, status: 'error', error: String(error), errorKey: undefined, ready: false }; c.starting = undefined; publish(c, true); });
+    c.connecting = true;
+    c.starting = (async () => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try { await initializeClaude(id, c, cwd, resumeToken); return; }
+        catch (error) {
+          if (attempt === 2) { c.state = { ...c.state, status: 'error', error: String(error), errorKey: undefined, ready: false }; publish(c, true); return; }
+          const generation = c.generation;
+          c.generation = crypto.randomUUID();
+          await invoke('claude_session_close', { id, generation }).catch(() => {});
+          await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+          if (!c.owners) return;
+          c.startupExit = undefined;
+          c.state = { ...c.state, ready: false, status: 'starting', error: undefined, errorKey: undefined };
+        }
+      }
+    })().finally(() => { c.connecting = false; });
   }
   return () => {
     c.owners--;

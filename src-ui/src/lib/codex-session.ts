@@ -3,7 +3,7 @@ import { invoke } from '../tauri';
 import { gambitAttachments } from './gambit-attachments';
 import { arr, obj, str, emptyCodexState, reduceCodexEvent, restoreCodexTurns, type CodexState, type CodexModel, type Json } from './codex-protocol';
 
-interface Client { state: CodexState; generation: string; listeners: Set<() => void>; owners: number; starting?: Promise<void>; closeTimer?: ReturnType<typeof setTimeout>; publishTimer?: ReturnType<typeof setTimeout>; sending: boolean; exited?: boolean; interruptSent?: string; permissionOverride?: Json; skills?: Json[] }
+interface Client { state: CodexState; generation: string; listeners: Set<() => void>; owners: number; starting?: Promise<void>; closeTimer?: ReturnType<typeof setTimeout>; publishTimer?: ReturnType<typeof setTimeout>; sending: boolean; exited?: boolean; connecting?: boolean; startupExit?: string; interruptSent?: string; permissionOverride?: Json; skills?: Json[] }
 const clients = new Map<string, Client>();
 const EMPTY = emptyCodexState();
 let listening: Promise<unknown> | undefined;
@@ -20,6 +20,7 @@ function listen() {
   return listening ??= import('@tauri-apps/api/event').then(({ listen }) => listen<{ id: string; generation: string; event: Json }>('codex-session-event', ({ payload }) => {
     const c = clients.get(payload.id); if (!c || c.generation !== payload.generation) return;
     if (payload.event.method === 'coffee/exit') c.exited = true;
+    if (c.connecting && !c.state.ready && payload.event.method === 'coffee/exit') { c.startupExit = str(obj(payload.event.params).detail) || 'Codex process exited'; return; }
     c.state = reduceCodexEvent(c.state, payload.event);
     if (payload.event.method === 'turn/started' && c.state.interrupting) void performInterrupt(c, payload.id);
     publish(c, payload.event.id !== undefined || ['turn/completed', 'serverRequest/resolved', 'coffee/exit'].includes(str(payload.event.method)));
@@ -34,16 +35,31 @@ function rpc(c: Client, id: string, method: string, params: Json): Promise<Json>
 export function retainCodexSession(id: string, cwd: string | null, resumeToken?: string): () => void {
   const c = client(id); clearTimeout(c.closeTimer); c.owners++;
   c.starting ??= (async () => {
-    await listen();
-    const result = await invoke<Json>('codex_session_start', { id, generation: c.generation, cwd, resumeToken: resumeToken ?? null });
-    if (c.exited) return;
-    const thread = obj(result.thread), history = restoreCodexTurns(arr(thread.turns));
-    const liveIds = new Set(c.state.messages.map(m => m.id));
-    c.state = { ...c.state, ready: true, nativeId: str(thread.id), model: str(result.model), effort: str(result.reasoningEffort), approvalPolicy: result.approvalPolicy, sandbox: obj(result.sandbox), models: arr(result.models) as CodexModel[], messages: [...history.filter(m => !liveIds.has(m.id)), ...c.state.messages], historyCursor: str(result.turnsBackwardsCursor) || null };
-    const active = arr(thread.turns).map(obj).find(turn => turn.status === 'inProgress');
-    if (active && !c.state.turnId) c.state = { ...c.state, busy: true, turnId: str(active.id) };
-    publish(c, true);
-  })().catch(error => { c.state = { ...c.state, ready: false, error: String(error) }; c.starting = undefined; publish(c, true); });
+    c.connecting = true;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await listen();
+        const result = await invoke<Json>('codex_session_start', { id, generation: c.generation, cwd, resumeToken: resumeToken ?? null });
+        if (c.exited) throw new Error(c.startupExit || 'Codex process exited');
+        const thread = obj(result.thread), history = restoreCodexTurns(arr(thread.turns));
+        const liveIds = new Set(c.state.messages.map(m => m.id));
+        c.state = { ...c.state, ready: true, error: undefined, nativeId: str(thread.id), model: str(result.model), effort: str(result.reasoningEffort), approvalPolicy: result.approvalPolicy, sandbox: obj(result.sandbox), models: arr(result.models) as CodexModel[], messages: [...history.filter(m => !liveIds.has(m.id)), ...c.state.messages], historyCursor: str(result.turnsBackwardsCursor) || null };
+        const active = arr(thread.turns).map(obj).find(turn => turn.status === 'inProgress');
+        if (active && !c.state.turnId) c.state = { ...c.state, busy: true, turnId: str(active.id) };
+        publish(c, true);
+        return;
+      } catch (error) {
+        if (attempt === 2) { c.state = { ...c.state, ready: false, error: String(error) }; publish(c, true); return; }
+        const generation = c.generation;
+        c.generation = crypto.randomUUID();
+        await invoke('codex_session_close', { id, generation }).catch(() => {});
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+        if (!c.owners) return;
+        c.exited = false; c.startupExit = undefined;
+        c.state = { ...c.state, ready: false, error: undefined };
+      }
+    }
+  })().finally(() => { c.connecting = false; });
   return () => {
     if (--c.owners) return;
     c.closeTimer = setTimeout(() => {

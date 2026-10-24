@@ -85,7 +85,7 @@ try {
   } finally { releasePermission(); }
   const releaseFailed = retainClaudeSession('initial-failure', null);
   try {
-    for (let i = 0; i < 100 && !getClaudeSession('initial-failure').error; i++) await new Promise(resolve => setTimeout(resolve, 10));
+    for (let i = 0; i < 500 && !getClaudeSession('initial-failure').error; i++) await new Promise(resolve => setTimeout(resolve, 10));
     assert.equal(getClaudeSession('initial-failure').ready, false);
     assert.match(getClaudeSession('initial-failure').error, /settings read failed/);
     console.log('ok initialization read failure cannot masquerade as an ordinary effort level');

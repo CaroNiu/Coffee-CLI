@@ -111,6 +111,8 @@ body.gambit-docked .claude-scroll-bottom { bottom:calc(var(--gambit-dock-h,200px
 .claude-empty-directory bdi, .claude-empty-model { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .claude-empty-model { min-width:0; max-width:60%; text-align:left; }
 .claude-scroll-bottom { position:absolute; right:24px; bottom:20px; z-index:3; }
+.claude-reconnect { position:absolute; left:50%; bottom:20px; transform:translateX(-50%); z-index:3; border-radius:var(--shape-radius-btn); font:13px var(--font); }
+body.gambit-docked .claude-reconnect { bottom:calc(var(--gambit-dock-h,200px) + 20px); }
 .claude-approval { padding:16px; margin:8px 0 24px 20px; border:1px solid var(--accent); border-radius:var(--shape-radius-btn,6px); background:var(--bg-terminal); }
 .claude-approval > strong { display:block; margin-bottom:10px; }
 .claude-approval fieldset { padding:12px 0; border:0; }

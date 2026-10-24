@@ -145,6 +145,6 @@ emit('exit-race', 'coffee/exit', { code: 1 });
 deferred.shift()(); await flush();
 assert.equal(live('exit-race').ready, false, 'late initialization cannot revive a dead process');
 releases.forEach(fn => fn()); await new Promise(resolve => setTimeout(resolve, 350));
-assert.equal(calls.filter(c => c.name === 'codex_session_close').length, 4);
+assert.deepEqual(new Set(calls.filter(c => c.name === 'codex_session_close').map(c => c.id)), new Set(['a', 'b', 'history', 'exit-race']));
 delete globalThis.__codexBridge;
 console.log('ok independent sessions, stale events, immediate stop, attachments, approval and process lifecycle');

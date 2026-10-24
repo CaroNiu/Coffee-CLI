@@ -17,8 +17,8 @@ await build({
     import {Gambit} from './src/components/center/Gambit';
     import {useCodexSession,sendCodexMessage,interruptCodex} from './src/lib/codex-session';
     import './src/styles/global.css';import './src/components/center/TierTerminal.css';
-    function Fixture(){const [active,setActive]=useState('a'),[drafts,setDrafts]=useState({a:'',b:''}),[provider,setProvider]=useState('codex');window.setActive=setActive;window.setProvider=setProvider;const s=useCodexSession(active);window.currentState=s;return <div className="panel-center">
-      {['a','b'].map(id=><div key={id} className="host" style={{display:active===id?'flex':'none'}}><CodexConversation sessionId={id} cwd="D:/Test" isActive={active===id}/></div>)}
+    function Fixture(){const [active,setActive]=useState('a'),[drafts,setDrafts]=useState({a:'',b:''}),[provider,setProvider]=useState('codex'),[welcomeEpoch,setWelcomeEpoch]=useState(0);window.rerollWelcome=()=>setWelcomeEpoch(n=>n+1);window.setActive=setActive;window.setProvider=setProvider;const s=useCodexSession(active);window.currentState=s;return <div className="panel-center">
+      {['a','b'].map(id=><div key={id} className="host" style={{display:active===id?'flex':'none'}}><CodexConversation key={id+'-'+welcomeEpoch} sessionId={id} cwd="D:/Test" isActive={active===id}/></div>)}
       <Gambit sessionId={active} draft={drafts[active]} onDraftChange={text=>setDrafts(d=>({...d,[active]:text}))} onClose={()=>{}} onSend={text=>sendCodexMessage(active,text)} codex={provider==='codex'} claude={provider==='claude'} running={s.busy} onCancel={()=>interruptCodex(active)} leftPanelHidden rightPanelHidden workspaceName="Test" toolIcon={<span>◈</span>}/>
     </div>};createRoot(document.getElementById('root')).render(<Fixture/>);
   ` },
@@ -54,8 +54,9 @@ await build({
       window.calls=[];let turn=0;
       const history=(prefix,count)=>Array.from({length:count},(_,i)=>({id:prefix+i,status:'completed',items:[{id:'u',type:'userMessage',content:[{type:'text',text:prefix+i+' '+ 'Readable history. '.repeat(30)}]},{id:'a',type:'agentMessage',text:'Answer '+i+' '+ 'Earlier context. '.repeat(30)}]}));
       window.emit=(id,method,params={},requestId)=>{const start=window.calls.find(c=>c.name==='codex_session_start'&&c.id===id);window.codexListener({payload:{id,generation:start.generation,event:{method,params:{threadId:'thread-'+id,...params},...(requestId===undefined?{}:{id:requestId})}}})};
-      export const isTauri=false,commands=new Proxy({},{get:(_,name)=>async(...args)=>{(window.nativeActions??=[]).push({name,args})}});
+      export const isTauri=false,commands=new Proxy({},{get:(_,name)=>async(...args)=>{(window.nativeActions??=[]).push({name,args});if(name==='computerName')return 'TEST-DESKTOP'}});
       export async function invoke(name,args){window.calls.push({name,...args});
+        if(name==='codex_session_start'&&args.id==='a')await new Promise(resolve=>window.resolveStartup=resolve);
         if(name==='codex_session_start')return {thread:{id:'thread-'+args.id,turns:args.id==='b'?history('history-',48):[]},turnsBackwardsCursor:args.id==='b'?'older':null,model:'gpt-test',reasoningEffort:'high',approvalPolicy:'on-request',sandbox:{type:'readOnly'},models:[{id:'gpt-test',model:'gpt-test',displayName:'GPT Test',defaultReasoningEffort:'high',supportedReasoningEfforts:[{reasoningEffort:'medium'},{reasoningEffort:'high'}]},{id:'second',model:'second',displayName:'Second model',defaultReasoningEffort:'low',supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'ultra'}]}]};
         if(args.method==='turn/start'){const id='turn-'+(++turn);window.turn=id;window.emit(args.id,'turn/started',{turn:{id,status:'inProgress'}});window.emit(args.id,'item/completed',{turnId:id,item:{id:'user',type:'userMessage',content:args.params.input}});return {turn:{id,status:'inProgress'}}}
         if(args.method==='turn/interrupt'){window.emit(args.id,'turn/completed',{turn:{id:args.params.turnId,status:'interrupted',durationMs:1500}})}
@@ -84,10 +85,55 @@ page.setDefaultTimeout(7000);
 const errors = [];page.on('pageerror', error => errors.push(error.message));
 const emit = (method, params, requestId) => page.evaluate(({method,params,requestId})=>window.emit('a',method,params,requestId),{method,params,requestId});
 try {
+  await page.addInitScript(()=>{window.originalRandom=Math.random;Math.random=()=>0});
+  await page.clock.setFixedTime(new Date(2026,9,24,9,0));
   await page.goto(`http://127.0.0.1:${server.address().port}`);
   await page.getByRole('button',{name:'Select Codex model',exact:true}).waitFor();
+  await page.waitForFunction(()=>window.resolveStartup&&document.querySelector('.host .claude-empty-title'));
+  assert.equal(await page.locator('.host:visible .codex-working').count(),0,'startup does not insert a Connecting row');
+  assert.equal(await page.locator('.host:visible .claude-session-error').count(),0);
+  await page.evaluate(()=>window.resolveStartup());
   await page.waitForFunction(()=>window.currentState.ready);
   const input=page.locator('.gambit-textarea');
+  const welcome=page.locator('.host:visible .claude-empty-title');await page.waitForFunction(()=>document.querySelector('.host .claude-empty-title')?.textContent==='Good morning, TEST-DESKTOP');
+  const mascot=page.locator('.host').first().locator('.codex-welcome-icon');
+  const loaded=await mascot.evaluate(async el=>{const url=getComputedStyle(el).backgroundImage.slice(5,-2),image=new Image();image.src=url;await image.decode();return {width:image.naturalWidth,height:image.naturalHeight}});assert.deepEqual(loaded,{width:1536,height:2288});
+  for(const shape of ['carbon','glass','monogram']){await page.evaluate(shape=>document.body.dataset.shape=shape,shape);assert.notEqual(await mascot.evaluate(el=>getComputedStyle(el).backgroundImage),'none',shape+' preserves the mascot');}
+  await page.evaluate(()=>document.body.dataset.shape='soft');
+  const bounds=await mascot.boundingBox();
+  assert.equal(await mascot.evaluate(el=>el.getAnimations()[0].effect.getTiming().duration),6600,'idle uses the native slow cadence rather than the fast action timing');
+  // Native idle holds: 1680, 660, 660, 840, 840, 1920 ms. Sample each boundary.
+  for(const [time,column] of [[0,0],[1679,0],[1681,1],[2339,1],[2341,2],[2999,2],[3001,3],[3839,3],[3841,4],[4679,4],[4681,5],[6599,5],[6601,0]]){
+    const position=await mascot.evaluate((el,time)=>{const animation=el.getAnimations()[0];animation.pause();animation.currentTime=time;return getComputedStyle(el).backgroundPosition},time);
+    const [x,y]=position.split(' ').map(parseFloat);assert.ok(Math.abs(x-column/7*100)<.001,`native idle frame at ${time}ms: ${position}`);assert.equal(y,0,'idle stays in its own atlas row');
+    assert.deepEqual(await mascot.boundingBox(),bounds,'frame changes never move the welcome layout');
+  }
+  await mascot.evaluate(el=>el.getAnimations()[0].play());
+  await page.emulateMedia({reducedMotion:'reduce'});await page.waitForFunction(()=>document.querySelector('.host .codex-welcome-icon').getAnimations().length===0);
+  await page.emulateMedia({reducedMotion:'no-preference'});await page.evaluate(()=>window.setActive('b'));await page.waitForFunction(()=>document.querySelector('.host .codex-welcome-icon')?.dataset.paused==='true');assert.equal(await mascot.evaluate(el=>el.getAnimations().length),0);await page.evaluate(()=>window.setActive('a'));
+  const variants=[['idle',0,[1680,660,660,840,840,1920]],['walking-right',1,[120,120,120,120,120,120,120,220]],['walking-left',2,[120,120,120,120,120,120,120,220]],['waving',3,[140,140,140,280]],['jumping',4,[140,140,140,140,280]],['waiting',6,[150,150,150,150,150,260]],['running',7,[120,120,120,120,120,220]],['review',8,[150,150,150,150,150,280]]];
+  for(const [index,[id,row,holds]] of variants.entries()){
+    await page.evaluate(index=>{Math.random=()=>(index+.5)/8;window.rerollWelcome()},index);
+    await page.waitForFunction(id=>{const el=document.querySelector('.host .codex-welcome-icon');return el?.dataset.welcomeIcon===id&&el.getAnimations().length===1},id);
+    const duration=holds.reduce((total,hold)=>total+hold,0);
+    assert.equal(await mascot.evaluate(el=>el.getAnimations()[0].effect.getTiming().duration),duration,`${id} keeps its original speed`);
+    let elapsed=0;
+    for(const [column,hold] of holds.entries()){
+      const [x,y]=await mascot.evaluate((el,time)=>{const animation=el.getAnimations()[0];animation.pause();animation.currentTime=time;return getComputedStyle(el).backgroundPosition.split(' ').map(parseFloat)},elapsed+hold/2);
+      assert.ok(Math.abs(x-column/7*100)<.001);assert.equal(y,row*10,`${id} stays on the intended atlas row`);elapsed+=hold;
+    }
+    assert.deepEqual(await mascot.boundingBox(),bounds,`${id} does not shift the layout`);
+    await mascot.evaluate(el=>el.getAnimations()[0].play());
+    await page.evaluate(()=>{Math.random=()=>.99});await input.fill('rerender');await input.fill('');
+    assert.equal(await mascot.getAttribute('data-welcome-icon'),id,'composer rerenders do not reroll the current mascot');
+  }
+  await page.evaluate(()=>{Math.random=window.originalRandom});
+  await page.clock.setFixedTime(new Date(2026,9,24,12,0));await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await page.waitForFunction(()=>document.querySelector('.host .claude-empty-title')?.textContent==='Good afternoon, TEST-DESKTOP');
+  await page.clock.setFixedTime(new Date(2026,9,24,18,0));await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await page.waitForFunction(()=>document.querySelector('.host .claude-empty-title')?.textContent==='Good evening, TEST-DESKTOP');
+  assert.equal(await page.evaluate(()=>window.nativeActions.filter(a=>a.name==='computerName').length),1,'the machine name is fetched once and shared');assert.equal(await welcome.getAttribute('lang'),'en');
+  if(process.env.COFFEE_CODEX_SCREENSHOT)await page.screenshot({path:process.env.COFFEE_CODEX_SCREENSHOT.replace('.png','-welcome.png')});
+  console.log('ok eight random Codex actions, original frame timing, stable layout, motion preferences, hidden tabs and English greetings');
+
   await page.getByRole('button',{name:'Command',exact:true}).click();
   const commandMenu=page.getByRole('dialog',{name:'Command',exact:true});
   assert.equal(await commandMenu.getByRole('button').count(),11);
@@ -242,6 +288,10 @@ try {
   await page.evaluate(()=>window.setClaude({modelUsage:{unknown:{contextWindow:100000}}}));
   assert.equal(await claudeContext.locator('.context-usage-total > span').last().textContent(),'—','missing native token counters are not fabricated');
   await page.keyboard.press('Escape');
+  await page.evaluate(()=>window.emit('b','coffee/exit',{code:1,detail:'Startup unavailable'}));
+  await page.waitForFunction(()=>document.querySelector('.host:has(.claude-reconnect)'));
+  assert.equal(await page.locator('.host:visible .claude-session-error').count(),0,'connection failures do not become red conversation messages');
+  assert.equal(await page.locator('.host:visible .claude-reconnect').getAttribute('title'),'Startup unavailable');
   assert.deepEqual(errors,[]);
   console.log('ok 1000/520/360/320px, theme colors, virtual history, paused reading and history prepend');
   console.log('ok Ultra label preserves the native parameter; Claude and Codex share context usage layout');
