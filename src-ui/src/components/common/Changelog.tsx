@@ -50,7 +50,7 @@ export function Changelog() {
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
-    dialog.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    dialog.current?.focus({ preventScroll: true });
     return () => { if (previous?.isConnected) previous.focus(); };
   }, [open]);
 
@@ -66,10 +66,11 @@ export function Changelog() {
       if (event.key !== 'Tab') return;
       const controls = [...dialog.current!.querySelectorAll<HTMLElement>('button, a[href]')];
       const first = controls[0], last = controls.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      if (document.activeElement === dialog.current) { event.preventDefault(); (event.shiftKey ? last : first)?.focus(); }
+      else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     }}>
-      <div ref={dialog} className="settings-modal changelog-modal" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <div ref={dialog} className="settings-modal changelog-modal" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <header className="settings-header">
           <span id={titleId} className="settings-header-title">{t('changelog.title')} <span className="changelog-version">v{version}</span></span>
           <button type="button" className="settings-close" aria-label="Close" onClick={() => setOpen(false)}>
