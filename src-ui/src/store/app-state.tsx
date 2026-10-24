@@ -653,18 +653,11 @@ const VALID_ICON_THEMES: IconTheme[] = [
 ];
 
 function getInitialState(): AppState {
-  // Default 'obsidian' + 'panel' — the "严谨高级简约" out-of-box. Carbon's
-  // hex-mesh + translucent chrome is polarizing (love-it-or-hate-it); obsidian
-  // (near-black with a neutral accent) + panel (sharp 0-radius corners,
-  // strong 2px borders) reads as a flat, restrained developer-tool aesthetic
-  // that a broader 70% find acceptable vs carbon's 50/50 split. Panel is also
-  // simpler than carbon (no mask/backdrop-filter/:not() nuclear rule), so less
-  // to render-break across edge cases. KEEP index.html's pre-paint default in
-  // sync with these two values or first paint flashes (obsidian/panel → React
-  // hydrate). Existing users keep their saved theme/shape (localStorage wins).
+  // Keep theme/shape defaults in sync with index.html's pre-paint script.
+  // Saved preferences take priority for returning users.
   let theme: ThemeColor = 'obsidian';
   let themeMode: ThemeMode = 'dark';
-  let shape: ThemeShape = 'panel';
+  let shape: ThemeShape = 'characters';
   let iconTheme: IconTheme = 'devicon';
   let lang = 'zh-CN';
   let folderPath: string | null = null;
@@ -738,7 +731,7 @@ function getInitialState(): AppState {
   // Ctrl+QWE preset is opt-in despite clashing with terminal Ctrl+W/E/Q.
   // Overridden only by a stored valid scheme.
   let hotkeyScheme: HotkeyScheme = 'alt-qwe';
-  let titlebarToggleDisplay: TitlebarToggleDisplay = 'icon-hotkey';
+  let titlebarToggleDisplay: TitlebarToggleDisplay = 'icon';
   try {
     const storedPath = localStorage.getItem('cc-bg-path');
     const storedType = localStorage.getItem('cc-bg-type') as 'image' | 'video' | 'none' | null;
@@ -805,10 +798,8 @@ function getInitialState(): AppState {
   // Default 'overlay' (the gentle half-height panel) — existing users see no
   // change. Only flips to 'tab' if the user explicitly expanded-to-tab before.
   let diffMode: 'overlay' | 'tab' = 'overlay';
-  // Gambit (compose box) opens by default on launch; the user's open/close
-  // choice persists via cc-gambit-open. NOT force-opened when an agent starts
-  // (that was a v3.3.9 mistake, reverted).
-  let gambitOpen = true;
+  // Gambit starts closed unless the user saved an open preference.
+  let gambitOpen = false;
   try {
     leftPanelHidden = localStorage.getItem('cc-left-hidden') === '1';
     rightPanelHidden = localStorage.getItem('cc-right-hidden') === '1';
@@ -816,7 +807,7 @@ function getInitialState(): AppState {
     if (savedTaskView === 'list' || savedTaskView === 'note' || savedTaskView === 'prompt') taskViewMode = savedTaskView;
     const savedDiffMode = localStorage.getItem('cc-diff-mode');
     if (savedDiffMode === 'tab' || savedDiffMode === 'overlay') diffMode = savedDiffMode;
-    gambitOpen = localStorage.getItem('cc-gambit-open') !== '0';
+    gambitOpen = localStorage.getItem('cc-gambit-open') === '1';
   } catch { /* Best-effort operation; failure is non-fatal. */ }
 
   return {

@@ -477,10 +477,10 @@ export function CenterPanel() {
   // names are sourced from the Rust registry (see lib/tool-info.ts);
   // the order here is the launchpad's preferred presentation order.
   const BUILTIN_AI_CLI_FALLBACK: { key: ToolType; label: string }[] = [
-    'claude', 'opencode', 'mimocode', 'kilo', 'openclaw', 'codex', 'grok', 'antigravity', 'qwen', 'hermes',
-    // Pi/Oh-My-Pi (T2), Kimi Code (T1), Antigravity/Crush/Aider/Goose/Copilot/Cursor/Cline (T3).
-    'pi', 'crush', 'aider', 'kimicode', 'goose', 'copilot', 'cursor', 'cline', 'omp',
-    'codebuddy', 'muse', 'kiro', 'minimax',
+    'claude', 'codex', 'cursor', 'copilot', 'antigravity',
+    'openclaw', 'hermes', 'opencode', 'pi', 'cline', 'goose', 'aider',
+    'omp', 'crush', 'qwen', 'kilo', 'kiro', 'kimicode',
+    'codebuddy', 'grok', 'mimocode', 'minimax', 'muse',
   ].map((key) => ({ key: key as ToolType, label: getToolDisplayName(key) }));
 
   // Unified agent catalog — fully local. The remote catalog fetch
@@ -602,7 +602,7 @@ export function CenterPanel() {
     try { localStorage.setItem('coffee:claude-launch-mode', mode); } catch { /* optional preference */ }
   };
   const [codexLaunchMode, setCodexLaunchMode] = useState<ClaudeMode>(() => {
-    try { return localStorage.getItem('coffee:codex-launch-mode') === 'conversation' ? 'conversation' : 'terminal'; } catch { return 'terminal'; }
+    try { return localStorage.getItem('coffee:codex-launch-mode') === 'terminal' ? 'terminal' : 'conversation'; } catch { return 'conversation'; }
   });
   const changeCodexLaunchMode = (mode: ClaudeMode) => {
     setCodexLaunchMode(mode);

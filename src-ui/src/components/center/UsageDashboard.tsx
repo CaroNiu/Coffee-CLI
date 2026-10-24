@@ -1,7 +1,53 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useT } from '../../i18n/useT';
-import { getUsageStatistics, usageDays, usageRange, type UsageReport } from '../../lib/usage-stats';
+import { getUsageStatistics, readUsageSnapshot, writeUsageSnapshot, usageDays, usageRange, type UsageReport } from '../../lib/usage-stats';
+import '../common/SettingsModal.css';
 import './UsageDashboard.css';
+
+function UsageFilter({ label, value, options, onChange }: {
+  label: string; value: string; options: { value: string; label: string }[]; onChange: (value: string) => void;
+}) {
+  const [position, setPosition] = useState<{ left: number; top: number; width: number; maxHeight: number } | null>(null);
+  const [highlight, setHighlight] = useState(0);
+  const activeIndex = Math.min(highlight, options.length - 1);
+  const trigger = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null);
+  const id = useId(), open = position !== null;
+  const reposition = useCallback(() => {
+    const rect = trigger.current?.getBoundingClientRect(); if (!rect) return;
+    const width = Math.min(Math.max(rect.width, 180), window.innerWidth - 16);
+    const maxHeight = Math.min(320, window.innerHeight - 16), height = Math.min(options.length * 36 + 10, maxHeight);
+    setPosition({ left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)), top: rect.bottom + height + 4 > window.innerHeight - 8 ? Math.max(8, rect.top - height - 4) : rect.bottom + 4, width, maxHeight });
+  }, [options.length]);
+  const show = () => { setHighlight(Math.max(0, options.findIndex(option => option.value === value))); reposition(); };
+  const pick = (next: string) => { onChange(next); setPosition(null); };
+  useEffect(() => {
+    if (!open) return;
+    const update = (event: Event) => { if (!(event.target instanceof Node) || !menu.current?.contains(event.target)) reposition(); };
+    window.addEventListener('scroll', update, true); window.addEventListener('resize', update);
+    return () => { window.removeEventListener('scroll', update, true); window.removeEventListener('resize', update); };
+  }, [open, reposition]);
+  useEffect(() => {
+    if (open) document.getElementById(`${id}-${activeIndex}`)?.scrollIntoView({ block: 'nearest' });
+  }, [open, activeIndex, id]);
+  return <>
+    <button ref={trigger} type="button" className="settings-font-trigger usage-filter-trigger" role="combobox" aria-label={label} aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? id : undefined} aria-activedescendant={open ? `${id}-${activeIndex}` : undefined} onClick={() => open ? setPosition(null) : show()} onKeyDown={event => {
+      if (['ArrowDown', 'ArrowUp', 'Home', 'End', 'Enter', ' ', 'Escape'].includes(event.key)) { event.preventDefault(); event.stopPropagation(); }
+      if (event.key === 'Escape' || event.key === 'Tab') { setPosition(null); return; }
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        if (!open) show(); else setHighlight((activeIndex + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length);
+      } else if (event.key === 'Home' || event.key === 'End') {
+        if (!open) reposition(); setHighlight(event.key === 'Home' ? 0 : options.length - 1);
+      } else if (event.key === 'Enter' || event.key === ' ') { if (open) pick(options[activeIndex].value); else show(); }
+    }}><span className="settings-font-current">{options.find(option => option.value === value)?.label ?? value}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></button>
+    {position && createPortal(<>
+      <div className="settings-font-backdrop" onClick={() => setPosition(null)} />
+      <div ref={menu} id={id} role="listbox" aria-label={label} className="settings-font-menu usage-filter-menu" style={{ position: 'fixed', ...position }}>
+        {options.map((option, index) => <button key={option.value} id={`${id}-${index}`} type="button" role="option" tabIndex={-1} aria-selected={value === option.value} className={`settings-font-opt${value === option.value ? ' active' : ''}${activeIndex === index ? ' is-highlighted' : ''}`} onMouseEnter={() => setHighlight(index)} onMouseDown={event => event.preventDefault()} onClick={() => pick(option.value)}>{option.label}</button>)}
+      </div>
+    </>, document.body)}
+  </>;
+}
 
 function Trend({ values, label }: { values: number[]; label: string }) {
   const max = Math.max(...values, 1);
@@ -16,15 +62,22 @@ function Trend({ values, label }: { values: number[]; label: string }) {
 export function UsageDashboard() {
   const t = useT();
   const [days, setDays] = useState(7), [tool, setTool] = useState(''), [project, setProject] = useState('');
-  const [report, setReport] = useState<UsageReport | null>(null), [busy, setBusy] = useState(true), [error, setError] = useState(false);
+  const cacheKey = JSON.stringify([days, tool, project]);
+  const [snapshot, setSnapshot] = useState<{ key: string; report: UsageReport | null }>(() => ({ key: cacheKey, report: readUsageSnapshot(cacheKey) }));
+  const report = snapshot.key === cacheKey ? snapshot.report : readUsageSnapshot(cacheKey);
+  const projects = report?.projects ?? snapshot.report?.projects ?? [];
+  const [busy, setBusy] = useState(true), [error, setError] = useState(false);
   const generation = useRef<object | null>(null), inFlight = useRef(false);
   const refresh = useCallback(async () => {
     if (inFlight.current) return;
     const id = {}; generation.current = id; inFlight.current = true; setBusy(true); setError(false);
-    try { const result = await getUsageStatistics({ ...usageRange(days), tool, project }); if (generation.current === id) setReport(result); }
+    try {
+      const result = await getUsageStatistics({ ...usageRange(days), tool, project });
+      if (generation.current === id) { writeUsageSnapshot(cacheKey, result); setSnapshot({ key: cacheKey, report: result }); }
+    }
     catch { if (generation.current === id) setError(true); }
     finally { if (generation.current === id) { setBusy(false); inFlight.current = false; } }
-  }, [days, tool, project]);
+  }, [days, tool, project, cacheKey]);
   useEffect(() => {
     inFlight.current = false;
     void refresh();
@@ -48,19 +101,17 @@ export function UsageDashboard() {
   ];
   return <section className="usage-dashboard" aria-label={t('usage.title')}>
     <div className="usage-toolbar"><div className="usage-range" role="group" aria-label={t('usage.range')}>{[1, 7, 30].map(value => <button type="button" key={value} aria-pressed={days === value} onClick={() => setDays(value)}>{t(value === 1 ? 'usage.today' : value === 7 ? 'usage.week' : 'usage.month')}</button>)}</div>
-      <select aria-label={t('usage.tool')} value={tool} onChange={event => setTool(event.target.value)}><option value="">{t('usage.all_tools')}</option><option value="claude">Claude Code</option><option value="codex">Codex CLI</option></select>
-      <select aria-label={t('usage.project')} value={project} onChange={event => setProject(event.target.value)}><option value="">{t('usage.all_projects')}</option>{report?.projects.map(path => <option key={path} value={path}>{path}</option>)}</select>
-      <button type="button" className="usage-refresh" disabled={busy} onClick={() => { void refresh(); }}>{t(busy ? 'usage.syncing' : 'usage.refresh')}</button>
+      <UsageFilter label={t('usage.tool')} value={tool} onChange={setTool} options={[{ value: '', label: t('usage.all_tools') }, { value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex CLI' }]} />
+      <UsageFilter label={t('usage.project')} value={project} onChange={setProject} options={[{ value: '', label: t('usage.all_projects') }, ...projects.map(path => ({ value: path, label: path }))]} />
+      <button type="button" className="usage-refresh" disabled={busy} onClick={() => { void refresh(); }}>{t('usage.refresh')}</button>
     </div>
     <div className="usage-body" aria-busy={busy}>
       {error && <p className="usage-notice" role="alert">{t('usage.error')}</p>}
-      {!report && busy ? <p role="status">{t('usage.syncing')}</p> : <>
         <div className="usage-cards">{cards.map(card => <article key={card.title} className={`usage-card${card.hero ? ' usage-card-hero' : ''}`}><h2>{card.title}</h2><strong>{card.value}</strong><p>{card.detail}</p>{card.trend && <Trend values={card.trend} label={card.title} />}</article>)}</div>
         {report && !s?.sessions && <p className="usage-notice" role="status">{t('usage.empty')}</p>}
         <div className="usage-charts"><article className="usage-card"><h2>{t('usage.trend')}</h2><Trend values={daily.map(day => day.tokens)} label={t('usage.trend')} /><div className="usage-axis"><span>{daily[0].key}</span><span>{daily.at(-1)?.key}</span></div><div className="usage-day-values">{daily.map(day => <span key={day.key} title={`${day.key} · ${format(day.tokens)} Token`}><i style={{ height: `${Math.max(2, day.tokens / Math.max(...daily.map(d => d.tokens), 1) * 36)}px` }} />{days <= 7 && <small>{day.key.slice(5)}</small>}</span>)}</div></article>
           <article className="usage-card"><h2>{t('usage.models')}</h2><div className="usage-model-chart"><figure className="usage-donut" role="img" aria-label={`${t('usage.tokens')} ${format(s?.tokens)}`}><i className="usage-donut-ring" style={{ backgroundImage: total ? `conic-gradient(${segments.join(',')})` : undefined }} /><span><strong>{format(s?.tokens)}</strong><small>Token</small></span></figure><div className="usage-model-legend">{models.slice(0, 6).map((row, i) => <div key={row.key}><i style={{ background: `var(--usage-series-${i % 5})` }} /><span title={row.key}>{row.key || t('usage.unknown_model')}</span><b>{total ? Math.round((row.summary.tokens ?? 0) / total * 100) : 0}%</b></div>)}</div></div></article></div>
         <article className="usage-card usage-models"><h2>{t('usage.breakdown')}</h2><div className="usage-table-scroll"><table><thead><tr>{(['model', 'calls', 'input', 'output', 'cacheRead'] as const).map(key => <th key={key}>{t(`usage.${key}`)}</th>)}</tr></thead><tbody>{models.map(row => <tr key={row.key}><th scope="row">{row.key || t('usage.unknown_model')}</th><td>{format(row.summary.calls)}</td><td>{format(row.summary.input)}</td><td>{format(row.summary.output)}</td><td>{format(row.summary.cacheRead)}</td></tr>)}</tbody></table></div></article>
-      </>}
       {report && <footer className="usage-footer"><p>{t('usage.coverage')}{report.sources.map(source => `${source.tool === 'claude' ? 'Claude Code' : 'Codex CLI'} ${source.available ? t('usage.file_count', { count: source.files }) : t('usage.unavailable')}`).join(' · ')}</p></footer>}
     </div>
   </section>;

@@ -136,9 +136,7 @@ export function ActiveGambit() {
     return () => document.removeEventListener('keydown', onKeyDown, true);
   }, [scheme, dispatch]);
 
-  // Persist the open/closed choice across restarts. Gambit defaults to open on
-  // first launch (see app-state initializer) but the user's toggle sticks —
-  // cc-gambit-open is the single source that initializer reads back.
+  // Persist the open/closed choice across restarts via cc-gambit-open.
   useEffect(() => {
     try { localStorage.setItem('cc-gambit-open', state.gambitOpen ? '1' : '0'); } catch { /* optional preference */ }
   }, [state.gambitOpen]);
