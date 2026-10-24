@@ -97,11 +97,13 @@ function visit(node) {
 visit(tree);
 assert.ok(titleCallback);
 const actions = [];
-const callback = vm.runInNewContext(`(${ts.transpileModule(titleCallback.getText(tree), {}).outputText.trim().replace(/;$/, '')})`, {
+const titleContext = {
+  mounted: true, ptyEnded: false,
   tool: 'opencode', sessionId: 'coffee-tab-a', lastTabTitle: undefined, nativeStatus: null,
   parseOpenCodeTerminalTitle: parse, dispatch: action => actions.push(action),
   publishNativeStatus: status => actions.push({ type: 'SET_AGENT_STATUS', id: 'coffee-tab-a', status }),
-});
+};
+const callback = vm.runInNewContext(`(${ts.transpileModule(titleCallback.getText(tree), {}).outputText.trim().replace(/;$/, '')})`, titleContext);
 callback('CoffeeCLI:OpenCode:v2:working | OC | title');
 assert.equal(actions[0].id, 'coffee-tab-a'); assert.equal(actions[0].status, 'working');
 assert.equal(actions[1].title, 'OC | title');
@@ -110,4 +112,12 @@ assert.equal(actions.at(-1).status, undefined);
 const statusCount = actions.filter(action => action.type === 'SET_AGENT_STATUS').length;
 callback('OpenCode');
 assert.equal(actions.filter(action => action.type === 'SET_AGENT_STATUS').length, statusCount);
+const actionCount = actions.length;
+titleContext.mounted = false;
+callback('CoffeeCLI:OpenCode:v2:working | OC | after unmount');
+assert.equal(actions.length, actionCount, 'unmounted terminals ignore late title events');
+titleContext.mounted = true;
+titleContext.ptyEnded = true;
+callback('CoffeeCLI:OpenCode:v2:working | OC | after exit');
+assert.equal(actions.length, actionCount, 'exited terminals ignore late title events');
 console.log('OK: native status, permissions/questions, session isolation, reconnect, cleanup, title safety, and actual xterm dispatch');

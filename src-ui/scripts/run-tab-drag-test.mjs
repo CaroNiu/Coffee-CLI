@@ -26,7 +26,9 @@ function callback(name) {
 const compile = code => ts.transpileModule(code, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText;
+const splitLayout = await import(`data:text/javascript;base64,${Buffer.from(compile(readFileSync(new URL('../src/lib/session-split-layout.ts', import.meta.url), 'utf8'))).toString('base64')}`);
 const stateApi = vm.runInNewContext(compile(`${declaration(store, 'getTabOrder')}; ${declaration(store, 'reducer')}; ({ getTabOrder, reducer });`), {
+  ...splitLayout,
   localStorage: { setItem() {}, removeItem() {} }, crypto: { randomUUID: () => 'replacement-terminal' },
   supportsAgentStatus: () => true,
 });
