@@ -46,6 +46,7 @@ jobs:
           node scripts/run-opencode-island-test.mjs
           node scripts/run-notify-sound-test.mjs
           node scripts/run-terminal-size-sync-test.mjs
+          node scripts/run-conpty-bundle-test.mjs
           node scripts/run-ui-scale-test.mjs
           node scripts/run-settings-slider-test.mjs
           node scripts/run-shiki-test.mjs
@@ -180,6 +181,10 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           key: ${{ matrix.label }}
+
+      - name: Validate bundled terminal runtime (Windows)
+        if: runner.os == 'Windows'
+        run: node src-ui/scripts/run-conpty-bundle-test.mjs
 
       - name: Native regression tests
         run: cargo test --locked --no-fail-fast ${{ matrix.args }}
