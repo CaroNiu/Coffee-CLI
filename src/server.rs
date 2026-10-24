@@ -5261,6 +5261,7 @@ pub fn start_ui(pending_launch: Option<crate::launch::LaunchRequest>) -> anyhow:
             set_session_active,
             get_native_history,
             get_message_heatmap,
+            crate::usage_stats::get_usage_statistics,
             read_chat_session,
             read_chat_navigation,
             get_terminal_session_token,

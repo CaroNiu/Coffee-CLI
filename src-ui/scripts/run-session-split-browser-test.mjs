@@ -81,6 +81,22 @@ try {
   await drag('Claude terminal task', 'b', 'bottom'); await count(4);
   assert.equal(await page.locator('[data-fixture-view][data-active="true"]').count(), 1, 'only focused pane owns keyboard actions');
   assert.equal(await page.locator('[data-fixture-view][data-visible="true"]:visible').count(), 4, 'all visible views remain active for scrolling and rendering');
+  await page.getByRole('button', { name: 'Usage statistics', exact: true }).click();
+  await page.getByRole('region', { name: 'Usage statistics', exact: true }).waitFor();
+  const navigationStyles = await page.evaluate(() => ['.explorer-tabs .explorer-new-session', '.explorer-usage', '.history-search-trigger'].map(selector => {
+    const button = document.querySelector(selector), style = getComputedStyle(button), icon = button.querySelector('svg').getBoundingClientRect();
+    return { font: style.font, padding: style.padding, iconX: icon.x, iconWidth: icon.width, iconHeight: icon.height };
+  }));
+  assert.deepEqual(navigationStyles[1], navigationStyles[0], 'statistics use the same typography and icon alignment as New session');
+  assert.deepEqual(navigationStyles[1], navigationStyles[2], 'statistics use the same typography and icon alignment as Search');
+  assert.equal(await page.locator('[data-fixture-view]:visible').count(), 0, 'statistics hide native surfaces without ending their sessions');
+  assert.equal(await page.locator('.gambit').count(), 0, 'statistics do not leave the composer over the charts');
+  await row('Claude desktop task').click(); await count(4);
+  assert.equal(await page.getByRole('textbox', { name: 'draft a', exact: true }).inputValue(), 'Draft survives splitting');
+  await page.getByRole('button', { name: 'Usage statistics', exact: true }).click();
+  await page.locator('.chrome-tab').filter({ hasText: 'Claude desktop task' }).click(); await count(4);
+  assert.equal(await page.locator('.usage-dashboard').count(), 0, 'selecting a session leaves statistics');
+  await page.evaluate(() => window.testDispatch({ type: 'SET_ACTIVE_TERMINAL', id: 'd' }));
   await page.screenshot({ path: join(directory, 'four-sessions.png') });
   for (const shape of ['glass', 'carbon', 'panel', 'soft']) {
     await page.evaluate(shape => window.testDispatch({ type: 'SET_SHAPE', shape }), shape);

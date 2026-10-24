@@ -6,6 +6,7 @@ import { TierTerminal } from './TierTerminal';
 import { AgentPages } from '../agent/AgentPages';
 import { ClaudeConversation } from './ClaudeConversation';
 import { CodexConversation } from './CodexConversation';
+import { UsageDashboard } from './UsageDashboard';
 import { LaunchModeControl } from './LaunchModeControl';
 import { SessionSplitDividers } from './SessionSplitDividers';
 import { sessionSplitRects, splitSessionIds } from '../../lib/session-split-layout';
@@ -379,8 +380,10 @@ export function CenterPanel() {
   const diffTabVisible = state.diffMode === 'tab' && state.diffSelection !== null;
   const diffTabActive = state.diffTabActive;
   const agentPageActive = state.agentPageActive;
+  const usageOpen = state.usageOpen;
+  const contentActive = !usageOpen && !diffTabActive && !agentPageActive;
   const splitIds = splitSessionIds(state.sessionSplit);
-  const splitVisible = !diffTabActive && !agentPageActive && splitIds.length > 1 && splitIds.includes(activeTerminalId ?? '');
+  const splitVisible = contentActive && splitIds.length > 1 && splitIds.includes(activeTerminalId ?? '');
   const splitRects = splitVisible ? sessionSplitRects(state.sessionSplit!).leaves : [];
   const closeSplitLabel = t('split.close_pane');
   // Diff tab title = basename of the selected file (mirrors DiffPanel's own
@@ -630,8 +633,8 @@ export function CenterPanel() {
   // TierTerminal added its own focusin + mouseup handlers, causing O(N)
   // dispatch per click with N tabs). When focus wanders to the body or a
   // non-input element, steal it back for the currently active terminal.
-  const activeIdRef = useRef(agentPageActive || diffTabActive ? null : activeTerminalId);
-  useEffect(() => { activeIdRef.current = agentPageActive || diffTabActive ? null : activeTerminalId; }, [activeTerminalId, agentPageActive, diffTabActive]);
+  const activeIdRef = useRef(contentActive ? activeTerminalId : null);
+  useEffect(() => { activeIdRef.current = contentActive ? activeTerminalId : null; }, [activeTerminalId, contentActive]);
   useEffect(() => {
     const enforce = () => {
       setTimeout(() => {
@@ -1183,7 +1186,7 @@ export function CenterPanel() {
             const page = tabId === 'agent:agent' ? 'agent' : 'config';
             return (
               <div key={tabId} data-tab-id={tabId}
-                className={`chrome-tab ${agentPageActive === page ? 'active' : ''} ${isDragging ? 'dragging' : ''}`}
+                className={`chrome-tab ${agentPageActive === page && !usageOpen ? 'active' : ''} ${isDragging ? 'dragging' : ''}`}
                 style={dragStyle} onClick={() => onTabClickGuarded(tabId)}
                 onPointerDown={event => onTabPointerDown(event, tabId)}>
                 <span className="tab-title">{page === 'agent' ? 'Coffee Agent' : t('agent.page.settings')}</span>
@@ -1200,7 +1203,7 @@ export function CenterPanel() {
           // A terminal tab is "active" only when it's the focused surface —
           // when the diff tab is focused (diffTabActive), no terminal tab
           // should show the active highlight (the diff chrome-tab does).
-          const isActive = session.id === activeTerminalId && !diffTabActive && !agentPageActive;
+          const isActive = session.id === activeTerminalId && contentActive;
           const { icon, title: baseTitle } = renderTabContent(session, isActive);
           // Tool's live OSC 0/2 title (Claude Code conversation summary, etc.)
           // overrides the cwd basename when the tool has set a non-empty one.
@@ -1258,7 +1261,7 @@ export function CenterPanel() {
             diff entirely. No status-grid (diff has no agent state). */}
         {diffTabVisible && (
           <div
-            className={`chrome-tab ${diffTabActive ? 'active' : ''}`}
+            className={`chrome-tab ${diffTabActive && !usageOpen ? 'active' : ''}`}
             onClick={() => dispatch({ type: 'SET_DIFF_TAB_ACTIVE', active: true })}
           >
             {/* Diff tab glyph: a document with text lines — reads as "file
@@ -1302,7 +1305,7 @@ export function CenterPanel() {
               // Hide every terminal wrapper while the diff tab is focused —
               // the diff surface takes over the content area (the underlying
               // PTYs stay mounted, just not displayed).
-              display: (!diffTabActive && !agentPageActive && (splitVisible ? splitIds.includes(t.id) : t.id === activeTerminalId)) ? 'flex' : 'none',
+              display: (contentActive && (splitVisible ? splitIds.includes(t.id) : t.id === activeTerminalId)) ? 'flex' : 'none',
               width: `${splitRects.find(rect => rect.id === t.id)?.width ?? 100}%`,
               height: `${splitRects.find(rect => rect.id === t.id)?.height ?? 100}%`,
               position: splitVisible ? 'absolute' : 'relative',
@@ -1311,15 +1314,15 @@ export function CenterPanel() {
             }}
           >
             {isCodexConversation(t) ? (
-              <CodexConversation key={`codex-${t.id}-${t.restartKey ?? 0}`} sessionId={t.id} cwd={t.folderPath} resumeToken={t.resumeToken} isActive={t.id === activeTerminalId && !diffTabActive && !agentPageActive} isVisible={!diffTabActive && !agentPageActive && (splitVisible ? splitIds.includes(t.id) : t.id === activeTerminalId)} hasBg={hasBg} bgUrl={bgUrl} bgType={bgType} />
+              <CodexConversation key={`codex-${t.id}-${t.restartKey ?? 0}`} sessionId={t.id} cwd={t.folderPath} resumeToken={t.resumeToken} isActive={t.id === activeTerminalId && contentActive} isVisible={contentActive && (splitVisible ? splitIds.includes(t.id) : t.id === activeTerminalId)} hasBg={hasBg} bgUrl={bgUrl} bgType={bgType} />
             ) : isClaudeConversation(t) ? (
               <ClaudeConversation
                 key={`claude-${t.id}-${t.restartKey ?? 0}`}
                 sessionId={t.id}
                 cwd={t.folderPath}
                 resumeToken={t.resumeToken}
-                isActive={t.id === activeTerminalId && !diffTabActive && !agentPageActive}
-                isVisible={!diffTabActive && !agentPageActive && (splitVisible ? splitIds.includes(t.id) : t.id === activeTerminalId)}
+                isActive={t.id === activeTerminalId && contentActive}
+                isVisible={contentActive && (splitVisible ? splitIds.includes(t.id) : t.id === activeTerminalId)}
                 hasBg={hasBg}
                 bgUrl={bgUrl}
                 bgType={bgType}
@@ -1335,8 +1338,8 @@ export function CenterPanel() {
                       toolName={AGENT_CATALOG.find(a => a.key === t.tool)?.label}
                       theme={state.currentTheme}
                       lang={state.currentLang}
-                      isActive={t.id === activeTerminalId && !diffTabActive && !agentPageActive}
-                      isVisible={!diffTabActive && !agentPageActive && (splitVisible ? splitIds.includes(t.id) : t.id === activeTerminalId)}
+                      isActive={t.id === activeTerminalId && contentActive}
+                      isVisible={contentActive && (splitVisible ? splitIds.includes(t.id) : t.id === activeTerminalId)}
                       toolData={t.toolData}
                       folderPath={t.folderPath}
                       resumeToken={t.resumeToken}
@@ -1361,7 +1364,7 @@ export function CenterPanel() {
         {/* Diff tab content — fills the content area when the diff tab is
             focused. The DiffPanel body handles its own loading/error/too-large
             states; mode="tab" makes it fill this slot (no portal/backdrop). */}
-        {diffTabVisible && diffTabActive && state.diffSelection && (
+        {diffTabVisible && diffTabActive && !usageOpen && state.diffSelection && (
           <div className="terminal-wrapper" style={{ display: 'flex', width: '100%', height: '100%', position: 'relative' }}>
             <DiffPanel
               mode="tab"
@@ -1380,12 +1383,13 @@ export function CenterPanel() {
         )}
 
         {state.agentPages.map(page => (
-          <div key={page} className="terminal-wrapper" style={{ display: agentPageActive === page ? 'flex' : 'none', width: '100%', height: '100%' }}>
+          <div key={page} className="terminal-wrapper" style={{ display: agentPageActive === page && !usageOpen ? 'flex' : 'none', width: '100%', height: '100%' }}>
             <AgentPages page={page} />
           </div>
         ))}
 
-        {isLaunchpadMode && activeTerminalId && !diffTabActive && !agentPageActive && (
+        {usageOpen && <UsageDashboard />}
+        {isLaunchpadMode && activeTerminalId && contentActive && (
           <div className={`launchpad-container${hasBg && bgUrl ? ' launchpad-has-bg' : ''}`} style={{ position: 'relative' }}>
             {hasBg && bgUrl && (
               <div className="launchpad-bg">

@@ -537,7 +537,7 @@ function BrowserFileNode({ entry, parentDirPath, onCtxMenu }: {
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export function Explorer() {
-  const { state } = useAppState();
+  const { state, dispatch } = useAppState();
   const t = useT();
 
   const activeSession = state.terminals.find(t => t.id === state.activeTerminalId);
@@ -825,6 +825,9 @@ export function Explorer() {
         </button>
       </div>
 
+      <button type="button" className="explorer-new-session explorer-usage" aria-pressed={!!state.usageOpen} onClick={() => dispatch({ type: 'SET_USAGE_OPEN', open: true })}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 3v18h18M8 16v-5M13 16V5M18 16V9" /></svg><span>{t('usage.title')}</span>
+      </button>
       {(activeTab === 'workspace' && activeSession?.tool && !CWD_AGNOSTIC_TOOLS.has(activeSession.tool)) && (
         <span className={`workspace-dir-btn${searchingWorkspace ? ' is-searching' : ''}`} role="search" aria-label={t('explorer.filter_files')}>
           {searchingWorkspace ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7.5" /><path d="m16 16 5 5" /></svg> : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>

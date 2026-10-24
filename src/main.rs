@@ -25,6 +25,7 @@ mod fs_watcher;
 mod launch;
 mod tool_config;
 mod tools;
+mod usage_stats;
 mod git;
 mod git_project_status;
 mod shell_probe;
