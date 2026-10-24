@@ -17,9 +17,8 @@
 // text can't be misdirected to the wrong terminal.
 
 import { useCallback, useEffect } from 'react';
-import { useAppState, isSplitTool, paneSessionId, matchHotkeyScheme } from '../../store/app-state';
+import { useAppState, matchHotkeyScheme } from '../../store/app-state';
 import { submitTerminalPrompt } from '../../lib/terminal-control';
-import { getFocusedPane } from '../../lib/pane-focus';
 import { isClaudeConversation, isCodexConversation } from '../../lib/chat-tools';
 import { getToolIcon } from './CenterPanel';
 import { Gambit } from './Gambit';
@@ -86,28 +85,9 @@ export function ActiveGambit() {
     dispatch({ type: 'TOGGLE_GAMBIT' });
   }, [dispatch]);
 
-  // Route Send to the correct xterm. For a plain single-terminal tab the
-  // sessionId is just activeId. For a multi-pane tab, no xterm registers
-  // under activeId itself — each pane registers under a suffixed id and
-  // Gambit has to pick one. Two families of multi-pane tabs exist:
-  //
-  //   - Orchestrated multi-agent (`multi-agent` / `two-agent` /
-  //     `three-agent`, rendered by MultiAgentGrid) uses the `::pane-N`
-  //     suffix; backend treats that prefix as "hands-free mode" and
-  //     injects auto-approve flags.
-  //
-  //   - Independent split (`two-split` / `three-split` / `four-split`,
-  //     rendered by FourSplitGrid) uses the `::split-N` suffix; each
-  //     pane is a plain user-interactive PTY with no auto-approve.
-  //
-  // Both write to the same `pane-focus` registry on click (tab-scoped
-  // 1..N), so routing only has to pick the right prefix.
-  //
-  // If no pane has been focused yet, return false so Gambit preserves
-  // the draft rather than dropping text into the void.
+  // Both single and split views target the focused real session.
   const handleSend = useCallback(async (text: string): Promise<boolean> => {
     if (!activeId) return false;
-    const tool = activeSession?.tool ?? null;
     if (isCodex) return sendCodexMessage(activeId, text);
     if (isClaude) {
       if (/^\/plan\s+\S/.test(text)) {
@@ -116,14 +96,8 @@ export function ActiveGambit() {
       }
       return sendClaudeMessage(activeId, text);
     }
-    let targetId = activeId;
-    if (isSplitTool(tool)) {
-      const paneIdx = getFocusedPane(activeId);
-      if (!paneIdx) return false;
-      targetId = paneSessionId(activeId, paneIdx, 'split');
-    }
-    try { await submitTerminalPrompt(targetId, text); return true; } catch { return false; }
-  }, [activeId, activeSession?.tool, isClaude, isCodex]);
+    try { await submitTerminalPrompt(activeId, text); return true; } catch { return false; }
+  }, [activeId, isClaude, isCodex]);
 
   // Global open/close hotkey (settings → 妙手). Registered in the CAPTURE
   // phase on document so it fires BEFORE the focused xterm's own keydown —

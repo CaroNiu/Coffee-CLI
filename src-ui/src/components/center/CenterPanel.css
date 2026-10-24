@@ -4,6 +4,7 @@
 }
 
 .main-content {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -223,6 +224,116 @@
   position: relative;
   flex-direction: column;
 }
+
+.session-split-pane {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.session-split-pane.is-focused { border-color: var(--accent); }
+/* Reserve the shared composer once for the entire split, not once per cell. */
+body.gambit-docked .main-content.has-session-split { margin-bottom: calc(var(--gambit-dock-h, 200px) + 16px); }
+body.gambit-docked .has-session-split .tier-terminal { padding-bottom: 0; }
+body.gambit-docked .has-session-split .claude-scroll { height: 100%; }
+body.gambit-docked .has-session-split .claude-scroll-bottom { bottom: 20px; }
+body.gambit-docked .has-session-split .claude-reconnect { bottom: 20px; }
+body.gambit-docked .has-session-split .conversation-navigation { bottom: 16px; }
+.session-split-divider {
+  position: absolute;
+  z-index: 210;
+  touch-action: none;
+}
+.session-split-divider.is-horizontal { min-width: 6px; transform: translateX(-3px); cursor: col-resize; }
+.session-split-divider.is-vertical { min-height: 6px; transform: translateY(-3px); cursor: row-resize; }
+.session-split-divider:hover, .session-split-divider:focus-visible { background: color-mix(in srgb, var(--accent) 45%, transparent); outline: none; }
+.session-split-drop-target {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--text-1);
+  font: 500 13px var(--font-nav);
+}
+.session-split-drop-target span { padding: 5px 10px; border-radius: var(--radius-md); background: var(--bg-panel); }
+body.session-split-dragging { cursor: grabbing; user-select: none; }
+
+.pane-number-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 200;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* color-mix: 55% theme accent + 45% black. Well-supported since
+     Chrome 111 / Safari 16.4; Tauri's WebView2 is Edge-based and
+     supports it. Fallback uses the raw accent — acceptable. */
+  background: color-mix(in srgb, var(--accent, #6cc275) 55%, #000);
+  border-radius: 0;
+  border: none;
+  padding: 0;
+  font-size: 14px;
+  font-family: var(--font-display, 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif);
+  font-weight: 700;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+  line-height: 1;
+  color: #fff;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Active-pane badge variant — interactive close button. The × is only
+   revealed on hover (see .pane-badge-num / .pane-badge-x below), so the
+   idle state reads identical to the empty-pane badge and the user only
+   sees "close" affordance when they're reaching for it. */
+.pane-number-badge--closable {
+  pointer-events: auto;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.pane-number-badge--closable:hover {
+  /* Claude-brand orange (#D97757). Same tone used for Claude's
+     executing-state dot in the tab strip — "about to do something
+     consequential" reads the same across the app. */
+  background: #d97757;
+}
+
+.pane-number-badge--closable:active {
+  filter: brightness(0.92);
+}
+
+.pane-badge-num,
+.pane-badge-x {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.pane-badge-x {
+  display: none;
+  font-size: 18px;
+  font-weight: 600;
+  /* × glyph sits optically low at this weight — lift a pixel so the
+     geometric center of the cross matches where the digit sat. */
+  transform: translateY(-1px);
+}
+
+.pane-number-badge--closable:hover .pane-badge-num { display: none; }
+.pane-number-badge--closable:hover .pane-badge-x   { display: flex; }
+
 
 .terminal-mode-surface {
   display: flex;
@@ -731,12 +842,7 @@
   align-content: start;
 }
 
-/* Agent Tools sub-grid (3-col, same as the AI CLIs grid). */
-.library-grid.library-grid--tools {
-  margin-top: 8px;
-}
-
-/* Section heading between the AI CLIs grid and the Agent Tools grid. */
+/* Tool library section heading. */
 .library-section-title {
   margin-top: 28px;
   margin-bottom: 10px;

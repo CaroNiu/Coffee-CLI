@@ -1,0 +1,133 @@
+// Actual app/store/sidebar/layout with isolated native view lifetimes. No CLI or account calls.
+import assert from 'node:assert/strict';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+const { chromium } = await import(process.env.COFFEE_PLAYWRIGHT_MODULE || 'playwright-core');
+const browser = await chromium.launch({ headless: true, ...(process.env.COFFEE_CHROMIUM_EXECUTABLE ? { executablePath: process.env.COFFEE_CHROMIUM_EXECUTABLE } : {}) });
+const directory = await mkdtemp(join(tmpdir(), 'coffee-session-split-'));
+try {
+  const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+  const errors = []; page.on('pageerror', error => errors.push(error.message));
+  await page.route(/\/src\/main\.tsx/, async route => { const response = await route.fetch(); await route.fulfill({ response, body: (await response.text()).replaceAll('StrictMode', 'Fragment') }); });
+  await page.route(/\/src\/components\/center\/(TierTerminal|ClaudeConversation|CodexConversation)\.tsx/, async route => {
+    const name = route.request().url().match(/\/([A-Za-z]+)\.tsx/)[1];
+    const original = await (await route.fetch()).text();
+    const reactUrl = original.match(/from "([^"\n]*\/react\.js\?v=[^"]+)"/)[1];
+    return route.fulfill({ contentType: 'text/javascript', body: `
+      import React from '${reactUrl}'; const {useEffect,useState,createElement:h}=React;
+      export const TERM_COLOR_SCHEMES=[];
+      export function ${name}(p){const [draft,setDraft]=useState('');useEffect(()=>{window.lifetimes??=[];window.lifetimes.push(['mount',p.sessionId]);return()=>window.lifetimes.push(['unmount',p.sessionId])},[p.sessionId]);return h('div',{'data-fixture-view':p.sessionId,'data-active':String(p.isActive),'data-visible':String(p.isVisible??p.isActive),style:{padding:32,flex:1}},h('h3',null,'${name}'),h('p',null,p.cwd??p.folderPath),h('input',{value:draft,onChange:e=>setDraft(e.target.value),'aria-label':'draft '+p.sessionId}))}
+    ` });
+  });
+  await page.addInitScript(() => {
+    for (const [key, value] of Object.entries({ 'cc-lang': 'en', 'cc-theme': 'sakura', 'cc-mode': 'dark', 'cc-shape': 'soft', 'cc-tasks-seeded': '1', 'coffee_pinned_items': JSON.stringify(['agent:claude', 'agent:codex', 'agent:four-split', 'agent:installer', 'agent:terminal']) })) localStorage.setItem(key, value);
+  });
+  await page.goto('http://localhost:5173');
+  await page.locator('.launchpad-mode-tabs').first().waitFor().catch(async error => { console.error(errors); console.error((await page.locator('body').innerText()).slice(0, 1500)); throw error; });
+  await page.waitForTimeout(500);
+  // Test-only access to the actual provider; production exports no debug bridge.
+  await page.evaluate(() => {
+    function context() {
+      const host = document.querySelector('.panel-center');
+      let root = host[Object.keys(host).find(key => key.startsWith('__reactFiber$'))];
+      while (root.return) root = root.return;
+      function walk(fiber) {
+        if (!fiber) return null;
+        const value = fiber.memoizedProps?.value;
+        if (value?.state?.terminals && typeof value.dispatch === 'function') return value;
+        return walk(fiber.child) || walk(fiber.sibling);
+      }
+      return walk(root.stateNode.current);
+    }
+    window.testState = () => context().state;
+    window.testDispatch = action => context().dispatch(action);
+  });
+  assert.equal(await page.getByText('Independent Quad', { exact: true }).count(), 0, 'fixed split launcher is retired');
+  assert.equal(await page.getByText('Coffee 101', { exact: true }).count(), 0);
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('coffee_pinned_items'))), ['agent:claude', 'agent:codex', 'agent:terminal']);
+  await page.getByRole('button', { name: 'Open library', exact: true }).click();
+  assert.equal(await page.getByText('Agent Tools', { exact: true }).count(), 0, 'retired category is removed');
+  assert.equal(await page.getByText('Coffee 101', { exact: true }).count(), 0);
+  await page.getByRole('button', { name: 'Back to desktop', exact: true }).click();
+  for (const session of [
+    { id: 'a', tool: 'claude', claudeMode: 'conversation', resumeToken: 'thread-a', toolTitle: 'Claude desktop task' },
+    { id: 'b', tool: 'codex', codexMode: 'conversation', resumeToken: 'thread-b', toolTitle: 'Codex desktop task' },
+    { id: 'c', tool: 'terminal', toolTitle: 'Shell task' },
+    { id: 'd', tool: 'claude', claudeMode: 'terminal', toolTitle: 'Claude terminal task' },
+    { id: 'e', tool: 'terminal', toolTitle: 'Fifth task' },
+  ]) await page.evaluate(session => window.testDispatch({ type: 'ADD_TERMINAL', session: { ...session, folderPath: 'D:/' + session.id, startedAt: Date.now() } }), session);
+  await page.evaluate(() => window.testDispatch({ type: 'SET_ACTIVE_TERMINAL', id: 'a' }));
+  await page.locator('[data-fixture-view="a"]').waitFor();
+  const pane = id => page.locator(`.terminal-wrapper[data-session-id="${id}"]`);
+  const row = name => page.locator('.history-card').filter({ has: page.getByText(name, { exact: true }) });
+  const drag = async (name, id, edge, beforeDrop) => {
+    const from = await row(name).boundingBox(), to = await pane(id).boundingBox();
+    assert.ok(from && to);
+    await page.mouse.move(from.x + 70, from.y + from.height / 2); await page.mouse.down();
+    await page.mouse.move(to.x + to.width * (edge === 'left' ? .08 : edge === 'right' ? .92 : .5), to.y + to.height * (edge === 'top' ? .08 : edge === 'bottom' ? .92 : .5), { steps: 12 });
+    if (beforeDrop) await beforeDrop();
+    await page.mouse.up();
+  };
+  const count = async expected => { await page.waitForFunction(n => [...document.querySelectorAll('.session-split-pane')].filter(el => el.offsetParent).length === n, expected, { timeout: 5000 }).catch(async error => { console.error(await page.evaluate(() => ({split:window.testState().sessionSplit,active:window.testState().activeTerminalId,views:[...document.querySelectorAll('.terminal-wrapper')].map(el=>({id:el.dataset.sessionId,display:getComputedStyle(el).display}))}))); console.error(errors); await page.screenshot({path:join(directory,'failure.png')}); throw error; }); };
+  await page.getByRole('textbox', { name: 'draft a', exact: true }).fill('Draft survives splitting');
+  await drag('Codex desktop task', 'a', 'right', async () => assert.equal(await page.locator('.session-split-drop-target').isVisible(), true));
+  await count(2);
+  const a2 = await pane('a').boundingBox(), b2 = await pane('b').boundingBox();
+  assert.ok(b2.x > a2.x && Math.abs(a2.width - b2.width) < 2);
+  await drag('Shell task', 'a', 'bottom', async () => assert.equal(await page.locator('.session-split-drop-target').isVisible(), true)); await count(3);
+  const a3 = await pane('a').boundingBox(), c3 = await pane('c').boundingBox(), b3 = await pane('b').boundingBox();
+  assert.ok(c3.y > a3.y && b3.height > a3.height, 'third pane splits the chosen side, preserving the other column');
+  await drag('Claude terminal task', 'b', 'bottom'); await count(4);
+  assert.equal(await page.locator('[data-fixture-view][data-active="true"]').count(), 1, 'only focused pane owns keyboard actions');
+  assert.equal(await page.locator('[data-fixture-view][data-visible="true"]:visible').count(), 4, 'all visible views remain active for scrolling and rendering');
+  await page.screenshot({ path: join(directory, 'four-sessions.png') });
+  for (const shape of ['glass', 'carbon', 'panel', 'soft']) {
+    await page.evaluate(shape => window.testDispatch({ type: 'SET_SHAPE', shape }), shape);
+    assert.notEqual(await pane('d').evaluate(el => getComputedStyle(el).borderTopColor), 'rgba(0, 0, 0, 0)', 'focused pane stays identifiable in ' + shape);
+  }
+  await drag('Fifth task', 'a', 'right', async () => assert.equal(await page.locator('.session-split-drop-target').count(), 0));
+  await count(4);
+  assert.equal(await page.evaluate(() => window.testState().activeTerminalId), 'd', 'invalid drop does not focus or open another session');
+  await pane('a').click({ position: { x: 35, y: 35 } });
+  assert.equal(await page.evaluate(() => window.testState().activeTerminalId), 'a');
+  assert.equal(await pane('a').getAttribute('class').then(value => value.includes('is-focused')), true);
+  const activeFolder = await page.evaluate(async () => { const { resolveDiffContext } = await import('/src/store/app-state.tsx'); const state = window.testState(); return resolveDiffContext(state.terminals.find(tab => tab.id === state.activeTerminalId)).folderPath; });
+  assert.equal(activeFolder, 'D:/a', 'right-side diff context follows the actual focused session');
+  const divider = page.locator('.session-split-divider.is-horizontal').first(), line = await divider.boundingBox();
+  await page.mouse.move(line.x + line.width / 2, line.y + 35); await page.mouse.down(); await page.mouse.move(line.x + 100, line.y + 35, { steps: 8 }); await page.mouse.up();
+  assert.ok(await page.evaluate(() => window.testState().sessionSplit.ratio > .55));
+  await divider.focus(); await page.keyboard.press('ArrowLeft');
+  assert.ok(await page.evaluate(() => window.testState().sessionSplit.ratio < .6), 'separator retains keyboard focus');
+  await divider.dblclick({ position: { x: 3, y: 35 } }); assert.equal(await page.evaluate(() => window.testState().sessionSplit.ratio), .5);
+  await page.getByRole('textbox', { name: 'draft b', exact: true }).focus();
+  assert.equal(await page.evaluate(() => window.testState().activeTerminalId), 'b', 'keyboard focus routes input to the new pane');
+  await pane('b').getByRole('button', { name: /Close split view/ }).click(); await count(3);
+  assert.equal(await page.evaluate(() => window.testState().terminals.some(tab => tab.id === 'b')), true, 'closing a pane retains its session');
+  await row('Codex desktop task').click({ button: 'right' });
+  await page.getByRole('button', { name: 'Open in split view', exact: true }).click(); await count(4);
+  assert.equal(await page.getByRole('textbox', { name: 'draft a', exact: true }).inputValue(), 'Draft survives splitting');
+  // Duplicate native history resumes must resolve before inserting into layout.
+  await page.evaluate(() => { window.testDispatch({ type: 'ADD_TERMINAL', session: { id: 'duplicate-b', tool: 'codex', codexMode: 'conversation', resumeToken: 'thread-b', folderPath: 'D:/wrong' }, split: { targetId: 'a', edge: 'right' } }); });
+  await count(4);
+  assert.equal(await page.evaluate(() => window.testState().terminals.some(tab => tab.id === 'duplicate-b')), false);
+  // Escape cancels the drag before a native conversation's interrupt shortcut.
+  await drag('Fifth task', 'b', 'bottom', async () => { await page.keyboard.press('Escape'); assert.equal(await page.locator('.session-split-drop-target').count(), 0); });
+  await count(4);
+  const lives = await page.evaluate(() => window.lifetimes);
+  assert.deepEqual(lives.filter(([kind]) => kind === 'unmount'), [], 'add/remove/focus/resize never unmount an existing native view');
+  for (const id of ['a', 'b', 'c', 'd', 'e']) assert.equal(lives.filter(([kind, sessionId]) => kind === 'mount' && sessionId === id).length, 1, 'start each view once: ' + id);
+  for (const [id, expected] of [['b', 3], ['c', 2]]) { await pane(id).getByRole('button', { name: /Close split view/ }).click(); await count(expected); }
+  await pane('d').getByRole('button', { name: /Close split view/ }).click(); await count(0);
+  assert.equal(await pane('a').isVisible(), true);
+  assert.ok((await pane('a').boundingBox()).width > 700, 'last pane expands to the whole area');
+  // Real deletion and restart update layout references, unlike detach-only pane close.
+  await page.evaluate(() => window.testDispatch({ type: 'OPEN_SESSION_SPLIT', id: 'c', targetId: 'a', edge: 'right' })); await count(2);
+  await page.evaluate(() => window.testDispatch({ type: 'REMOVE_TERMINAL', id: 'c' })); await count(0);
+  await page.evaluate(() => window.testDispatch({ type: 'OPEN_SESSION_SPLIT', id: 'b', targetId: 'a', edge: 'right' })); await count(2);
+  await page.evaluate(() => window.testDispatch({ type: 'RESTART_TERMINAL', id: 'b', newId: 'b-restarted' }));
+  await pane('b-restarted').waitFor(); assert.equal(await pane('b').count(), 0);
+  assert.deepEqual(errors, []);
+  console.log('OK: actual sidebar pointer drops/context menu, nested 1→4→1, focus, resizing, deduplication, cancellation, stable view lifetimes, deletion and restart');
+  console.log('Screenshot: ' + join(directory, 'four-sessions.png'));
+} finally { await browser.close(); }

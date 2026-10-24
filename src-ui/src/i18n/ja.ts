@@ -2,6 +2,11 @@ import type { I18nKey } from './en';
 
 export const ja = {
   'app.title': 'Coffee CLI',
+  'split.open': '分割表示で開く',
+  'split.close_pane': '分割表示を閉じる',
+  'split.drop': '分割表示',
+  'split.resize': '分割表示のサイズ変更',
+  'split.full': '分割表示は最大4セッションです',
   'explorer.tab.workspace': 'ワークスペース',
   'explorer.tab.history': 'セッション履歴',
   'explorer.new_session': '新しいセッション',
@@ -46,11 +51,7 @@ export const ja = {
   // Tools
   'tool.terminal': 'ターミナル',
   'tool.remote': 'リモートターミナル',
-  'library.agent_tools': 'Agent ツール',
   'sentinel.protocol': 'センチネルプロトコル',
-  'tool.two_split': '独立2画面',
-  'tool.three_split': '独立3画面',
-  'tool.four_split': '独立4画面',
   'tool_config.command': '起動コマンド',
   'tool_config.extra_args': '追加引数',
   'tool_config.default_cwd': '起動ディレクトリ',

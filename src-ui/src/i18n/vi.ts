@@ -2,6 +2,11 @@ import type { I18nKey } from './en';
 
 export const vi = {
   'app.title': 'Coffee CLI',
+  'split.open': 'Mở trong chế độ chia màn hình',
+  'split.close_pane': 'Đóng khung chia',
+  'split.drop': 'Chia màn hình',
+  'split.resize': 'Đổi kích thước khung chia',
+  'split.full': 'Tối đa bốn phiên trong chế độ chia màn hình',
   'explorer.new_session': 'Phiên mới',
   'explorer.filter_files': 'Lọc tệp và thư mục…',
   'explorer.no_matches': 'Không có tệp hoặc thư mục phù hợp.',
@@ -47,11 +52,7 @@ export const vi = {
   // Tools
   'tool.terminal': 'Terminal',
   'tool.remote': 'Terminal từ xa',
-  'library.agent_tools': 'Công cụ Agent',
   'sentinel.protocol': 'Giao thức lính gác',
-  'tool.two_split': 'Hai Màn Độc Lập',
-  'tool.three_split': 'Ba Màn Độc Lập',
-  'tool.four_split': 'Bốn Màn Độc Lập',
   'tool_config.command': 'Lệnh khởi chạy',
   'tool_config.extra_args': 'Tham số bổ sung',
   'tool_config.default_cwd': 'Thư mục khởi chạy',

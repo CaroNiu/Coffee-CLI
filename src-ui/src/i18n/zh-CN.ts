@@ -2,6 +2,11 @@ import type { I18nKey } from './en';
 
 export const zhCN = {
   'app.title': 'Coffee CLI',
+  'split.open': '在分屏中打开',
+  'split.close_pane': '关闭分屏',
+  'split.drop': '分屏显示',
+  'split.resize': '调整分屏大小',
+  'split.full': '最多同时显示四个会话',
   'explorer.tab.workspace': '工作区',
   'explorer.tab.history': '会话记录',
   'explorer.new_session': '新建会话',
@@ -46,11 +51,7 @@ export const zhCN = {
   // Tools
   'tool.terminal': '终端',
   'tool.remote': '远程终端',
-  'library.agent_tools': 'Agent 工具',
   'sentinel.protocol': '哨兵协议',
-  'tool.two_split': '独立二屏',
-  'tool.three_split': '独立三屏',
-  'tool.four_split': '独立四屏',
   'tool_config.command': '启动命令',
   'tool_config.extra_args': '额外参数',
   'tool_config.default_cwd': '启动目录',

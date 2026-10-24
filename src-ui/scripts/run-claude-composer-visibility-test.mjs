@@ -17,7 +17,9 @@ function evaluate(file, name, context = {}) {
 const isClaudeConversation = evaluate('lib/chat-tools.ts', 'isClaudeConversation');
 const isCodexConversation = evaluate('lib/chat-tools.ts', 'isCodexConversation');
 const isConversationSession = evaluate('lib/chat-tools.ts', 'isConversationSession', { isClaudeConversation, isCodexConversation });
-const reducer = evaluate('store/app-state.tsx', 'reducer', { isConversationSession, getTabOrder: state => state.tabOrder });
+const splitSessionIds = evaluate('lib/session-split-layout.ts', 'splitSessionIds');
+const replaceSplitSession = evaluate('lib/session-split-layout.ts', 'replaceSplitSession', { splitSessionIds });
+const reducer = evaluate('store/app-state.tsx', 'reducer', { isConversationSession, replaceSplitSession, getTabOrder: state => state.tabOrder });
 const terminals = [{ id: 'claude', tool: 'claude' }, { id: 'terminal', tool: null }];
 let state;
 const effects = [];
@@ -31,7 +33,6 @@ const context = {
   schemeLabels: () => ({ left: 'Alt+Q', gambit: 'Alt+W', right: 'Alt+E' }),
   React: { createElement: (type, props, ...children) => ({ type, props, children }) },
   Gambit: 'gambit', IS_MACOS: false,
-  isSplitTool: () => false,
   submitTerminalPrompt: async (id, text) => terminalSends.push({ id, text }),
   sendClaudeMessage: async (id, text) => { claudeSends.push({ id, text }); return true; },
   sendCodexMessage: async (id, text) => { codexSends.push({ id, text }); return true; },

@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useRef, useSyncExternalStore, useId, useC
 import { createPortal } from 'react-dom';
 import { useT } from '../../i18n/useT';
 import { useAppState, type ToolType } from '../../store/app-state';
+import { useSessionSplitDrag, type SessionSplitPlacement } from '../../lib/use-session-split-drag';
+import { splitSessionIds } from '../../lib/session-split-layout';
 import { commands, isTauri } from '../../tauri';
 import type { SavedSession } from '../../tauri';
 import { getToolDisplayName } from '../../lib/tool-info';
@@ -136,6 +138,7 @@ const normCwd = (cwd: string) => {
 export function HistoryBoard() {
   const t = useT();
   const { state, dispatch } = useAppState();
+  const splitDrag = useSessionSplitDrag();
   const { conversations, conversationId: activeAgentConversation } = useAgentClient();
   const agentConversations = useMemo(() => conversations.filter(conversation => conversation.messageCount > 0), [conversations]);
   const [agentError, setAgentError] = useState('');
@@ -160,7 +163,7 @@ export function HistoryBoard() {
   const pinned = useSyncExternalStore(subscribePinned, getPinnedSnapshot);
   // Identity is tool + native conversation token, never the folder/title.
   const workingSessions = useMemo(() => new Set(state.terminals
-    .filter(session => !session.multiAgent && session.resumeToken && session.agentStatus === 'working')
+    .filter(session => session.resumeToken && session.agentStatus === 'working')
     .map(session => `${session.tool}:${session.resumeToken}`)), [state.terminals]);
   const workingSignature = [...workingSessions].sort().join('|');
   useEffect(() => {
@@ -231,10 +234,14 @@ export function HistoryBoard() {
     { id: 'mock-2', name: 'build a snake game', tool: 'claude', cwd: '~/projects/snake', session_token: 'tk2', saved_at: new Date(nowMs - 3600000).toISOString() },
     { id: 'mock-3', name: 'refactor components', tool: 'qwen', cwd: '~/projects/coffee', session_token: 'tk3', saved_at: new Date(nowMs - 86400000 * 2).toISOString() },
   ], [cachedSessions, nowMs]);
-  const baseSessions: SavedSession[] = useMemo(() => sortByMtime([...nativeSessions, ...agentConversations.map(conversation => ({
+  const liveSessions = useMemo(() => state.terminals.filter(session => session.tool && !nativeSessions.some(saved => saved.tool === session.tool && saved.session_token && saved.session_token === session.resumeToken)), [state.terminals, nativeSessions]);
+  const baseSessions: SavedSession[] = useMemo(() => sortByMtime([...nativeSessions, ...liveSessions.map(session => ({
+    id: `live:${session.id}`, name: session.toolTitle || getToolDisplayName(session.tool!), tool: session.tool!,
+    cwd: session.folderPath ?? '', session_token: session.resumeToken ?? null, saved_at: new Date(session.startedAt ?? nowMs).toISOString(),
+  })), ...agentConversations.map(conversation => ({
     id: conversation.id, name: conversation.title, tool: 'coffee-agent', cwd: '', session_token: null,
     saved_at: new Date(conversation.updatedAt).toISOString(), turn_count: conversation.messageCount,
-  }))]), [nativeSessions, agentConversations]);
+  }))]), [nativeSessions, liveSessions, agentConversations, nowMs]);
 
   const availableSessions = useMemo(() => {
     const list = baseSessions.filter(session => !hidden.has(`${session.tool ?? ''}:${session.id}`));
@@ -289,7 +296,7 @@ export function HistoryBoard() {
   const [searchCount, setSearchCount] = useState(PAGE);
   const filteredRows = rows.slice(0, visibleCount);
   const liveSessionFolders = useMemo(() => new Map(state.terminals
-    .filter(session => !session.multiAgent && session.resumeToken && session.folderPath)
+    .filter(session => session.resumeToken && session.folderPath)
     .map(session => [`${session.tool}:${session.resumeToken}`, session.folderPath!])), [state.terminals]);
   const gitFolders = filteredRows.flatMap(row => row.kind === 'project' ? row.group.cwd ? [row.group.cwd] : []
     : [liveSessionFolders.get(`${row.session.tool}:${row.session.session_token}`) ?? '']);
@@ -328,11 +335,16 @@ export function HistoryBoard() {
     setRenameValue(renamed[k] ?? saved.name ?? '');
   };
 
-  const handleViewHistory = async (saved: SavedSession) => {
+  const handleViewHistory = async (saved: SavedSession, split?: SessionSplitPlacement) => {
     setAgentError('');
     if (saved.tool === 'coffee-agent') {
       dispatch({ type: 'OPEN_AGENT_PAGE', page: 'agent' });
       openAgentConversation(saved.id).catch(error => setAgentError(String(error)));
+      return;
+    }
+    const live = liveSessions.find(session => `live:${session.id}` === saved.id);
+    if (live) {
+      dispatch(split ? { type: 'OPEN_SESSION_SPLIT', id: live.id, ...split } : { type: 'SET_ACTIVE_TERMINAL', id: live.id });
       return;
     }
     if (!saved.session_token) return;
@@ -340,7 +352,7 @@ export function HistoryBoard() {
     // in UI state. Read only authoritative native IDs, never guess by cwd.
     if (isTauri && !state.terminals.some(session => session.tool === saved.tool && session.resumeToken === saved.session_token)) {
       try {
-        await Promise.all(state.terminals.filter(session => session.tool === saved.tool && !session.resumeToken && !session.multiAgent).map(async session => {
+        await Promise.all(state.terminals.filter(session => session.tool === saved.tool && !session.resumeToken).map(async session => {
           const token = await commands.getTerminalSessionToken(session.id);
           if (token) dispatch({ type: 'SET_SESSION_TOKEN', id: session.id, token });
         }));
@@ -354,6 +366,7 @@ export function HistoryBoard() {
     try { if (saved.tool === 'codex' && localStorage.getItem('coffee:codex-launch-mode') === 'conversation') codexMode = 'conversation'; } catch { /* optional preference */ }
     dispatch({
       type: 'ADD_TERMINAL',
+      split,
       session: { id: targetId, tool: saved.tool as ToolType, folderPath: saved.cwd, resumeToken: saved.session_token, codexMode }
     });
   };
@@ -395,14 +408,22 @@ export function HistoryBoard() {
         const sessionKey = `${session.tool ?? ''}:${session.id}`;
         const displayName = renamed[sessionKey] ?? session.name;
         const isRenaming = renamingKey === sessionKey;
-        const isWorking = Boolean(session.session_token && workingSessions.has(`${session.tool}:${session.session_token}`));
-        const liveFolder = liveSessionFolders.get(`${session.tool}:${session.session_token}`);
+        const owner = state.terminals.find(tab => `live:${tab.id}` === session.id || tab.tool === session.tool && session.session_token && tab.resumeToken === session.session_token);
+        const isWorking = owner?.agentStatus === 'working' || Boolean(session.session_token && workingSessions.has(`${session.tool}:${session.session_token}`));
+        const liveFolder = owner?.folderPath ?? liveSessionFolders.get(`${session.tool}:${session.session_token}`);
+        const isActive = owner?.id === state.activeTerminalId && !state.agentPageActive && !state.diffTabActive || session.tool === 'coffee-agent' && session.id === activeAgentConversation && state.agentPageActive === 'agent';
         const gitStatus = liveFolder ? gitStatuses.get(gitFolderKey(liveFolder)) : undefined;
         return (
           <div
             key={`${sessionKey}:${session.file_path ?? session.saved_at}`}
-            className={`history-card${isWorking ? ' history-card-working' : ''}${grouped ? ' history-card-grouped' : ''}${session.tool === 'coffee-agent' && session.id === activeAgentConversation && state.agentPageActive === 'agent' ? ' history-card-active' : ''}`}
+            className={`history-card${isWorking ? ' history-card-working' : ''}${grouped ? ' history-card-grouped' : ''}${isActive ? ' history-card-active' : ''}`}
             aria-describedby={preview?.key === sessionKey ? previewId : undefined}
+            onPointerDown={event => {
+              if (isRenaming || session.tool === 'coffee-agent') return;
+              setPreview(null);
+              splitDrag.begin(event, owner?.id, placement => { setPreview(null); void handleViewHistory(session, placement); });
+            }}
+            onDragStart={event => event.preventDefault()}
             onMouseEnter={(event) => {
               if (isRenaming || ctxMenu || searchOpen) return;
               const rect = event.currentTarget.getBoundingClientRect();
@@ -410,7 +431,7 @@ export function HistoryBoard() {
               setPreview({ key: sessionKey, left: Math.max(8, Math.min(rect.right + 8, window.innerWidth - width - 8)), top: Math.max(8, Math.min(rect.top + (rect.height - 72) / 2, window.innerHeight - 80)) });
             }}
             onMouseLeave={() => setPreview(null)}
-            onClick={() => { setPreview(null); handleViewHistory(session); }}
+            onClick={() => { setPreview(null); if (!splitDrag.suppressClick.current) void handleViewHistory(session); }}
             onContextMenu={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -579,7 +600,10 @@ export function HistoryBoard() {
       </div>
       <footer className="history-search-footer">{t('history.search_hint')}</footer>
     </dialog>, document.body)}
-    {ctxMenu && <SessionContextMenu menu={ctxMenu} onClose={() => setCtxMenu(null)} onRename={startRename} />}
+    {ctxMenu && <SessionContextMenu menu={ctxMenu} onClose={() => setCtxMenu(null)} onRename={startRename}
+      onOpenSplit={state.terminals.some(tab => tab.id === state.activeTerminalId && tab.tool) && (ctxMenu.session.session_token || liveSessions.some(tab => `live:${tab.id}` === ctxMenu.session.id)) ? saved => { void handleViewHistory(saved, { targetId: state.activeTerminalId!, edge: 'right' }); } : undefined}
+      splitFull={splitSessionIds(state.sessionSplit).includes(state.activeTerminalId ?? '') && splitSessionIds(state.sessionSplit).length >= 4 && !state.terminals.some(tab => splitSessionIds(state.sessionSplit).includes(tab.id) && (`live:${tab.id}` === ctxMenu.session.id || tab.tool === ctxMenu.session.tool && tab.resumeToken === ctxMenu.session.session_token))} />}
+    {splitDrag.overlay}
     {ctxMenuEl}
   </>
   );

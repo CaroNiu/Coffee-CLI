@@ -35,7 +35,7 @@ const ICON_PROPS = {
   strokeLinejoin: 'round' as const,
 };
 
-export function SessionContextMenu({ menu, onClose, onRename }: { menu: SessionCtxMenuState; onClose: () => void; onRename: (session: SavedSession) => void }) {
+export function SessionContextMenu({ menu, onClose, onRename, onOpenSplit, splitFull }: { menu: SessionCtxMenuState; onClose: () => void; onRename: (session: SavedSession) => void; onOpenSplit?: (session: SavedSession) => void; splitFull?: boolean }) {
   const t = useT();
   const menuRef = useRef<HTMLDivElement>(null);
   const { session } = menu;
@@ -86,6 +86,9 @@ export function SessionContextMenu({ menu, onClose, onRename }: { menu: SessionC
 
   return createPortal(
     <div className="ctx-menu" ref={menuRef} style={style}>
+      {onOpenSplit && <button className="ctx-menu-item" disabled={splitFull} title={splitFull ? t('split.full') : undefined} onClick={() => { onClose(); onOpenSplit(session); }}>
+        <svg {...ICON_PROPS}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M12 4v16" /></svg>{t('split.open')}
+      </button>}
       <button className="ctx-menu-item" onClick={handlePin}>
         <svg {...ICON_PROPS}>
           <path d="M12 17v5"/>

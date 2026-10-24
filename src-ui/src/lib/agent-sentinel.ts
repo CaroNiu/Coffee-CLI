@@ -1,5 +1,5 @@
 import { invoke } from '../tauri';
-import { isSplitTool, paneSessionId, type TerminalSession } from '../store/app-state';
+import type { TerminalSession } from '../store/app-state';
 import { getTerminalObserver } from './terminal-observer';
 import { getTerminalInteraction } from './terminal-interaction';
 
@@ -28,14 +28,6 @@ export function setSentinelEnabled(value: boolean): void {
 export function updateSentinelSessions(terminals: TerminalSession[], locale: string): void {
   language = locale;
   updateSentinelTargets(terminals.flatMap(tab => {
-    const panes = tab.multiAgent?.panes;
-    if (panes && (isSplitTool(tab.tool) || String(tab.tool).endsWith('-agent'))) {
-      return panes.filter(pane => pane.tool).map(pane => ({
-        sessionId: paneSessionId(tab.id, pane.paneIdx, isSplitTool(tab.tool) ? 'split' : 'pane'),
-        tool: String(pane.tool), title: `${tab.toolTitle || pane.tool} · ${pane.paneIdx}`,
-        cwd: pane.folderPath ?? tab.folderPath ?? '', status: pane.agentStatus,
-      }));
-    }
     return tab.tool ? [{ sessionId: tab.id, tool: String(tab.tool), title: tab.toolTitle || String(tab.tool), cwd: tab.folderPath ?? '', status: tab.agentStatus }] : [];
   }));
 }

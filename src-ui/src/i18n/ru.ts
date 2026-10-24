@@ -2,6 +2,11 @@ import type { I18nKey } from './en';
 
 export const ru = {
   'app.title': 'Coffee CLI',
+  'split.open': 'Открыть в разделённом режиме',
+  'split.close_pane': 'Закрыть разделённый вид',
+  'split.drop': 'Разделённый вид',
+  'split.resize': 'Изменить размер области',
+  'split.full': 'До четырёх сеансов в разделённом виде',
   'explorer.new_session': 'Новая сессия',
   'explorer.filter_files': 'Фильтр файлов и папок…',
   'explorer.no_matches': 'Нет подходящих файлов или папок.',
@@ -46,11 +51,7 @@ export const ru = {
   // Tools
   'tool.terminal': 'Терминал',
   'tool.remote': 'Удалённый терминал',
-  'library.agent_tools': 'Инструменты Agent',
   'sentinel.protocol': 'Протокол Страж',
-  'tool.two_split': 'Независимый дуо',
-  'tool.three_split': 'Независимый трио',
-  'tool.four_split': 'Независимый квадро',
   'tool_config.command': 'Команда запуска',
   'tool_config.extra_args': 'Доп. аргументы',
   'tool_config.default_cwd': 'Каталог запуска',

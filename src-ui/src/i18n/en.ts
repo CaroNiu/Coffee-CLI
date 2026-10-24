@@ -1,5 +1,10 @@
 export const en = {
   'app.title': 'Coffee CLI',
+  'split.open': 'Open in split view',
+  'split.close_pane': 'Close split view',
+  'split.drop': 'Split view',
+  'split.resize': 'Resize split view',
+  'split.full': 'Up to four sessions in split view',
   // Explorer
   'explorer.tab.workspace': 'Workspace',
   'explorer.tab.history': 'Sessions',
@@ -45,11 +50,7 @@ export const en = {
   // Tools
   'tool.terminal': 'Terminal',
   'tool.remote': 'Remote Terminal',
-  'library.agent_tools': 'Agent Tools',
   'sentinel.protocol': 'Sentinel Protocol',
-  'tool.two_split': 'Independent Dual',
-  'tool.three_split': 'Independent Triple',
-  'tool.four_split': 'Independent Quad',
   'tool_config.command': 'Launch command',
   'tool_config.extra_args': 'Extra arguments',
   'tool_config.default_cwd': 'Launch directory',

@@ -50,7 +50,7 @@ export function useGitPollingGate(active = true) {
 }
 
 const CWD_AGNOSTIC_TOOLS: ReadonlySet<ToolType> = new Set<ToolType>([
-  'openclaw', 'hermes', 'remote', 'installer',
+  'openclaw', 'hermes', 'remote',
 ]);
 
 // 800ms (was 300): coalesces an agent's file-edit burst into one git query.

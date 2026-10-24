@@ -57,7 +57,7 @@ function RequestCard({ sessionId, request }: { sessionId: string; request: Codex
   </section>;
 }
 type Row = CodexMessage & { members?: CodexMessage[] };
-export function CodexConversation({ sessionId, cwd, resumeToken, isActive, hasBg, bgUrl, bgType }: { sessionId: string; cwd: string | null; resumeToken?: string; isActive: boolean; hasBg?: boolean; bgUrl?: string; bgType?: string }) {
+export function CodexConversation({ sessionId, cwd, resumeToken, isActive, isVisible = isActive, hasBg, bgUrl, bgType }: { sessionId: string; cwd: string | null; resumeToken?: string; isActive: boolean; isVisible?: boolean; hasBg?: boolean; bgUrl?: string; bgType?: string }) {
   const s = useCodexSession(sessionId), t = useT(), { dispatch } = useAppState();
   const scroll = useRef<HTMLDivElement>(null), pinned = useRef(true), lastTop = useRef(0);
   const conversationMenu = useConversationMenu(scroll, sessionId, isActive);
@@ -81,7 +81,7 @@ export function CodexConversation({ sessionId, cwd, resumeToken, isActive, hasBg
   }, [s.messages]);
   const virtual = useConversationVirtualizer(rows, scroll);
   const sync = useCallback(() => {
-    const node = scroll.current; if (!node || !isActive || !node.clientHeight) return;
+    const node = scroll.current; if (!node || !isVisible || !node.clientHeight) return;
     const resized = viewport.current.width !== node.clientWidth || viewport.current.height !== node.clientHeight;
     if (!resized && node.scrollTop < lastTop.current && node.scrollHeight - node.scrollTop - node.clientHeight > 2) pinned.current = false;
     viewport.current = { width: node.clientWidth, height: node.clientHeight };
@@ -91,14 +91,14 @@ export function CodexConversation({ sessionId, cwd, resumeToken, isActive, hasBg
       if (target) node.scrollTop += target.getBoundingClientRect().top - node.getBoundingClientRect().top - saved.offset;
     } else if (pinned.current) node.scrollTop = node.scrollHeight;
     lastTop.current = node.scrollTop; setScrolled(!pinned.current);
-  }, [isActive]);
+  }, [isVisible]);
   useEffect(() => { if (scroll.current) return bindAutoHideScrollbar(scroll.current, { wide: true }); }, []);
   useLayoutEffect(() => {
     const node = scroll.current, saved = anchor.current;
-    if (!node || !isActive || !node.clientHeight) return;
+    if (!node || !isVisible || !node.clientHeight) return;
     if (saved && !saved.applied && s.messages[0]?.id !== saved.firstId) { node.scrollTop = saved.top + node.scrollHeight - saved.height; saved.applied = true; }
     sync();
-  }, [s.messages, s.requests, virtual.total, virtual.start, virtual.end, isActive, sync]);
+  }, [s.messages, s.requests, virtual.total, virtual.start, virtual.end, isVisible, sync]);
   useEffect(() => { const node = scroll.current; if (!node) return; const observer = new ResizeObserver(sync); observer.observe(node); if (node.firstElementChild) observer.observe(node.firstElementChild); return () => observer.disconnect(); }, [sync]);
   useEffect(() => {
     if (!isActive) return;
@@ -151,7 +151,7 @@ export function CodexConversation({ sessionId, cwd, resumeToken, isActive, hasBg
         {s.requests.map(request => <RequestCard key={JSON.stringify(request.id)} sessionId={sessionId} request={request} />)}
         {s.ready && s.busy && <div className="codex-working" role="status"><span className="codex-spinner" aria-hidden="true" />{t(s.interrupting ? 'codex.stopping' : s.requests.length ? 'codex.waiting' : 'claude.status.working')}…</div>}
         {s.error && s.ready && <div className="claude-session-error" role="alert">{s.error}</div>}
-        {!rows.length && <div className="claude-empty"><CodexWelcomeIcon isActive={isActive} /><WelcomeGreeting /><div className="claude-empty-meta"><bdi dir="ltr">{cwd || '—'}</bdi></div></div>}
+        {!rows.length && <div className="claude-empty"><CodexWelcomeIcon isActive={isVisible} /><WelcomeGreeting /><div className="claude-empty-meta"><bdi dir="ltr">{cwd || '—'}</bdi></div></div>}
       </div>
     </div>
     {scrolled && <button type="button" className="gambit-send claude-scroll-bottom" aria-label={t('claude.scroll_latest')} onClick={() => { anchor.current = null; pinned.current = true; lastTop.current = scroll.current?.scrollTop ?? 0; sync(); }}>

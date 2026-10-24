@@ -7,7 +7,7 @@ import { build } from 'esbuild';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const compiled = await build({
-  stdin: { contents: 'export * from "./src/lib/agent-sentinel"; export * from "./src/lib/terminal-control"; export { reducer, paneSessionId } from "./src/store/app-state";', resolveDir: root },
+  stdin: { contents: 'export * from "./src/lib/agent-sentinel"; export * from "./src/lib/terminal-control"; export { reducer } from "./src/store/app-state";', resolveDir: root },
   bundle: true, platform: 'node', format: 'cjs', write: false, external: ['react'],
   plugins: [{ name: 'sentinel-fixtures', setup(builder) {
     builder.onLoad({ filter: /[/\\]app-state\.tsx$/ }, async ({ path }) => ({
@@ -409,32 +409,24 @@ await test('renewed native work without a tracked prompt invalidates single-prom
   assert.match(f.reports[0].evidence, /No additional input captured/);
 });
 
-await test('split and coordinated panes use their real session IDs and working directories', async () => {
-  for (const tool of ['four-split', 'four-agent']) {
-    const f = fixture();
-    const kind = tool === 'four-split' ? 'split' : 'pane';
-    const ids = [f.api.paneSessionId('grid', 1, kind), f.api.paneSessionId('grid', 2, kind)];
-    f.state.terminals = [{ id: 'grid', tool, folderPath: 'E:\\shared', toolTitle: 'Grid', multiAgent: { panes: [
-      { paneIdx: 1, tool: 'claude', folderPath: tool === 'four-split' ? 'E:\\first' : undefined, agentStatus: 'idle' },
-      { paneIdx: 2, tool: 'codex', folderPath: tool === 'four-split' ? 'E:\\second' : undefined, agentStatus: 'idle' },
-      { paneIdx: 3, tool: null, agentStatus: 'idle' },
-    ] } }];
-    ids.forEach(id => f.observe(id)); f.sync(); f.api.setSentinelEnabled(true);
-    ids.forEach(id => f.start(id));
-    assert.equal(f.state.terminals[0].multiAgent.panes[0].agentStatus, 'working', tool);
-    assert.equal(f.state.terminals[0].multiAgent.panes[1].agentStatus, 'working', tool);
-    f.status(ids[0], 'idle'); await f.advance(1_200);
-    assert.equal(f.reports.length, 1); assert.equal(f.reports[0].sessionId, ids[0]);
-    assert.equal(f.reports[0].cwd, tool === 'four-split' ? 'E:\\first' : 'E:\\shared');
-    f.status(ids[1], 'idle'); await f.advance(1_200);
-    assert.equal(f.reports.length, 2); assert.equal(f.reports[1].sessionId, ids[1]);
-    assert.equal(f.reports[1].cwd, tool === 'four-split' ? 'E:\\second' : 'E:\\shared');
-    const unchanged = f.api.reducer(f.state, { type: 'SET_AGENT_STATUS', id: ids[1], status: 'idle' });
-    assert.equal(unchanged, f.state, 'equal pane status must preserve the reducer reference');
-    assert.equal(f.api.reducer(f.state, { type: 'SET_AGENT_STATUS', id: 'missing::split-1', status: 'working' }), f.state);
-  }
+await test('dynamic split sessions retain their native identities, directories and independent completion state', async () => {
+  const f = fixture();
+  const ids = ['first', 'second'];
+  f.state.terminals = ids.map((id, i) => ({ id, tool: i ? 'codex' : 'claude', folderPath: 'D:/' + id, agentStatus: 'idle' }));
+  Object.assign(f.state, f.api.reducer(f.state, { type: 'OPEN_SESSION_SPLIT', id: 'second', targetId: 'first', edge: 'right' }));
+  ids.forEach(id => f.observe(id)); f.sync(); f.api.setSentinelEnabled(true);
+  ids.forEach(id => f.start(id));
+  assert.ok(f.state.terminals.every(tab => tab.agentStatus === 'working'));
+  f.status(ids[0], 'idle'); await f.advance(1_200);
+  assert.equal(f.reports.length, 1); assert.equal(f.reports[0].sessionId, ids[0]);
+  assert.equal(f.reports[0].cwd, 'D:/first');
+  Object.assign(f.state, f.api.reducer(f.state, { type: 'CLOSE_SESSION_SPLIT', id: 'second' })); f.sync();
+  f.status(ids[1], 'idle'); await f.advance(1_200);
+  assert.equal(f.reports.length, 2); assert.equal(f.reports[1].sessionId, ids[1]);
+  assert.equal(f.reports[1].cwd, 'D:/second', 'background work still completes after detaching its pane');
+  assert.equal(f.api.reducer(f.state, { type: 'SET_AGENT_STATUS', id: ids[1], status: 'idle' }), f.state);
+  assert.equal(f.api.reducer(f.state, { type: 'SET_AGENT_STATUS', id: 'missing', status: 'working' }), f.state);
 });
-
 await test('fast native completion during Enter acknowledgement is not overwritten by optimistic working', async () => {
   const f = fixture(); f.add(); f.api.setSentinelEnabled(true); f.control();
   const release = f.holdEnter();

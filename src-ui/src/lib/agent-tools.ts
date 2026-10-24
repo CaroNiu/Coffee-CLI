@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { isSplitTool, paneSessionId, type ToolType, type AppState, type useAppDispatch } from '../store/app-state';
+import type { ToolType, AppState, useAppDispatch } from '../store/app-state';
 import { commands, invoke } from '../tauri';
 import { getTerminalObserver, listTerminalObservers } from './terminal-observer';
 import { terminalControlStatus, submitTerminalPrompt, sendTerminalKey } from './terminal-control';
@@ -23,10 +23,7 @@ export function createAgentToolExecutor({ stateRef, dispatch, pending, isCancell
     const project = () => {
       const observers = new Map(listTerminalObservers().map(observer => [observer.sessionId, observer]));
       return stateRef.current.terminals.flatMap(tab => {
-        const panes = isSplitTool(tab.tool) ? tab.multiAgent?.panes ?? [] : [];
-        const items = isSplitTool(tab.tool)
-          ? panes.filter(pane => pane.tool).map(pane => ({ sessionId: paneSessionId(tab.id, pane.paneIdx, 'split'), tool: pane.tool, cwd: pane.folderPath ?? tab.folderPath, paneIdx: pane.paneIdx, status: pane.agentStatus }))
-          : tab.tool ? [{ sessionId: tab.id, tool: tab.tool, cwd: tab.folderPath, paneIdx: undefined, status: tab.agentStatus }] : [];
+        const items = tab.tool ? [{ sessionId: tab.id, tool: tab.tool, cwd: tab.folderPath, status: tab.agentStatus }] : [];
         return items.map(item => ({ ...item, tabId: tab.id, title: tab.toolTitle, generation: observers.get(item.sessionId)?.generation ?? null, ...terminalControlStatus(item.sessionId) }));
       }).map((item, index) => ({ number: index + 1, ...item }));
     };
@@ -86,15 +83,13 @@ export function createAgentToolExecutor({ stateRef, dispatch, pending, isCancell
       if (request.name === 'terminal_read_scrollback') return observer.readScrollback(typeof args.startRow === 'number' ? args.startRow : undefined, typeof args.limit === 'number' ? args.limit : undefined);
       if (request.name === 'sessions_select') {
         dispatch({ type: 'SET_ACTIVE_TERMINAL', id: target.tabId });
-        if (target.paneIdx !== undefined) dispatch({ type: 'SET_FOCUSED_PANE', tabId: target.tabId, paneIdx: target.paneIdx });
         requestAnimationFrame(() => { if (guard() && stateRef.current.activeTerminalId === target.tabId && !stateRef.current.agentPageActive && !stateRef.current.diffTabActive) focusTerminal(sessionId); });
         return { selected: true, ...target };
       }
       if (request.name === 'sessions_close') {
         await commands.tierTerminalKill(sessionId);
         if (!guard()) throw new Error('关闭期间目标会话已改变');
-        if (target.paneIdx !== undefined) dispatch({ type: 'SET_PANE_TOOL', tabId: target.tabId, paneIdx: target.paneIdx, tool: null });
-        else dispatch({ type: 'REMOVE_TERMINAL', id: target.tabId });
+        dispatch({ type: 'REMOVE_TERMINAL', id: target.tabId });
         return { closed: true, sessionId, generation };
       }
       if (request.name === 'terminal_send' || request.name === 'terminal_key') {

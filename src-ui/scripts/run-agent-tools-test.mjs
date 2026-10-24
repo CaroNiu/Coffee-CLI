@@ -62,7 +62,6 @@ function fixture({ deferOpen = false } = {}) {
     if (action.type === 'ADD_TERMINAL' && action.session.tool) mount(action.session.id);
     if (action.type === 'LAUNCH_TERMINAL_TOOL' && action.tool) mount(action.id);
     if (action.type === 'REMOVE_TERMINAL') { mounted.get(action.id)?.(); mounted.delete(action.id); }
-    if (action.type === 'SET_PANE_TOOL' && !action.tool) { const id = api.paneSessionId?.(action.tabId, action.paneIdx, 'split') ?? `${action.tabId}::split-${action.paneIdx}`; mounted.get(id)?.(); mounted.delete(id); }
   };
   const execute = api.createAgentToolExecutor({ stateRef, dispatch, pending: async () => !cancelled, isCancelled: () => cancelled });
   return { api, stateRef, dispatch, execute: (name, args = {}) => execute({ requestId: 'request', name, arguments: args }), writes, actions, directories, files, mount, cancel: () => { cancelled = true; }, dispose: () => { mounted.forEach(stop => stop()); } };
@@ -154,16 +153,25 @@ await test('engineering tools require explicit workspace, preserve terminal stat
     assert.equal(f.files.length, 4);
   } finally { f.dispose(); }
 });
-await test('all hosted terminals, hidden tabs and independent split panes appear with distinct lifecycle IDs', async () => {
+await test('dynamic splits list real sessions and detach without terminating their lifecycle', async () => {
   const f = fixture();
   try {
-    f.dispatch({ type: 'ADD_TERMINAL', session: { id: 'manual', tool: 'terminal', folderPath: 'a', isHidden: true } });
-    f.dispatch({ type: 'ADD_TERMINAL', session: { id: 'split', tool: 'two-split', folderPath: 'shared', multiAgent: { panes: [{ paneIdx: 1, tool: 'claude', folderPath: 'b' }, { paneIdx: 2, tool: 'codex', folderPath: 'c' }] } } });
-    f.mount('split::split-1'); f.mount('split::split-2');
+    for (const [id, tool, folderPath] of [['manual', 'terminal', 'a'], ['first', 'claude', 'b'], ['second', 'codex', 'c']]) {
+      f.dispatch({ type: 'ADD_TERMINAL', session: { id, tool, folderPath, isHidden: id === 'manual' } });
+    }
+    f.dispatch({ type: 'OPEN_SESSION_SPLIT', id: 'second', targetId: 'first', edge: 'right' });
     const result = await f.execute('sessions_list');
-    assert.deepEqual(Array.from(result.sessions, item => item.sessionId), ['manual', 'split::split-1', 'split::split-2']);
+    assert.deepEqual(Array.from(result.sessions, item => item.sessionId), ['manual', 'first', 'second']);
     assert.equal(new Set(result.sessions.map(item => item.generation)).size, 3);
     assert.equal(result.sessions[2].cwd, 'c');
+    f.dispatch({ type: 'CLOSE_SESSION_SPLIT', id: 'second' });
+    assert.equal((await f.execute('sessions_list')).sessions.length, 3, 'detach keeps the session controllable');
+    assert.equal(f.writes.length, 0, 'detach does not send kill or input');
+    f.dispatch({ type: 'OPEN_SESSION_SPLIT', id: 'second', targetId: 'first', edge: 'right' });
+    const target = result.sessions[2];
+    await f.execute('sessions_close', { sessionId: target.sessionId, generation: target.generation });
+    assert.equal(f.stateRef.current.terminals.some(tab => tab.id === 'second'), false);
+    assert.equal(f.stateRef.current.sessionSplit.type, 'leaf', 'real close also prunes its layout reference');
   } finally { f.dispose(); }
 });
 await test('reordering, focus and Agent pages cannot redirect input or discard terminal sessions', async () => {

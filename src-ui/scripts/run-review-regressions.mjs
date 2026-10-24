@@ -97,7 +97,7 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   visit(tree); assert.ok(callback);
   const history = [], cleared = [], failed = [];
   const context = {
-    useCallback: fn => fn, draft: 'original prompt', running: false, claude: false,
+    useCallback: fn => fn, draft: 'original prompt', running: false, claude: false, codex: false,
     sendingRef: { current: false }, latestDraftRef: { current: 'original prompt' }, historyCursorRef: { current: null },
     onSend: async () => true, onDraftChange: text => cleared.push(text),
     pushGambitHistory: text => history.push(text), setSendFailed: value => failed.push(value), setSendEmpty() {},
@@ -273,24 +273,22 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-// Actual reducer: a background PTY may only change its own tab/pane.
+// Actual reducer: a background PTY may only change its own session.
 const reducer = evaluate(`${declaration('store/app-state.tsx', 'reducer')}; reducer`, {
   localStorage: { setItem() {} },
-  paneSessionId: (tab, index, kind) => `${tab}::${kind}-${index}`,
 });
 const state = { activeTerminalId: 'A', terminals: [
   { id: 'A', folderPath: '/A' }, { id: 'B', folderPath: '/B' },
-  { id: 'C', folderPath: '/C', multiAgent: { panes: [{ paneIdx: 1, folderPath: '/one' }, { paneIdx: 2, folderPath: '/two' }] } },
+  { id: 'C', folderPath: '/C' },
 ] };
 const changed = reducer(state, { type: 'SET_TERMINAL_CWD', id: 'B', path: '/B/new' });
 assert.equal(changed.terminals[0], state.terminals[0]);
 assert.equal(changed.terminals[1].folderPath, '/B/new');
 assert.equal(reducer(changed, { type: 'SET_TERMINAL_CWD', id: 'B', path: '/B/new' }), changed);
 assert.equal(reducer(state, { type: 'SET_TERMINAL_CWD', id: 'closed', path: '/gone' }), state);
-const split = reducer(state, { type: 'SET_TERMINAL_CWD', id: 'C::split-2', path: '/two/new' });
-assert.equal(split.terminals[2].folderPath, '/C');
-assert.equal(split.terminals[2].multiAgent.panes[0], state.terminals[2].multiAgent.panes[0]);
-assert.equal(split.terminals[2].multiAgent.panes[1].folderPath, '/two/new');
+const split = reducer(state, { type: 'SET_TERMINAL_CWD', id: 'C', path: '/C/new' });
+assert.equal(split.terminals[0], state.terminals[0]);
+assert.equal(split.terminals[2].folderPath, '/C/new');
 
 // Cleanup during both async import and listen() registration, including StrictMode remounts.
 for (const [file, fragment] of [
@@ -341,7 +339,7 @@ const diffCallbacks = new Map();
 const diffEffect = effect('components/right/DiffPanel.tsx', 'const load = async');
 const cleanupDiff = evaluate(`(${diffEffect})()`, {
   path: '/repo/a.txt', repoRoot: '/repo', rel: 'a.txt', kind: 'untracked', fileSize: undefined, commitHash: undefined,
-  dataMode: 'dark', badgeRef: { current: { added: 1, deleted: 0 } },
+  dataMode: 'dark', badgeRef: { current: { added: 1, deleted: 0 } }, refreshRef: { current: null }, activeRef: { current: true },
   DIFF_MAX_CHANGED_LINES: 5000, DIFF_MAX_BYTES: 1_000_000,
   setResult: value => { output = value; },
   commands: { readTextFile: async () => {
@@ -384,7 +382,7 @@ console.log('OK: background cwd, split ownership, path case, late listeners, Exp
   let text = 'hello', result, refreshFile, refreshTimer, fileReads = 0;
   const mountPreview = (fileSize = 5) => evaluate(`(${diffEffect})()`, {
     path: '/repo/a.txt', repoRoot: '/repo', rel: 'a.txt', kind: 'file', fileSize,
-    commitHash: undefined, dataMode: 'dark', badgeRef: { current: { added: 0, deleted: 0 } },
+    commitHash: undefined, dataMode: 'dark', badgeRef: { current: { added: 0, deleted: 0 } }, refreshRef: { current: null }, activeRef: { current: true },
     DIFF_MAX_CHANGED_LINES: 3, DIFF_MAX_BYTES: 10000,
     setResult: value => { result = value; },
     commands: { readTextFile: async () => { fileReads++; return text; } },
@@ -451,17 +449,22 @@ assert.deepEqual(loadPins(), [], 'reloading must keep an intentionally empty sel
 const aiPins = evaluate(pinDeclarations.get('BUILTIN_AI_CLI_FALLBACK').initializer.getText(centerTree), {
   getToolDisplayName: key => key,
 }).map(item => item.key);
-const utilityPins = pinDeclarations.get('utilities').initializer.elements.map(item => {
-  const key = item.properties.find(property => property.name?.getText(centerTree) === 'key');
-  return evaluate(key.initializer.getText(centerTree));
-});
+const utilityPins = [];
+function collectCatalogKeys(node) {
+  if (ts.isObjectLiteralExpression(node)) {
+    const key = node.properties.find(property => property.name?.getText(centerTree) === 'key');
+    if (key && ts.isAsExpression(key.initializer) && ts.isStringLiteral(key.initializer.expression)) utilityPins.push(key.initializer.expression.text);
+  }
+  ts.forEachChild(node, collectCatalogKeys);
+}
+collectCatalogKeys(pinDeclarations.get('AGENT_CATALOG').initializer);
 const catalogPins = [...aiPins, ...utilityPins];
 assert.ok(aiPins.includes('cline'), 'Cline must remain selectable as a launch-only tool');
 assert.deepEqual([...validPinKeys].sort(), catalogPins.sort(), 'every valid pin needs a visible switch');
 
 savedPins = JSON.stringify(['agent:cline', 'agent:claude', 'agent:multi-agent', 'agent:four-split']);
 let pins = loadPins();
-assert.deepEqual(pins, ['agent:cline', 'agent:claude', 'agent:four-split'], 'preserve visible choices and split migration');
+assert.deepEqual(pins, ['agent:cline', 'agent:claude'], 'preserve current tools and remove retired split pins');
 const togglePin = evaluate(pinDeclarations.get('togglePin').initializer.getText(centerTree), {
   ...pinContext, MAX_PINS: 6, setPinnedItems: update => { pins = update(pins); },
 });
@@ -520,7 +523,7 @@ console.log('OK: actual tool-card folder selection uses the same launch action a
     id: 'coffee-history', route: 'weixin-bound', source: '微信', title: 'hello', updatedAt: newest, messageCount: 2,
   }];
   const sortByMtime = evaluate(`${declaration('lib/history-cache.ts', 'sortByMtime').replace(/^export\s+/, '')}; sortByMtime`);
-  const merged = evaluate(merge, { useMemo: callback => callback(), nativeSessions, agentConversations, sortByMtime });
+  const merged = evaluate(merge, { useMemo: callback => callback(), nativeSessions, liveSessions: [], nowMs: newest, agentConversations, sortByMtime });
   assert.equal(merged[0].id, 'coffee-history', 'the newest Agent conversation must lead mixed timestamp histories');
   assert.equal(merged.slice(0, 30).some(session => session.id === 'coffee-history'), true, 'Agent history must appear on the first visible page');
   assert.deepEqual(Array.from(merged.slice(-2), session => session.id), ['native-seconds', 'native-iso']);
@@ -541,7 +544,7 @@ console.log('OK: actual tool-card folder selection uses the same launch action a
   const click = evaluate(`const click = ${handler}; click`, {
     dispatch: action => actions.push(action), setAgentError() {},
     openAgentConversation: async id => opened.push(id), crypto: { randomUUID: () => 'native-tab' },
-    isTauri: false, state: { terminals: [] },
+    isTauri: false, state: { terminals: [] }, liveSessions: [],
   });
   await click(coffee);
   assert.deepEqual(opened, ['coffee-history']);

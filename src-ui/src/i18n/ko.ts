@@ -2,6 +2,11 @@ import type { I18nKey } from './en';
 
 export const ko = {
   'app.title': 'Coffee CLI',
+  'split.open': '분할 보기로 열기',
+  'split.close_pane': '분할 보기 닫기',
+  'split.drop': '분할 보기',
+  'split.resize': '분할 보기 크기 조절',
+  'split.full': '최대 4개 세션을 표시할 수 있습니다',
   'explorer.tab.workspace': '작업 공간',
   'explorer.tab.history': '세션 기록',
   'explorer.new_session': '새 세션',
@@ -46,11 +51,7 @@ export const ko = {
   // Tools
   'tool.terminal': '터미널',
   'tool.remote': '원격 터미널',
-  'library.agent_tools': 'Agent 도구',
   'sentinel.protocol': '센티넬 프로토콜',
-  'tool.two_split': '독립 2분할',
-  'tool.three_split': '독립 3분할',
-  'tool.four_split': '독립 4분할',
   'tool_config.command': '실행 명령',
   'tool_config.extra_args': '추가 인수',
   'tool_config.default_cwd': '실행 디렉터리',

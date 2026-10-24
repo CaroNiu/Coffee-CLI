@@ -246,8 +246,8 @@ function MeasuredRow({ id, measure, children }: { id: string; measure: (id: stri
   return <div ref={ref} className="claude-measured-row">{children}</div>;
 }
 
-export function ClaudeConversation({ sessionId, cwd, resumeToken, isActive, bgUrl, bgType, hasBg }: {
-  sessionId: string; cwd: string | null; resumeToken?: string; isActive: boolean; bgUrl?: string; bgType?: string; hasBg?: boolean;
+export function ClaudeConversation({ sessionId, cwd, resumeToken, isActive, isVisible = isActive, bgUrl, bgType, hasBg }: {
+  sessionId: string; cwd: string | null; resumeToken?: string; isActive: boolean; isVisible?: boolean; bgUrl?: string; bgType?: string; hasBg?: boolean;
 }) {
   const t = useT();
   const language = useAppLanguage();
@@ -271,7 +271,7 @@ export function ClaudeConversation({ sessionId, cwd, resumeToken, isActive, bgUr
   useEffect(() => { const scroll = scrollRef.current; if (!scroll) return; return bindAutoHideScrollbar(scroll, { wide: true }); }, []);
   const syncScroll = useCallback(() => {
     const scroll = scrollRef.current;
-    if (!scroll || !isActive || !scroll.clientHeight) return;
+    if (!scroll || !isVisible || !scroll.clientHeight) return;
     if (scroll.scrollTop < lastScrollTop.current && scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight >= 2) pinned.current = false;
     const anchor = prependAnchor.current;
     if (anchor?.applied) {
@@ -283,16 +283,16 @@ export function ClaudeConversation({ sessionId, cwd, resumeToken, isActive, bgUr
       scroll.scrollTo({ top: scroll.scrollHeight, behavior: 'instant' });
     }
     lastScrollTop.current = scroll.scrollTop;
-  }, [isActive]);
+  }, [isVisible]);
   useLayoutEffect(() => {
     const scroll = scrollRef.current, anchor = prependAnchor.current;
-    if (!scroll || !isActive || !scroll.clientHeight) return;
+    if (!scroll || !isVisible || !scroll.clientHeight) return;
     if (anchor && !anchor.applied && s.messages[0]?.id !== anchor.firstId) {
       scroll.scrollTop = anchor.top + scroll.scrollHeight - anchor.height;
       anchor.applied = true;
     }
     syncScroll();
-  }, [s.messages, s.requests, virtual.total, virtual.start, virtual.end, isActive, syncScroll]);
+  }, [s.messages, s.requests, virtual.total, virtual.start, virtual.end, isVisible, syncScroll]);
   useEffect(() => {
     const scroll = scrollRef.current;
     if (!scroll) return;
@@ -362,7 +362,7 @@ export function ClaudeConversation({ sessionId, cwd, resumeToken, isActive, bgUr
         {s.interrupted && !s.busy && !s.error && <div className="claude-interrupted" role="status">{t('claude.interrupted')}</div>}
         {s.error && (s.ready || s.errorKey === 'claude.error.settings_readback' || s.errorKey === 'claude.error.restart') && <div className="claude-session-error" role="alert">{s.errorKey ? t(s.errorKey, { detail: s.error }) : s.error}</div>}
         {empty && <div className="claude-empty">
-          <ClaudeWelcomeIcon isActive={isActive} />
+          <ClaudeWelcomeIcon isActive={isVisible} />
           <WelcomeGreeting />
           <div className="claude-empty-meta">
             <span className="claude-empty-directory">

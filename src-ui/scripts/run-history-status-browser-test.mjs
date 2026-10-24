@@ -17,6 +17,7 @@ const mock = `
   window.updateStatus=status=>{state={...state,terminals:state.terminals.map(t=>t.id==='a'?{...t,agentStatus:status}:t)};listeners.forEach(fn=>fn())};
   export function useAppState(){return {state:useSyncExternalStore(fn=>{listeners.add(fn);return()=>listeners.delete(fn)},()=>state),dispatch(){window.opened=true}}}
   export function useAppLanguage(){return 'en'};
+  export function useAppStateRef(){return {current:state}};
   const sessions=[{id:'one',tool:'claude',session_token:'one',name:'Working on the first task',cwd:'D:/same',saved_at:'2026-10-23T00:00:00Z'},{id:'two',tool:'claude',session_token:'two',name:'Another task in the same folder',cwd:'D:/same',saved_at:'2026-10-22T00:00:00Z'},{id:'other',tool:'codex',session_token:'one',name:'Different tool with the same token',cwd:'D:/same',saved_at:'2026-10-21T00:00:00Z'}];
   const snapshot={sessions,status:'ready'}, emptySet=new Set(), emptyObject={}, agent={conversations:[]};
   export const commands={async gitProjectStatus(folder){window.gitReadCount=(window.gitReadCount||0)+1;const p=new URLSearchParams(location.search),pr=p.get('pr')||'open';return {repo_root:folder,branch:'feature/ui',github:'ok',pull_request:{number:42,url:'https://github.com/example/repo/pull/42',state:pr,ci:pr==='open'?(p.get('ci')||'success'):null}}}},isTauri=true;

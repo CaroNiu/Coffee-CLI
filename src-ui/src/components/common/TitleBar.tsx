@@ -40,12 +40,7 @@ export function TitleBar() {
   // collapsed window" effect for zero flicker — the right call.
   const toggleLeft  = () => dispatch({ type: 'TOGGLE_LEFT_PANEL' });
   const toggleRight = () => dispatch({ type: 'TOGGLE_RIGHT_PANEL' });
-  const setGrid    = () => dispatch({ type: 'SET_MULTI_AGENT_LAYOUT', layout: 'grid' });
-  const setColumns = () => dispatch({ type: 'SET_MULTI_AGENT_LAYOUT', layout: 'columns' });
-
-  // Show the 2×2 / 1×4 layout picker only for the independent four-split view.
   const activeTab = state.terminals.find(t => t.id === state.activeTerminalId);
-  const showMaLayout = activeTab?.tool === 'four-split';
   const claudeComposerLocked = isConversationSession(activeTab) && !state.agentPageActive && !state.diffTabActive;
   const gambitOpen = claudeComposerLocked || state.gambitOpen;
 
@@ -159,37 +154,6 @@ export function TitleBar() {
           </svg>
           <span className="titlebar-hotkey-hint">{hk.right}</span>
         </button>
-        {/* Multi-agent layout mode — only when the active tab is a quadrant.
-            After the panel trio so the trio stays anchored when it toggles. */}
-        {showMaLayout && (
-          <>
-            <button
-              className={`titlebar-btn titlebar-btn--layout${state.multiAgentLayout === 'grid' ? ' is-active' : ''}`}
-              onClick={setGrid}
-              aria-label="Multi-agent 2x2 grid"
-              aria-pressed={state.multiAgentLayout === 'grid'}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="square" strokeLinejoin="miter">
-                <rect x="3"  y="3"  width="7" height="7" />
-                <rect x="14" y="3"  width="7" height="7" />
-                <rect x="3"  y="14" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" />
-              </svg>
-            </button>
-            <button
-              className={`titlebar-btn titlebar-btn--layout${state.multiAgentLayout === 'columns' ? ' is-active' : ''}`}
-              onClick={setColumns}
-              aria-label="Multi-agent vertical columns"
-              aria-pressed={state.multiAgentLayout === 'columns'}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="square" strokeLinejoin="miter">
-                <rect x="3" y="3" width="18" height="18" />
-                <line x1="12" y1="4" x2="12" y2="20" />
-              </svg>
-            </button>
-          </>
-        )}
-
         {/* Personalization settings — gear opens the consolidated modal that
             replaced the old left-panel theme/language popovers. It joins the
             configured titlebar display mode, except "hidden" intentionally

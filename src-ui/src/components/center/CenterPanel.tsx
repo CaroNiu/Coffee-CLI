@@ -7,7 +7,8 @@ import { AgentPages } from '../agent/AgentPages';
 import { ClaudeConversation } from './ClaudeConversation';
 import { CodexConversation } from './CodexConversation';
 import { LaunchModeControl } from './LaunchModeControl';
-import { FourSplitGrid } from './FourSplitGrid';
+import { SessionSplitDividers } from './SessionSplitDividers';
+import { sessionSplitRects, splitSessionIds } from '../../lib/session-split-layout';
 import { ToolConfigModal } from './ToolConfigModal';
 import { ContributionHeatmap } from './ContributionHeatmap';
 import { ErrorBoundary } from '../common/ErrorBoundary';
@@ -277,136 +278,6 @@ const SvgMuse = () => bgIcon(MUSE_DATA_URL);
 const SvgKiro = () => inlineSvgIcon(KIRO_SVG);
 const SvgMiniMax = () => inlineSvgIcon(MINIMAX_SVG);
 
-// Coffee 101 card icon — animated coffee mark (same as the brand mark
-// now portaled into the titlebar from Explorer.tsx): steam wave loops 3s, cup
-// body draws on first paint then fills. Inlined SVG so currentColor
-// follows the theme accent. Sized at 1em so it scales with the launchpad
-// card font-size like other utility cards.
-//
-// Component is named SvgInstaller (not SvgCoffee101) because the launchpad
-// card key is `'installer'` — kept that way to preserve users' existing
-// localStorage pin state (`coffee_pinned_items` may contain "agent:installer").
-// The card itself is no longer a one-click installer (that approach was
-// abandoned, see the click handler comment); it now opens the Coffee 101
-// course on coffeecli.com.
-const SvgInstaller = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="1em"
-    height="1em"
-    viewBox="0 0 24 24"
-    style={{ flexShrink: 0, color: 'var(--accent)' }}
-  >
-    <defs>
-      <mask id="coffee101IconMask">
-        <path
-          fill="none"
-          stroke="#fff"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          d="M8 -8c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4M12 -8c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4M16 -8c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4"
-        >
-          {/* Linux gate — see Explorer.tsx brand-icon for full rationale.
-              SMIL `path d` morphing inside a `<mask>` has no GPU path on
-              WebKit2GTK; on the launchpad this card sits alongside the
-              brand icon and together they pegged WebKit + coffee-cli at
-              ~1.2 cores idle on Wayland (verified live via SSH /proc
-              sampling). Static `d` on Linux = no steam drift, full glyph. */}
-          {!__IS_LINUX__ && (
-            <animate
-              attributeName="d"
-              dur="3s"
-              repeatCount="indefinite"
-              values="M8 0c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4M12 0c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4M16 0c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4;M8 -8c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4M12 -8c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4M16 -8c0 2 -2 2 -2 4s2 2 2 4s-2 2 -2 4s2 2 2 4"
-            />
-          )}
-        </path>
-        <path d="M4 7h16v0h-16v12h16v-32h-16Z">
-          <animate
-            fill="freeze"
-            attributeName="d"
-            begin="1s"
-            dur="0.6s"
-            to="M4 2h16v5h-16v12h16v-24h-16Z"
-          />
-        </path>
-      </mask>
-    </defs>
-    <g stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2">
-      <path
-        fill="currentColor"
-        fillOpacity="0"
-        strokeDasharray="48"
-        d="M17 9v9c0 1.66 -1.34 3 -3 3h-6c-1.66 0 -3 -1.34 -3 -3v-9Z"
-      >
-        <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="48;0" />
-        <animate fill="freeze" attributeName="fill-opacity" begin="1.6s" dur="0.4s" to="1" />
-      </path>
-      <path
-        fill="none"
-        strokeDasharray="16"
-        strokeDashoffset="16"
-        d="M17 9h3c0.55 0 1 0.45 1 1v3c0 0.55 -0.45 1 -1 1h-3"
-      >
-        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.3s" to="0" />
-      </path>
-    </g>
-    <path fill="currentColor" d="M0 0h24v24H0z" mask="url(#coffee101IconMask)" />
-  </svg>
-);
-
-// Two-Split (independent) — 2 filled solid rectangles with a visible gap between.
-// Reads as "two standalone windows" → solid = individual, gap = separation.
-const SvgTwoSplit = () => (
-  <svg
-    width="1em"
-    height="1em"
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    stroke="none"
-    style={{ flexShrink: 0, color: 'var(--accent)', verticalAlign: '-0.125em' }}
-  >
-    <rect x="4"  y="4" width="7.5" height="16" />
-    <rect x="12.5" y="4" width="7.5" height="16" />
-  </svg>
-);
-
-// Three-Split (independent) — 3 filled tall rectangles with gaps between.
-const SvgThreeSplit = () => (
-  <svg
-    width="1em"
-    height="1em"
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    stroke="none"
-    style={{ flexShrink: 0, color: 'var(--accent)', verticalAlign: '-0.125em' }}
-  >
-    <rect x="3.5"  y="4" width="5" height="16" />
-    <rect x="9.5"  y="4" width="5" height="16" />
-    <rect x="15.5" y="4" width="5" height="16" />
-  </svg>
-);
-
-// Four-Split (independent) — 4 filled squares in a 2×2 grid with visible gaps
-// between them. Solid blocks + gaps convey "4 independent PTYs, zero
-// coordination" — the inverse of multi-agent's shared outer frame.
-const SvgFourSplit = () => (
-  <svg
-    width="1em"
-    height="1em"
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    stroke="none"
-    style={{ flexShrink: 0, color: 'var(--accent)', verticalAlign: '-0.125em' }}
-  >
-    <rect x="4"    y="4"    width="7.5" height="7.5" />
-    <rect x="12.5" y="4"    width="7.5" height="7.5" />
-    <rect x="4"    y="12.5" width="7.5" height="7.5" />
-    <rect x="12.5" y="12.5" width="7.5" height="7.5" />
-  </svg>
-);
-
 // ── Platform-aware Terminal Icon & Label ─────────────────────────────────────
 
 const detectOS = (): 'win' | 'mac' | 'linux' => {
@@ -470,9 +341,6 @@ const getToolIcon = (tool: ToolType): React.ReactNode => {
     case 'minimax': return <SvgMiniMax />;
     case 'remote':
     case 'terminal': return <TerminalIcon />;
-    case 'two-split': return <SvgTwoSplit />;
-    case 'three-split': return <SvgThreeSplit />;
-    case 'four-split': return <SvgFourSplit />;
     default: return undefined;
   }
 };
@@ -490,7 +358,6 @@ const VALID_PIN_KEYS = new Set<string>([
   'claude', 'opencode', 'mimocode', 'kilo', 'openclaw', 'codex', 'grok', 'antigravity', 'qwen', 'hermes', 'terminal',
   'pi', 'crush', 'aider', 'kimicode', 'goose', 'copilot', 'cursor', 'cline', 'omp',
   'codebuddy', 'muse', 'kiro', 'minimax',
-  'installer', 'four-split', 'three-split', 'two-split',
 ]);
 
 const CONFIGURABLE_AGENT_TOOLS = new Set<ToolType>([
@@ -512,6 +379,10 @@ export function CenterPanel() {
   const diffTabVisible = state.diffMode === 'tab' && state.diffSelection !== null;
   const diffTabActive = state.diffTabActive;
   const agentPageActive = state.agentPageActive;
+  const splitIds = splitSessionIds(state.sessionSplit);
+  const splitVisible = !diffTabActive && !agentPageActive && splitIds.length > 1 && splitIds.includes(activeTerminalId ?? '');
+  const splitRects = splitVisible ? sessionSplitRects(state.sessionSplit!).leaves : [];
+  const closeSplitLabel = t('split.close_pane');
   // Diff tab title = basename of the selected file (mirrors DiffPanel's own
   // header name). Computed here so the chrome-tab strip shows it without
   // mounting the DiffPanel body.
@@ -533,12 +404,6 @@ export function CenterPanel() {
       if (stored !== null) {
         let arr = JSON.parse(stored);
         if (!Array.isArray(arr)) return [];
-        // Migrate the retired multi-agent pin to four-split so upgrading
-        // users keep a card in that home-screen slot instead of an empty
-        // hole — the coordinated multi-agent tool was removed and the
-        // independent four-split is its closest replacement. Dedup after,
-        // in case four-split was already pinned.
-        arr = arr.map((id: unknown) => (id === 'agent:multi-agent' ? 'agent:four-split' : id));
         arr = arr.filter((id: unknown, i: number) => arr.indexOf(id) === i);
         // Drop stale pin IDs from retired AGENT_CATALOG entries (e.g.
         // `agent:vibeid` after /vibeid became a skill, or the other retired
@@ -563,7 +428,6 @@ export function CenterPanel() {
         'agent:codex',
         'agent:opencode',
         'agent:antigravity',
-        'agent:four-split',
         'agent:terminal',
       ];
       localStorage.setItem('coffee_pinned_items', JSON.stringify(defaults));
@@ -639,37 +503,7 @@ export function CenterPanel() {
       requiresCwd: !CWD_AGNOSTIC_AI_CLI.has(item.key),
     }));
 
-    // "Agent Tools" grid on the Library page: Terminal + Coffee 101, then
-    // the independent split tools descending 4→3→2.
-    const utilities = [
-      // Terminal is an AI-CLI-like tool (needs cwd) rather than a 'utility'.
-      { key: 'terminal' as ToolType, label: t('tool.terminal'), icon: <TerminalIcon />, type: 'ai-cli' as const, requiresCwd: true },
-      // ─── Independent split (descending 4→3→2): N side-by-side PTYs ──
-      {
-        key: 'four-split' as ToolType,
-        label: t('tool.four_split'),
-        icon: <SvgFourSplit />,
-        type: 'utility' as const,
-        requiresCwd: false,
-      },
-      {
-        key: 'three-split' as ToolType,
-        label: t('tool.three_split'),
-        icon: <SvgThreeSplit />,
-        type: 'utility' as const,
-        requiresCwd: false,
-      },
-      {
-        key: 'two-split' as ToolType,
-        label: t('tool.two_split'),
-        icon: <SvgTwoSplit />,
-        type: 'utility' as const,
-        requiresCwd: false,
-      },
-      { key: 'installer' as ToolType, label: 'Coffee 101', icon: <SvgInstaller />, type: 'utility' as const, requiresCwd: false },
-    ];
-
-    return [...aiCliEntries, ...utilities];
+    return [...aiCliEntries, { key: 'terminal' as ToolType, label: t('tool.terminal'), icon: <TerminalIcon />, type: 'ai-cli' as const, requiresCwd: true }];
   })();
 
   const togglePin = (id: string) => {
@@ -810,7 +644,7 @@ export function CenterPanel() {
         // The enforcer now only pulls focus back when it wanders to
         // genuinely non-input DOM (<div>, <body>, a clicked tab bar).
         // Comboboxes and search controls also retain keyboard focus.
-        if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.getAttribute('role') === 'combobox' || el.closest('[role="search"]'))) {
+        if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.getAttribute('role') === 'combobox' || el.getAttribute('role') === 'separator' || el.closest('[role="search"]'))) {
           return;
         }
         const id = activeIdRef.current;
@@ -1293,9 +1127,6 @@ export function CenterPanel() {
         return { icon, title, tooltip: undefined };
       }
       case 'terminal': return { icon, title: cwd ?? t('tool.terminal'), tooltip: pathTip };
-      case 'two-split': return { icon, title: cwd ?? t('tool.two_split'), tooltip: pathTip };
-      case 'three-split': return { icon, title: cwd ?? t('tool.three_split'), tooltip: pathTip };
-      case 'four-split': return { icon, title: cwd ?? t('tool.four_split'), tooltip: pathTip };
       default: return { icon: <SvgPlus active={isActive} />, title: t('tab.new'), tooltip: undefined };
     }
   };
@@ -1457,51 +1288,30 @@ export function CenterPanel() {
 
       </div>,
       tabSlot)}
-      <div className="main-content">
+      <div className={`main-content${splitVisible ? ' has-session-split' : ''}`}>
 
         {terminals.map(t => t.tool !== null ? (
           <div
             key={t.id}
-            className="terminal-wrapper"
+            className={`terminal-wrapper${splitVisible && splitIds.includes(t.id) ? ` session-split-pane${t.id === activeTerminalId ? ' is-focused' : ''}` : ''}`}
             data-session-id={t.id}
+            data-split-eligible="true"
+            onPointerDownCapture={() => { if (splitVisible && splitIds.includes(t.id) && t.id !== activeTerminalId) dispatch({ type: 'SET_ACTIVE_TERMINAL', id: t.id }); }}
+            onFocusCapture={() => { if (splitVisible && splitIds.includes(t.id) && t.id !== activeTerminalId) dispatch({ type: 'SET_ACTIVE_TERMINAL', id: t.id }); }}
             style={{
               // Hide every terminal wrapper while the diff tab is focused —
               // the diff surface takes over the content area (the underlying
               // PTYs stay mounted, just not displayed).
-              display: (t.id === activeTerminalId && !diffTabActive && !agentPageActive) ? 'flex' : 'none',
-              width: '100%',
-              height: '100%',
-              position: 'relative'
+              display: (!diffTabActive && !agentPageActive && (splitVisible ? splitIds.includes(t.id) : t.id === activeTerminalId)) ? 'flex' : 'none',
+              width: `${splitRects.find(rect => rect.id === t.id)?.width ?? 100}%`,
+              height: `${splitRects.find(rect => rect.id === t.id)?.height ?? 100}%`,
+              position: splitVisible ? 'absolute' : 'relative',
+              left: splitVisible ? `${splitRects.find(rect => rect.id === t.id)?.left ?? 0}%` : undefined,
+              top: splitVisible ? `${splitRects.find(rect => rect.id === t.id)?.top ?? 0}%` : undefined,
             }}
           >
-            {t.tool === 'two-split' ? (
-              <FourSplitGrid
-                tab={t}
-                hasBg={hasBg}
-                bgUrl={bgUrl}
-                bgType={bgType}
-                paneCount={2}
-              />
-            ) : t.tool === 'three-split' ? (
-              <FourSplitGrid
-                tab={t}
-                hasBg={hasBg}
-                bgUrl={bgUrl}
-                bgType={bgType}
-                paneCount={3}
-              />
-            ) : t.tool === 'four-split' ? (
-              // Independent Quad: 4 side-by-side PTYs, each its own CLI +
-              // folder, zero coordination.
-              <FourSplitGrid
-                tab={t}
-                hasBg={hasBg}
-                bgUrl={bgUrl}
-                bgType={bgType}
-                paneCount={4}
-              />
-            ) : isCodexConversation(t) ? (
-              <CodexConversation key={`codex-${t.id}-${t.restartKey ?? 0}`} sessionId={t.id} cwd={t.folderPath} resumeToken={t.resumeToken} isActive={t.id === activeTerminalId && !diffTabActive && !agentPageActive} hasBg={hasBg} bgUrl={bgUrl} bgType={bgType} />
+            {isCodexConversation(t) ? (
+              <CodexConversation key={`codex-${t.id}-${t.restartKey ?? 0}`} sessionId={t.id} cwd={t.folderPath} resumeToken={t.resumeToken} isActive={t.id === activeTerminalId && !diffTabActive && !agentPageActive} isVisible={!diffTabActive && !agentPageActive && (splitVisible ? splitIds.includes(t.id) : t.id === activeTerminalId)} hasBg={hasBg} bgUrl={bgUrl} bgType={bgType} />
             ) : isClaudeConversation(t) ? (
               <ClaudeConversation
                 key={`claude-${t.id}-${t.restartKey ?? 0}`}
@@ -1509,6 +1319,7 @@ export function CenterPanel() {
                 cwd={t.folderPath}
                 resumeToken={t.resumeToken}
                 isActive={t.id === activeTerminalId && !diffTabActive && !agentPageActive}
+                isVisible={!diffTabActive && !agentPageActive && (splitVisible ? splitIds.includes(t.id) : t.id === activeTerminalId)}
                 hasBg={hasBg}
                 bgUrl={bgUrl}
                 bgType={bgType}
@@ -1525,6 +1336,7 @@ export function CenterPanel() {
                       theme={state.currentTheme}
                       lang={state.currentLang}
                       isActive={t.id === activeTerminalId && !diffTabActive && !agentPageActive}
+                      isVisible={!diffTabActive && !agentPageActive && (splitVisible ? splitIds.includes(t.id) : t.id === activeTerminalId)}
                       toolData={t.toolData}
                       folderPath={t.folderPath}
                       resumeToken={t.resumeToken}
@@ -1539,8 +1351,12 @@ export function CenterPanel() {
                 </div>
               </>
             )}
+            {splitVisible && splitIds.includes(t.id) && <button className="pane-number-badge pane-number-badge--closable" aria-label={`${closeSplitLabel} ${splitIds.indexOf(t.id) + 1}`} onClick={event => { event.stopPropagation(); dispatch({ type: 'CLOSE_SESSION_SPLIT', id: t.id }); }}>
+              <span className="pane-badge-num">{splitIds.indexOf(t.id) + 1}</span><span className="pane-badge-x" aria-hidden="true">×</span>
+            </button>}
           </div>
         ) : null)}
+        {splitVisible && state.sessionSplit && <SessionSplitDividers layout={state.sessionSplit} />}
 
         {/* Diff tab content — fills the content area when the diff tab is
             focused. The DiffPanel body handles its own loading/error/too-large
@@ -1592,14 +1408,6 @@ export function CenterPanel() {
                         return null;
                       }
 
-                      // Coordinated multi-agent is single-instance. If any
-                      // Concurrent multi-agent Tabs are now supported —
-                      // each Tab gets its own per-pane MCP servers on
-                      // distinct ports, Claude panes write zero workspace
-                      // files, and the MCP `list_panes` / `send_to_pane`
-                      // tools filter by Tab id. So we no longer grey out
-                      // the multi-agent cards just because one Tab is
-                      // already open.
                       return (
                         <div className="launchpad-grid">
                           {pinnedAgents.map(tool => {
@@ -1613,22 +1421,6 @@ export function CenterPanel() {
                                   onClick={(event) => {
                                     if (disabled) return;
                                     if (tool.requiresCwd) { openToolFolderMenu(tool.key, event.currentTarget); return; }
-                                    // The "Coffee 101" card (key kept as
-                                    // 'installer' for backward compat with
-                                    // pinned-state in localStorage) is no
-                                    // longer a one-click installer — that
-                                    // approach was abandoned because reliable
-                                    // cross-platform install of git/node/
-                                    // python + each AI CLI is intractable
-                                    // and failure modes leave users worse off
-                                    // than self-serve. The card now opens the
-                                    // Claude Code course on coffeecli.com,
-                                    // which is the upstream of all our
-                                    // install/usage knowledge.
-                                    if (tool.key === 'installer') {
-                                      commands.openUrl('https://coffeecli.com/courses/claude-code').catch(() => {});
-                                      return;
-                                    }
                                     selectTool(tool.key);
                                   }}
                                 >
@@ -1897,28 +1689,6 @@ export function CenterPanel() {
                                   </span>
                                 )}
                                 <div className={`library-toggle${isPinned ? ' on' : ''}`}><div className="library-toggle-knob" /></div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {/* Section 2: Agent Tools (3-col, split tools first, Coffee 101 last) */}
-                        <div className="library-section-title">{t('library.agent_tools')}</div>
-                        <div className="library-grid library-grid--tools">
-                          {AGENT_CATALOG.filter(item => item.type === 'utility').map(item => {
-                            const pinId = `agent:${item.key}`;
-                            const isPinned = pinnedItems.includes(pinId);
-                            // Utility tools (multi-agent / Coffee 101 /
-                            // hyper-agent / N-split) don't take a launch
-                            // path — no gear, just border-as-state.
-                            return (
-                              <div
-                                key={item.key}
-                                className={`library-item ${isPinned ? 'is-pinned' : ''}`}
-                                onClick={() => togglePin(pinId)}
-                              >
-                                <div className="library-item-icon">{item.icon}</div>
-                                <span className="library-item-name">{item.label}</span>
-                              <div className={`library-toggle${isPinned ? ' on' : ''}`}><div className="library-toggle-knob" /></div>
                               </div>
                             );
                           })}

@@ -2,6 +2,11 @@ import type { I18nKey } from './en';
 
 export const de = {
   'app.title': 'Coffee CLI',
+  'split.open': 'In geteilter Ansicht öffnen',
+  'split.close_pane': 'Geteilte Ansicht schließen',
+  'split.drop': 'Geteilte Ansicht',
+  'split.resize': 'Größe der geteilten Ansicht ändern',
+  'split.full': 'Bis zu vier Sitzungen in geteilter Ansicht',
   'explorer.new_session': 'Neue Sitzung',
   'explorer.filter_files': 'Dateien und Ordner filtern…',
   'explorer.no_matches': 'Keine passenden Dateien oder Ordner.',
@@ -46,11 +51,7 @@ export const de = {
   // Tools
   'tool.terminal': 'Terminal',
   'tool.remote': 'Remote-Terminal',
-  'library.agent_tools': 'Agent-Tools',
   'sentinel.protocol': 'Sentinel-Protokoll',
-  'tool.two_split': 'Unabhängiger Dual',
-  'tool.three_split': 'Unabhängiger Triple',
-  'tool.four_split': 'Unabhängiger Quad',
   'tool_config.command': 'Startbefehl',
   'tool_config.extra_args': 'Zusätzliche Argumente',
   'tool_config.default_cwd': 'Startverzeichnis',
