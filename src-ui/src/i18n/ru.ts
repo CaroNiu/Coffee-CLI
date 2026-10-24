@@ -1,6 +1,9 @@
 import type { I18nKey } from './en';
 
 export const ru = {
+  "changelog.title": "История изменений",
+  "changelog.error": "Не удалось загрузить историю изменений. Попробуйте ещё раз.",
+  "changelog.retry": "Повторить",
   "usage.title": "Статистика использования",
   "usage.range": "Период",
   "usage.today": "Сегодня",

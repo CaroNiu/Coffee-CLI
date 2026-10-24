@@ -1,6 +1,9 @@
 import type { I18nKey } from './en';
 
 export const de = {
+  "changelog.title": "Änderungsprotokoll",
+  "changelog.error": "Das Änderungsprotokoll konnte nicht geladen werden. Bitte erneut versuchen.",
+  "changelog.retry": "Erneut versuchen",
   "usage.title": "Nutzungsstatistik",
   "usage.range": "Zeitraum",
   "usage.today": "Heute",

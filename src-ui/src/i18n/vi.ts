@@ -1,6 +1,9 @@
 import type { I18nKey } from './en';
 
 export const vi = {
+  "changelog.title": "Nhật ký cập nhật",
+  "changelog.error": "Không thể tải nhật ký cập nhật. Vui lòng thử lại.",
+  "changelog.retry": "Thử lại",
   "usage.title": "Thống kê sử dụng",
   "usage.range": "Khoảng thời gian",
   "usage.today": "Hôm nay",

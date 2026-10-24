@@ -53,6 +53,7 @@ jobs:
           node scripts/run-conversation-virtualizer-test.mjs
           node scripts/run-review-regressions.mjs
           node scripts/run-history-cache-test.mjs
+          node scripts/run-release-notes-test.mjs
           node scripts/run-terminal-observer-test.mjs
           node scripts/run-terminal-control-test.mjs
           node scripts/run-agent-tools-test.mjs

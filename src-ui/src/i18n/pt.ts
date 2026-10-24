@@ -1,6 +1,9 @@
 import type { I18nKey } from './en';
 
 export const pt = {
+  "changelog.title": "Novidades",
+  "changelog.error": "Não foi possível carregar as novidades. Tente novamente.",
+  "changelog.retry": "Tentar novamente",
   "usage.title": "Estatísticas de uso",
   "usage.range": "Período",
   "usage.today": "Hoje",

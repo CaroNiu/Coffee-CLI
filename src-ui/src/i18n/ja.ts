@@ -1,6 +1,9 @@
 import type { I18nKey } from './en';
 
 export const ja = {
+  "changelog.title": "更新履歴",
+  "changelog.error": "更新履歴を読み込めませんでした。再試行してください。",
+  "changelog.retry": "再試行",
   "usage.title": "使用状況",
   "usage.range": "期間",
   "usage.today": "今日",

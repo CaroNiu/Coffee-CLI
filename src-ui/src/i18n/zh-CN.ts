@@ -1,6 +1,9 @@
 import type { I18nKey } from './en';
 
 export const zhCN = {
+  "changelog.title": "更新日志",
+  "changelog.error": "暂时无法加载更新日志，请重试。",
+  "changelog.retry": "重试",
   'usage.title': '使用统计',
   'usage.range': '统计周期',
   'usage.today': '今日',

@@ -1,4 +1,7 @@
 export const en = {
+  "changelog.title": "Changelog",
+  "changelog.error": "Could not load the changelog. Please try again.",
+  "changelog.retry": "Retry",
   'usage.title': 'Usage statistics',
   'usage.range': 'Time range',
   'usage.today': 'Today',

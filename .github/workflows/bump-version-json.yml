@@ -32,15 +32,18 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Write Web-Home/version.json
-        env:
-          TAG: ${{ github.event.release.tag_name }}
         run: |
           set -e
-          # Strip leading "v" — the file holds bare semver, matching what
-          # Tauri stamps into bundle filenames and what the in-app
-          # checkUpdate's split('.')→Number comparator expects.
-          VERSION="${TAG#v}"
-          echo "{\"version\": \"$VERSION\"}" > Web-Home/version.json
+          VERSION=$(python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          release = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text(encoding='utf-8'))['release']
+          version = release['tag_name'].removeprefix('v')
+          manifest = {'version': version, 'releaseDate': release['published_at'], 'releaseNotes': release.get('body') or ''}
+          Path('Web-Home/version.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          print(version)
+          PY
+          )
 
           if git diff --quiet Web-Home/version.json; then
             echo "version.json already at $VERSION — nothing to commit."

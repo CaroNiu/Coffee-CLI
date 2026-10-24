@@ -1,6 +1,9 @@
 import type { I18nKey } from './en';
 
 export const ko = {
+  "changelog.title": "업데이트 내역",
+  "changelog.error": "업데이트 내역을 불러오지 못했습니다. 다시 시도해 주세요.",
+  "changelog.retry": "다시 시도",
   "usage.title": "사용 통계",
   "usage.range": "기간",
   "usage.today": "오늘",

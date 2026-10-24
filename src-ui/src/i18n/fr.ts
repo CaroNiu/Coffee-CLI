@@ -1,6 +1,9 @@
 import type { I18nKey } from './en';
 
 export const fr = {
+  "changelog.title": "Nouveautés",
+  "changelog.error": "Impossible de charger les nouveautés. Veuillez réessayer.",
+  "changelog.retry": "Réessayer",
   "usage.title": "Statistiques d’utilisation",
   "usage.range": "Période",
   "usage.today": "Aujourd’hui",

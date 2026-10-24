@@ -1,6 +1,9 @@
 import type { I18nKey } from './en';
 
 export const zhTW = {
+  "changelog.title": "更新日誌",
+  "changelog.error": "暫時無法載入更新日誌，請重試。",
+  "changelog.retry": "重試",
   "usage.title": "使用統計",
   "usage.range": "統計期間",
   "usage.today": "今天",
