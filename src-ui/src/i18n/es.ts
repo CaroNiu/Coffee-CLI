@@ -1,6 +1,8 @@
 import type { I18nKey } from './en';
 
 export const es = {
+  'directory.missing': 'El directorio del proyecto ya no existe o no es una carpeta. Restáuralo o elige otro directorio en una sesión nueva.',
+  'directory.unavailable': 'El directorio del proyecto no está disponible. Comprueba la unidad, la conexión de red y los permisos antes de reconectar.',
   "changelog.title": "Novedades",
   "changelog.error": "No se pudieron cargar las novedades. Inténtalo de nuevo.",
   "changelog.retry": "Reintentar",

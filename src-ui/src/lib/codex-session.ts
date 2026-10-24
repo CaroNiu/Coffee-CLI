@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { directoryFailure } from './session-directory';
 import { invoke } from '../tauri';
 import { gambitAttachments } from './gambit-attachments';
 import { arr, obj, str, emptyCodexState, reduceCodexEvent, restoreCodexTurns, type CodexState, type CodexModel, type Json } from './codex-protocol';
@@ -53,7 +54,7 @@ export function retainCodexSession(id: string, cwd: string | null, resumeToken?:
         publish(c, true);
         return;
       } catch (error) {
-        if (attempt === 2) { c.state = { ...c.state, ready: false, error: String(error) }; publish(c, true); return; }
+        if (directoryFailure(error) || attempt === 2) { c.state = { ...c.state, ready: false, error: String(error) }; publish(c, true); return; }
         const generation = c.generation;
         c.generation = crypto.randomUUID();
         await invoke('codex_session_close', { id, generation }).catch(() => {});

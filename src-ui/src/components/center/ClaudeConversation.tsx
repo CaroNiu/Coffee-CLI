@@ -4,6 +4,7 @@ import { useAppLanguage, useAppState } from '../../store/app-state';
 import { useT } from '../../i18n/useT';
 import type { ClaudeTranslate } from '../../lib/claude-i18n';
 import { clipboardWrite } from '../../lib/clipboard';
+import { directoryFailure, directoryFailureMessage } from '../../lib/session-directory';
 import { bindAutoHideScrollbar } from '../../lib/auto-hide-scrollbar';
 import { tokenizeFile, getShikiTheme, type LineTokens } from '../../lib/shiki';
 import { useDataAttr } from '../../lib/use-data-attr';
@@ -339,7 +340,9 @@ export function ClaudeConversation({ sessionId, cwd, resumeToken, isActive, isVi
   };
   const copy = (message: ClaudeMessage) => { void clipboardWrite(message.content).then(() => { setCopied(message.id); setTimeout(() => setCopied(''), 1500); }); };
   const used = number(s.usage.input_tokens) + number(s.usage.output_tokens) + number(s.usage.cache_read_input_tokens) + number(s.usage.cache_creation_input_tokens);
-  const empty = !s.messages.length && !s.busy && !s.requests.length && (!s.ready || !s.error);
+  const directoryIssue = !s.ready ? directoryFailure(s.error) : undefined;
+  const directoryError = directoryFailureMessage(s.error, t);
+  const empty = !directoryIssue && !s.messages.length && !s.busy && !s.requests.length && (!s.ready || !s.error);
   const model = s.models.find(m => m.value === s.model) ?? s.models.find(m => m.resolvedModel === s.model);
   const summary = !empty && !s.busy && s.endedAt && <div className="claude-turn-summary">{t('claude.worked_for', { duration: elapsed(s.endedAt - (s.startedAt ?? s.endedAt), t) })}{used > 0 && <> · {t('claude.tokens', { count: count(used) })}</>}{s.totalCost !== undefined && s.totalCost > 0 && <> · ~${s.totalCost.toFixed(4)}</>}</div>;
   return <ConversationDirectory.Provider value={cwd}><div className={`claude-conversation${hasBg && bgUrl ? ' has-background' : ''}${navigationItems.length > 1 ? ' has-navigation' : ''}`}>
@@ -360,6 +363,7 @@ export function ClaudeConversation({ sessionId, cwd, resumeToken, isActive, isVi
         {s.requests.map(p => <Question key={p.id} id={sessionId} pending={p} />)}
         {s.ready && s.busy && !s.requests.length && <Working status={s.status} startedAt={s.startedAt} />}
         {s.interrupted && !s.busy && !s.error && <div className="claude-interrupted" role="status">{t('claude.interrupted')}</div>}
+        {directoryIssue && <div className="claude-session-error" role="alert">{directoryError}</div>}
         {s.error && (s.ready || s.errorKey === 'claude.error.settings_readback' || s.errorKey === 'claude.error.restart') && <div className="claude-session-error" role="alert">{s.errorKey ? t(s.errorKey, { detail: s.error }) : s.error}</div>}
         {empty && <div className="claude-empty">
           <ClaudeWelcomeIcon isActive={isVisible} />
@@ -380,7 +384,7 @@ export function ClaudeConversation({ sessionId, cwd, resumeToken, isActive, isVi
     {scrolled && <button className="gambit-send claude-scroll-bottom" aria-label={t('claude.scroll_latest')} onClick={() => { prependAnchor.current = null; pinned.current = true; syncScroll(); setScrolled(false); }}>
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v11M3 8l5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
     </button>}
-    {s.error && !s.ready && <button type="button" className="claude-expand claude-reconnect" title={s.error} onClick={() => dispatch({ type: 'RESTART_TERMINAL', id: sessionId, newId: crypto.randomUUID() })}>{t('claude.reconnect')}</button>}
+    {s.error && !s.ready && (!directoryIssue || directoryIssue.status === 'unavailable') && <button type="button" className="claude-expand claude-reconnect" title={directoryError || s.error} onClick={() => dispatch({ type: 'RESTART_TERMINAL', id: sessionId, newId: crypto.randomUUID() })}>{t('claude.reconnect')}</button>}
     {conversationMenu.menu}
   </div></ConversationDirectory.Provider>;
 }

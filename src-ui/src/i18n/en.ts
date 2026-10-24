@@ -1,4 +1,6 @@
 export const en = {
+  'directory.missing': 'The project directory no longer exists or is not a folder. Restore it, or choose another directory in a new session.',
+  'directory.unavailable': 'The project directory is unavailable. Check the drive, network connection and permissions, then reconnect.',
   "changelog.title": "Changelog",
   "changelog.error": "Could not load the changelog. Please try again.",
   "changelog.retry": "Retry",

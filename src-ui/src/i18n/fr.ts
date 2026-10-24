@@ -1,6 +1,8 @@
 import type { I18nKey } from './en';
 
 export const fr = {
+  'directory.missing': 'Le répertoire du projet est introuvable ou ce chemin ne désigne pas un dossier. Restaurez-le ou choisissez un autre répertoire dans une nouvelle session.',
+  'directory.unavailable': 'Le répertoire du projet est inaccessible. Vérifiez le disque, la connexion réseau et les autorisations, puis reconnectez-vous.',
   "changelog.title": "Nouveautés",
   "changelog.error": "Impossible de charger les nouveautés. Veuillez réessayer.",
   "changelog.retry": "Réessayer",

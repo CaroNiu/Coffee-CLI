@@ -1,6 +1,8 @@
 import type { I18nKey } from './en';
 
 export const vi = {
+  'directory.missing': 'Thư mục dự án không còn tồn tại hoặc đường dẫn không phải thư mục. Hãy khôi phục thư mục hoặc chọn thư mục khác trong phiên mới.',
+  'directory.unavailable': 'Không thể truy cập thư mục dự án. Hãy kiểm tra ổ đĩa, kết nối mạng và quyền truy cập rồi kết nối lại.',
   "changelog.title": "Nhật ký cập nhật",
   "changelog.error": "Không thể tải nhật ký cập nhật. Vui lòng thử lại.",
   "changelog.retry": "Thử lại",

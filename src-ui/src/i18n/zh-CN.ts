@@ -1,6 +1,8 @@
 import type { I18nKey } from './en';
 
 export const zhCN = {
+  'directory.missing': '项目目录已不存在或不是文件夹。请恢复原目录，或新建会话选择其他目录。',
+  'directory.unavailable': '暂时无法访问项目目录。请检查磁盘、网络连接和权限后重连。',
   "changelog.title": "更新日志",
   "changelog.error": "暂时无法加载更新日志，请重试。",
   "changelog.retry": "重试",

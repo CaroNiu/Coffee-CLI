@@ -1,6 +1,8 @@
 import type { I18nKey } from './en';
 
 export const ja = {
+  'directory.missing': 'プロジェクトのディレクトリが存在しないか、フォルダーではありません。元の場所を復元するか、新しいセッションで別のディレクトリを選択してください。',
+  'directory.unavailable': 'プロジェクトのディレクトリにアクセスできません。ドライブ、ネットワーク接続、権限を確認して再接続してください。',
   "changelog.title": "更新履歴",
   "changelog.error": "更新履歴を読み込めませんでした。再試行してください。",
   "changelog.retry": "再試行",

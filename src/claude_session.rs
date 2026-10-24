@@ -83,7 +83,7 @@ fn start(app: tauri::AppHandle, id: String, generation: String, cwd: Option<Stri
     let config = crate::tool_config::get("claude");
     let cwd = cwd.filter(|p| !p.trim().is_empty()).or_else(|| (!config.default_cwd.is_empty()).then(|| config.default_cwd.clone()))
         .map(|p| crate::tool_config::expand_path(&p)).unwrap_or_else(|| dirs::home_dir().unwrap_or_default());
-    if !cwd.is_dir() { return Err(format!("工作目录不存在：{}", cwd.display())); }
+    crate::session_directory::validate(&cwd)?;
     let (bin, prefix) = executable(&config);
     let mut command;
     #[cfg(windows)]
@@ -108,7 +108,7 @@ fn start(app: tauri::AppHandle, id: String, generation: String, cwd: Option<Stri
     let history_path = claude_history_path(&cwd, &native_id);
     if is_resume { command.args(["--resume", &native_id]); }
     else { command.args(["--session-id", &native_id]); }
-    let mut child = command.spawn().map_err(|e| format!("无法启动 Claude：{e}"))?;
+    let mut child = command.spawn().map_err(|e| crate::session_directory::validate(&cwd).err().unwrap_or_else(|| format!("无法启动 Claude：{e}")))?;
     #[cfg(windows)]
     crate::terminal::windows_job::assign_pid(child.id());
     let stdout = child.stdout.take().unwrap();

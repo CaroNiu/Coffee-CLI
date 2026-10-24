@@ -86,7 +86,7 @@ fn start(app: tauri::AppHandle, id: String, generation: String, cwd: Option<Stri
     let config = crate::tool_config::get("codex");
     let cwd = cwd.filter(|p| !p.trim().is_empty()).or_else(|| (!config.default_cwd.is_empty()).then(|| config.default_cwd.clone()))
         .map(|p| crate::tool_config::expand_path(&p)).unwrap_or_else(|| dirs::home_dir().unwrap_or_default());
-    if !cwd.is_dir() { return Err(format!("Working directory does not exist: {}", cwd.display())); }
+    crate::session_directory::validate(&cwd)?;
     if resume_token.as_ref().is_some_and(|token| uuid::Uuid::parse_str(token).is_err()) { return Err("Invalid Codex thread ID".into()); }
     let (custom, prefix) = crate::tool_config::parse_command(&config.command);
     let bin = custom.unwrap_or_else(|| "codex".into());
@@ -112,7 +112,7 @@ fn start(app: tauri::AppHandle, id: String, generation: String, cwd: Option<Stri
     { command = Command::new(&bin); }
     command.args(prefix).args(&config.extra_args).args(["app-server", "--listen", "stdio://"])
         .current_dir(&cwd).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
-    let mut child = command.spawn().map_err(|e| format!("Could not start Codex: {e}"))?;
+    let mut child = command.spawn().map_err(|e| crate::session_directory::validate(&cwd).err().unwrap_or_else(|| format!("Could not start Codex: {e}")))?;
     #[cfg(windows)]
     crate::terminal::windows_job::assign_pid(child.id());
     let stdout = child.stdout.take().unwrap();

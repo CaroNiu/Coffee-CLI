@@ -234,6 +234,7 @@ export const commands = {
   readClipboardImage: () => invoke<string | null>('read_clipboard_image'),
 
   listDirectory: (path: string) => invoke<DirEntryInfo[]>('list_directory', { path }),
+  checkProjectDirectories: (paths: string[]) => invoke<{ path: string; status: import('./lib/session-directory').DirectoryStatus }[]>('check_project_directories', { paths }),
   listSystemFonts: () => invoke<FontInfo[]>('list_system_fonts'),
 
   // ── Git-backed changes panel ──────────────────────────────────────

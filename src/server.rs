@@ -5211,6 +5211,7 @@ pub fn start_ui(pending_launch: Option<crate::launch::LaunchRequest>) -> anyhow:
             pending_launch: Mutex::new(pending_launch),
         })
         .invoke_handler(tauri::generate_handler![
+            crate::session_directory::check_project_directories,
             crate::claude_session::claude_session_start,
             crate::claude_session::claude_session_history,
             crate::claude_session::claude_session_send,

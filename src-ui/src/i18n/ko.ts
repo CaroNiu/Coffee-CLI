@@ -1,6 +1,8 @@
 import type { I18nKey } from './en';
 
 export const ko = {
+  'directory.missing': '프로젝트 디렉터리가 없거나 폴더가 아닙니다. 원래 디렉터리를 복원하거나 새 세션에서 다른 디렉터리를 선택하세요.',
+  'directory.unavailable': '프로젝트 디렉터리에 접근할 수 없습니다. 드라이브, 네트워크 연결 및 권한을 확인한 후 다시 연결하세요.',
   "changelog.title": "업데이트 내역",
   "changelog.error": "업데이트 내역을 불러오지 못했습니다. 다시 시도해 주세요.",
   "changelog.retry": "다시 시도",

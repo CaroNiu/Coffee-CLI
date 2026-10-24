@@ -983,8 +983,17 @@ export function CenterPanel() {
     return shift ? { transform: `translateX(${shift}px)` } : undefined;
   };
 
-  const selectTool = (tool: ToolType, toolData?: string, cwd?: string) => {
+  const selectTool = async (tool: ToolType, toolData?: string, cwd?: string) => {
     if (tool === 'claude' && !cwd) { void handlePickFolder(tool); return; }
+    if (cwd) {
+      const checks = await commands.checkProjectDirectories([cwd]).catch(() => []);
+      if (activeIdRef.current !== activeTerminalId) return;
+      if (checks.some(check => check.status === 'missing' || check.status === 'not_directory')) {
+        removeRecentFolder(cwd);
+        void handlePickFolder(tool);
+        return;
+      }
+    }
     // Concurrent multi-agent Tabs are now supported as of the per-pane
     // MCP / per-pane system-prompt rework: each pane has its own MCP
     // listener (different port), Claude panes write zero workspace
@@ -1017,6 +1026,11 @@ export function CenterPanel() {
     const button = anchor.closest('.launchpad-card')?.querySelector('.launchpad-directory');
     const rect = (button ?? anchor).getBoundingClientRect();
     setFolderMenu({ x: rect.left, y: rect.bottom + 4, tool });
+    void commands.checkProjectDirectories(recentFolders).then(checks => {
+      for (const check of checks) {
+        if (check.status === 'missing' || check.status === 'not_directory') removeRecentFolder(check.path);
+      }
+    }).catch(() => {});
   };
 
   const handleRemoteConnect = async () => {

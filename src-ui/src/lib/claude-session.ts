@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { directoryFailure } from './session-directory';
 import { invoke, type ToolConfigEntry } from '../tauri';
 import { emptyClaudeState, reduceClaudeEvent, object, list, text, type ClaudeState, type ClaudeModel, type ClaudeCommand, type Json } from './claude-protocol';
 
@@ -78,7 +79,7 @@ export function retainClaudeSession(id: string, cwd: string | null, resumeToken?
       for (let attempt = 0; attempt < 3; attempt++) {
         try { await initializeClaude(id, c, cwd, resumeToken); return; }
         catch (error) {
-          if (attempt === 2) { c.state = { ...c.state, status: 'error', error: String(error), errorKey: undefined, ready: false }; publish(c, true); return; }
+          if (directoryFailure(error) || attempt === 2) { c.state = { ...c.state, status: 'error', error: String(error), errorKey: undefined, ready: false }; publish(c, true); return; }
           const generation = c.generation;
           c.generation = crypto.randomUUID();
           await invoke('claude_session_close', { id, generation }).catch(() => {});

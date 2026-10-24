@@ -1,6 +1,8 @@
 import type { I18nKey } from './en';
 
 export const zhTW = {
+  'directory.missing': '專案目錄已不存在或不是資料夾。請還原原目錄，或新增工作階段選擇其他目錄。',
+  'directory.unavailable': '暫時無法存取專案目錄。請檢查磁碟、網路連線和權限後重新連線。',
   "changelog.title": "更新日誌",
   "changelog.error": "暫時無法載入更新日誌，請重試。",
   "changelog.retry": "重試",

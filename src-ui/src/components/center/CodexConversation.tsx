@@ -4,6 +4,7 @@ import { useT } from '../../i18n/useT';
 import { arr, obj, str, num, pretty, type CodexMessage, type CodexRequest, type Json } from '../../lib/codex-protocol';
 import { interruptCodex, loadCodexHistory, respondCodex, retainCodexSession, useCodexSession } from '../../lib/codex-session';
 import { clipboardWrite } from '../../lib/clipboard';
+import { directoryFailure, directoryFailureMessage } from '../../lib/session-directory';
 import { bindAutoHideScrollbar } from '../../lib/auto-hide-scrollbar';
 import { useConversationVirtualizer } from './conversation-virtualizer';
 import { MarkdownContent } from './MarkdownContent';
@@ -59,6 +60,8 @@ function RequestCard({ sessionId, request }: { sessionId: string; request: Codex
 type Row = CodexMessage & { members?: CodexMessage[] };
 export function CodexConversation({ sessionId, cwd, resumeToken, isActive, isVisible = isActive, hasBg, bgUrl, bgType }: { sessionId: string; cwd: string | null; resumeToken?: string; isActive: boolean; isVisible?: boolean; hasBg?: boolean; bgUrl?: string; bgType?: string }) {
   const s = useCodexSession(sessionId), t = useT(), { dispatch } = useAppState();
+  const directoryIssue = !s.ready ? directoryFailure(s.error) : undefined;
+  const directoryError = directoryFailureMessage(s.error, t);
   const scroll = useRef<HTMLDivElement>(null), pinned = useRef(true), lastTop = useRef(0);
   const conversationMenu = useConversationMenu(scroll, sessionId, isActive);
   const viewport = useRef({ width: 0, height: 0 });
@@ -164,14 +167,15 @@ export function CodexConversation({ sessionId, cwd, resumeToken, isActive, isVis
         {s.requests.map(request => <RequestCard key={JSON.stringify(request.id)} sessionId={sessionId} request={request} />)}
         {s.ready && s.busy && <div className="codex-working" role="status"><span className="codex-spinner" aria-hidden="true" />{t(s.interrupting ? 'codex.stopping' : s.requests.length ? 'codex.waiting' : 'claude.status.working')}…</div>}
         {s.error && s.ready && <div className="claude-session-error" role="alert">{s.error}</div>}
-        {!rows.length && <div className="claude-empty"><CodexWelcomeIcon isActive={isVisible} /><WelcomeGreeting /><div className="claude-empty-meta"><bdi dir="ltr">{cwd || '—'}</bdi></div></div>}
+        {directoryIssue && <div className="claude-session-error" role="alert">{directoryError}</div>}
+        {!directoryIssue && !rows.length && <div className="claude-empty"><CodexWelcomeIcon isActive={isVisible} /><WelcomeGreeting /><div className="claude-empty-meta"><bdi dir="ltr">{cwd || '—'}</bdi></div></div>}
       </div>
     </div>
     {navigationItems.length > 1 && isActive && <ConversationNavigation items={navigationItems} scrollRef={scroll} onJump={jumpToTurn} />}
     {scrolled && <button type="button" className="gambit-send claude-scroll-bottom" aria-label={t('claude.scroll_latest')} onClick={() => { anchor.current = null; pinned.current = true; lastTop.current = scroll.current?.scrollTop ?? 0; sync(); }}>
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2v11M3 8l5 5 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
     </button>}
-    {s.error && !s.ready && <button type="button" className="claude-expand claude-reconnect" title={s.error} onClick={() => dispatch({ type: 'RESTART_TERMINAL', id: sessionId, newId: crypto.randomUUID() })}>{t('codex.reconnect')}</button>}
+    {s.error && !s.ready && (!directoryIssue || directoryIssue.status === 'unavailable') && <button type="button" className="claude-expand claude-reconnect" title={directoryError || s.error} onClick={() => dispatch({ type: 'RESTART_TERMINAL', id: sessionId, newId: crypto.randomUUID() })}>{t('codex.reconnect')}</button>}
     {conversationMenu.menu}
   </div></ConversationDirectory.Provider>;
 }
