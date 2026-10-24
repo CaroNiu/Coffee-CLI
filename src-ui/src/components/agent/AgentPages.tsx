@@ -261,12 +261,12 @@ function AgentModelSection() {
       <h2>{t('agent.model.title')}</h2>
       <form className="agent-model-form" onSubmit={save}>
         <fieldset disabled={loading || saving}>
-          <label className="agent-field">{t('agent.model.provider')}<AgentSelect label={t('agent.model.provider')} value={config.provider} options={[{ value: 'openai', label: t('agent.model.provider_openai') }, { value: 'anthropic', label: t('agent.model.provider_anthropic') }]} onChange={provider => {
+          <label className="agent-field"><span>{t('agent.model.provider')}</span><AgentSelect label={t('agent.model.provider')} value={config.provider} options={[{ value: 'openai', label: t('agent.model.provider_openai') }, { value: 'anthropic', label: t('agent.model.provider_anthropic') }]} onChange={provider => {
             setConfig({ ...config, provider, baseUrl: DEFAULT_URL[provider] }); setFeedback('');
           }} /></label>
-          <label className="agent-field">{t('agent.model.url')}<input type="url" value={config.baseUrl} spellCheck={false} placeholder={DEFAULT_URL[config.provider]} onChange={event => { setConfig({ ...config, baseUrl: event.target.value }); setFeedback(''); }} /></label>
-          <label className="agent-field">{t('agent.model.id')}<input value={config.model} maxLength={200} spellCheck={false} placeholder={t('agent.model.id_placeholder')} onChange={event => { setConfig({ ...config, model: event.target.value }); setFeedback(''); }} /></label>
-          <label className="agent-field">{t('agent.model.api_key')}<input type="password" autoComplete="new-password" value={apiKey} spellCheck={false} placeholder={t(config.hasApiKey && !endpointChanged ? 'agent.model.api_key_saved' : 'agent.model.api_key_placeholder')} onChange={event => { setApiKey(event.target.value); setFeedback(''); }} /></label>
+          <label className="agent-field"><span>{t('agent.model.url')}</span><input type="url" value={config.baseUrl} spellCheck={false} placeholder={DEFAULT_URL[config.provider]} onChange={event => { setConfig({ ...config, baseUrl: event.target.value }); setFeedback(''); }} /></label>
+          <label className="agent-field"><span>{t('agent.model.id')}</span><input value={config.model} maxLength={200} spellCheck={false} placeholder={t('agent.model.id_placeholder')} onChange={event => { setConfig({ ...config, model: event.target.value }); setFeedback(''); }} /></label>
+          <label className="agent-field"><span>{t('agent.model.api_key')}</span><input type="password" autoComplete="new-password" value={apiKey} spellCheck={false} placeholder={t(config.hasApiKey && !endpointChanged ? 'agent.model.api_key_saved' : 'agent.model.api_key_placeholder')} onChange={event => { setApiKey(event.target.value); setFeedback(''); }} /></label>
           <div className="agent-form-footer"><button type="submit" className="agent-button primary">{saving ? t('agent.model.saving') : t('agent.model.save')}</button><span className="agent-feedback" role="status">{loading ? t('agent.model.loading') : feedback && t(feedback)}</span></div>
         </fieldset>
         {error && <p className="agent-feedback error" role="alert">{formatAgentError(error, t)}</p>}
