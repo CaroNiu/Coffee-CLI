@@ -13,6 +13,9 @@ try{
    await card.locator('.launchpad-card-info').click();await page.locator('.folder-menu').waitFor();
    assert.equal((await state(page)).tool,null,'card always asks for a directory even when a legacy last directory exists');
    const cardMenu=await page.locator('.folder-menu').boundingBox();
+   const cardBounds=await card.boundingBox();
+   assert.ok(Math.abs(cardMenu.y-(cardBounds.y+cardBounds.height+4))<.5,'menu opens below the entire card, clear of the mode tabs');
+   assert.ok(Math.abs(cardMenu.x-Math.min(cardBounds.x+cardBounds.width*.55,1400-290))<.5,'menu starts slightly right of the card midpoint');
    assert.deepEqual(await page.locator('.folder-menu-item:not(.folder-menu-open) .folder-menu-name').allTextContents(),['Recent','Older']);
    await page.keyboard.press('Escape');assert.equal((await state(page)).tool,null);
    await card.locator('.launchpad-directory').click();await page.locator('.folder-menu').waitFor();assert.equal((await state(page)).tool,null);

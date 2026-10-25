@@ -18,11 +18,11 @@ import { getTabOrder, supportsAgentStatus, useAppState, type ClaudeMode, type To
 import { isFrostShape } from '../../lib/personalization';
 import { isClaudeConversation, isCodexConversation } from '../../lib/chat-tools';
 
-// Dropdown shown when a tool card's folder icon is clicked: the globally
+// Dropdown shown when a tool card or its folder icon is clicked: the globally
 // recent project folders (any tool that used one) + "Open folder…" last.
-// Clicking a recent launches THIS card's tool in that folder; the card body
-// click is unchanged (old flow). Portal-rendered with outside-click / Esc to
-// close — same pattern as the terminal context menu.
+// Clicking a recent launches THIS card's tool in that folder. Both entry
+// points share an anchor below the card. Portal-rendered with outside-click
+// / Esc to close — same pattern as the terminal context menu.
 function RecentFolderMenu({ x, y, recent, openLabel, onPick, onRemove, onOpenNew, onClose }: {
   x: number;
   y: number;
@@ -1023,9 +1023,9 @@ export function CenterPanel() {
 
   const openToolFolderMenu = (tool: ToolType, anchor: HTMLElement) => {
     if (recentFolders.length === 0) { void handlePickFolder(tool); return; }
-    const button = anchor.closest('.launchpad-card')?.querySelector('.launchpad-directory');
-    const rect = (button ?? anchor).getBoundingClientRect();
-    setFolderMenu({ x: rect.left, y: rect.bottom + 4, tool });
+    const card = anchor.closest('.launchpad-card');
+    const rect = (card ?? anchor).getBoundingClientRect();
+    setFolderMenu({ x: rect.left + rect.width * 0.55, y: rect.bottom + 4, tool });
     void commands.checkProjectDirectories(recentFolders).then(checks => {
       for (const check of checks) {
         if (check.status === 'missing' || check.status === 'not_directory') removeRecentFolder(check.path);
