@@ -229,15 +229,24 @@ function Question({ id, pending }: { id: string; pending: ClaudeRequest }) {
     try { await respondClaude(id, pending.id, response); } catch (e) { setError(String(e)); setSending(false); }
   };
   const question = tool === 'AskUserQuestion';
+  const incomplete = question && questions.some(q => !(answers[text(q.question)]?.length || custom[text(q.question)]?.trim()));
+  const approve = () => {
+    if (sending || incomplete) return;
+    void respond({ behavior: 'allow', updatedInput: question ? { ...input, answers: Object.fromEntries(questions.map(q => { const key = text(q.question); return [key, [...(answers[key] ?? []), ...(custom[key]?.trim() ? [custom[key].trim()] : [])].join(', ')]; })) } : input });
+  };
   return <section className="claude-approval" aria-label={t(question ? 'interaction.question' : 'interaction.permission')}>
     <strong>{question ? t('claude.question') : tool === 'ExitPlanMode' ? t('claude.plan_ready') : t('claude.allow_tool', { tool: tool || text(pending.request.subtype) })}</strong>
     {question ? questions.map((q, i) => {
       const key = text(q.question), values = answers[key] ?? [];
-      return <fieldset key={i}><legend>{key}</legend>{list(q.options).map((v, j) => { const option = object(v), label = text(option.label); return <label key={j}><input type={q.multiSelect ? 'checkbox' : 'radio'} name={key} checked={values.includes(label)} onChange={() => setAnswers(a => ({ ...a, [key]: q.multiSelect ? values.includes(label) ? values.filter(v => v !== label) : [...values, label] : [label] }))} /><span>{label}{!!option.description && <small>{text(option.description)}</small>}</span></label>; })}<input className="claude-custom-answer" placeholder={t('interaction.custom_placeholder')} value={custom[key] ?? ''} onChange={e => setCustom(a => ({ ...a, [key]: e.target.value }))} /></fieldset>;
+      return <fieldset key={i}><legend>{key}</legend>{list(q.options).map((v, j) => { const option = object(v), label = text(option.label); return <label key={j}><input type={q.multiSelect ? 'checkbox' : 'radio'} name={key} checked={values.includes(label)} onChange={() => setAnswers(a => ({ ...a, [key]: q.multiSelect ? values.includes(label) ? values.filter(v => v !== label) : [...values, label] : [label] }))} /><span>{label}{!!option.description && <small>{text(option.description)}</small>}</span></label>; })}<input className="claude-custom-answer" placeholder={t('interaction.custom_placeholder')} value={custom[key] ?? ''} onChange={e => setCustom(a => ({ ...a, [key]: e.target.value }))} onKeyDown={e => {
+        if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+        e.preventDefault();
+        if (!e.repeat) approve();
+      }} /></fieldset>;
     }) : <Code content={text(input.command) || text(input.plan) || text(input.file_path) || resultText(input)} path={tool === 'Bash' ? 'command.sh' : 'request.md'} />}
     {error && <div role="alert" className="claude-tool-error">{error}</div>}
     <div className="claude-approval-actions"><button disabled={sending} onClick={() => void respond({ behavior: 'deny', message: 'The user declined this request. Wait for further instructions.' })}>{t('claude.reject')}</button>
-      <button disabled={sending || (question && questions.some(q => !(answers[text(q.question)]?.length || custom[text(q.question)]?.trim())))} onClick={() => void respond({ behavior: 'allow', updatedInput: question ? { ...input, answers: Object.fromEntries(questions.map(q => { const key = text(q.question); return [key, [...(answers[key] ?? []), ...(custom[key]?.trim() ? [custom[key].trim()] : [])].join(', ')]; })) } : input })}>{t(question ? 'interaction.submit' : 'claude.allow_once')}</button></div>
+      <button disabled={sending || incomplete} onClick={approve}>{t(question ? 'interaction.submit' : 'claude.allow_once')}</button></div>
   </section>;
 }
 

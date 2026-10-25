@@ -38,6 +38,11 @@ function RequestCard({ sessionId, request }: { sessionId: string; request: Codex
   };
   const permissions = request.method === 'item/permissions/requestApproval';
   const input = request.method === 'item/tool/requestUserInput';
+  const incomplete = questions.some(q => !answers[str(q.id)]?.trim());
+  const submitAnswers = () => {
+    if (pending || incomplete) return;
+    void submit({ answers: Object.fromEntries(questions.map(q => [str(q.id), { answers: [answers[str(q.id)]] }])) });
+  };
   const supported = input || permissions || ['item/commandExecution/requestApproval', 'item/fileChange/requestApproval'].includes(request.method);
   return <section className="claude-approval codex-request" aria-label={t(input ? 'codex.question' : 'codex.approval')}>
     <strong>{t(input ? 'codex.question' : 'codex.approval')}</strong>
@@ -45,11 +50,15 @@ function RequestCard({ sessionId, request }: { sessionId: string; request: Codex
     {input ? questions.map(question => <fieldset key={str(question.id)} disabled={pending}>
       <legend>{str(question.question)}</legend>
       {arr(question.options).map(value => { const option = obj(value); return <label key={str(option.label)}><input type="radio" name={`${JSON.stringify(request.id)}-${str(question.id)}`} checked={answers[str(question.id)] === option.label} onChange={() => setAnswers(a => ({ ...a, [str(question.id)]: str(option.label) }))} /><span>{str(option.label)}<small>{str(option.description)}</small></span></label>; })}
-      {(!arr(question.options).length || question.isOther === true) && <input className="claude-custom-answer" type={question.isSecret ? 'password' : 'text'} aria-label={str(question.header) || str(question.question)} value={answers[str(question.id)] ?? ''} onChange={e => setAnswers(a => ({ ...a, [str(question.id)]: e.target.value }))} />}
+      {(!arr(question.options).length || question.isOther === true) && <input className="claude-custom-answer" type={question.isSecret ? 'password' : 'text'} aria-label={str(question.header) || str(question.question)} value={answers[str(question.id)] ?? ''} onChange={e => setAnswers(a => ({ ...a, [str(question.id)]: e.target.value }))} onKeyDown={e => {
+        if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+        e.preventDefault();
+        if (!e.repeat) submitAnswers();
+      }} />}
     </fieldset>) : <pre className="codex-request-details">{str(request.params.command) || pretty(request.params.permissions ?? request.params)}</pre>}
     {error && <p role="alert">{error}</p>}
     <div className="claude-approval-actions">
-      {!supported ? <><span role="alert">{t('codex.unsupported_request')}</span><button type="button" disabled={pending} onClick={() => { void submit({}, true); }}>{t('codex.decline')}</button></> : input ? <button type="button" disabled={pending || questions.some(q => !answers[str(q.id)]?.trim())} onClick={() => { void submit({ answers: Object.fromEntries(questions.map(q => [str(q.id), { answers: [answers[str(q.id)]] }])) }); }}>{t('codex.submit')}</button> : <>
+      {!supported ? <><span role="alert">{t('codex.unsupported_request')}</span><button type="button" disabled={pending} onClick={() => { void submit({}, true); }}>{t('codex.decline')}</button></> : input ? <button type="button" disabled={pending || incomplete} onClick={submitAnswers}>{t('codex.submit')}</button> : <>
         <button type="button" disabled={pending} onClick={() => { void submit(permissions ? { permissions: {} } : { decision: 'decline' }); }}>{t('codex.decline')}</button>
         {!permissions && <button type="button" disabled={pending} onClick={() => { void submit({ decision: 'acceptForSession' }); }}>{t('codex.allow_session')}</button>}
         <button type="button" disabled={pending} onClick={() => { void submit(permissions ? { permissions: request.params.permissions, scope: 'turn' } : { decision: 'accept' }); }}>{t('codex.allow')}</button>
