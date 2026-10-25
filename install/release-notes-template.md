@@ -1,7 +1,7 @@
 <details open>
 <summary><b>🇨🇳 简体中文</b></summary>
 
-### Coffee CLI v3.6.9 · 桌面会话、动态分屏与使用统计
+### Coffee CLI v3.7.0 · 桌面会话、动态分屏与使用统计
 
 - **Claude Code 与 Codex 桌面式。** 支持对话、工具执行、权限请求与历史导航；新增欢迎动画，完善链接、右键和输入操作。首次使用默认以 Desktop 打开，保留已有偏好。
 - **动态分屏。** 从会话列表添加或关闭分屏，保留面板编号与悬停关闭，替代旧的固定二、三、四屏入口。
@@ -17,12 +17,15 @@
 - **统一窗口交互。** 目录列表从卡片下方偏右展开，避开 Terminal / Desktop 文字；设置弹窗只淡入，不再缩放或位移。统一关闭按钮的红色悬停反馈，修复更新日志首次打开时关闭按钮出现焦点边框的问题。
 - **Windows 控制台兼容处理。** Windows x64 安装包内置新版微软 ConPTY 控制台组件，减少对系统旧版组件的依赖。Windows 10 鼠标点击与滚轮的兼容效果仍待实机回测。
 
+- **会话列表更清晰。** 每条会话左侧显示与文字等高的工具图标，统一标题对齐；分支、PR 与 CI 状态采用一致的语义配色，适配深浅主题，保持原有行高和交互。
+- **桌面模型信息与图标更新。** Codex 欢迎区显示当前模型 ID，并跟随模型切换更新；Claude Code 模型名称充分利用可用宽度，窄分屏仍可安全省略。Codex 工具图标更新为随主题变色的单色标识。
+
 </details>
 
 <details>
 <summary><b>🇬🇧 English</b></summary>
 
-### Coffee CLI v3.6.9 · Desktop Sessions, Dynamic Splits and Usage Statistics
+### Coffee CLI v3.7.0 · Desktop Sessions, Dynamic Splits and Usage Statistics
 
 - **Claude Code and Codex desktop conversations.** Chat, tool execution, permission requests and history navigation, with welcome animations and improved links, context menus and input. Desktop is the default for new users; saved preferences stay intact.
 - **Dynamic split views.** Add or close panes from the session list, with pane numbers and hover close controls, replacing the fixed two-, three- and four-pane launchers.
@@ -38,12 +41,15 @@
 - **Consistent window interactions.** Folder menus open below and slightly right of the card, clear of Terminal / Desktop labels. Settings fade in without scaling or moving. Close controls share red hover feedback, and release notes no longer initially focus the close button with an outline.
 - **Windows console compatibility work.** Windows x64 packages include a newer Microsoft ConPTY runtime to reduce reliance on older system components. Mouse click and wheel behavior on Windows 10 still requires testing on a Windows 10 machine.
 
+- **Clearer session lists.** Tool icons sit beside session titles at the same size as the text, with consistent alignment. Branch, PR and CI indicators use shared semantic colors adapted to light and dark themes while preserving row heights and interactions.
+- **Desktop model details and refreshed icons.** The Codex welcome area shows the current model ID and follows model changes. Claude Code model names use the available width and truncate only when needed in narrow panes. Codex tool icons use a theme-aware monochrome mark.
+
 </details>
 
 <details>
 <summary><b>🇹🇼 繁體中文</b></summary>
 
-### Coffee CLI v3.6.9 · 桌面對話、動態分割與使用統計
+### Coffee CLI v3.7.0 · 桌面對話、動態分割與使用統計
 
 - **Claude Code 與 Codex 桌面式。** 支援對話、工具執行、權限請求及歷史導覽，新增歡迎動畫並改善連結、右鍵及輸入操作。首次使用預設以 Desktop 開啟，保留既有偏好。
 - **動態分割畫面。** 從對話清單新增或關閉面板，保留編號與懸停關閉，取代固定二、三、四屏入口。
@@ -59,12 +65,15 @@
 - **統一視窗互動。** 目錄選單從卡片下方偏右展開，避開 Terminal / Desktop 文字；設定彈窗只淡入，不再縮放或位移。關閉按鈕統一使用紅色懸停回饋，修正更新日誌首次開啟時關閉按鈕出現焦點框的問題。
 - **Windows 主控台相容處理。** Windows x64 安裝包內建新版微軟 ConPTY 元件，減少對系統舊版元件的依賴。Windows 10 滑鼠點擊與滾輪的相容效果仍待實機回測。
 
+- **對話列表更清楚。** 每條對話左側顯示與文字等高的工具圖示，統一標題對齊；分支、PR 與 CI 狀態使用一致的語意配色，適配深淺主題，維持原有行高與操作。
+- **桌面模型資訊與圖示更新。** Codex 歡迎區顯示目前模型 ID，並隨模型切換更新；Claude Code 模型名稱充分利用可用寬度，窄分割畫面仍可安全省略。Codex 工具圖示更新為隨主題變色的單色標誌。
+
 </details>
 
 <details>
 <summary><b>🇯🇵 日本語</b></summary>
 
-### Coffee CLI v3.6.9 · デスクトップ会話、動的分割と使用統計
+### Coffee CLI v3.7.0 · デスクトップ会話、動的分割と使用統計
 
 - **Claude Code と Codex のデスクトップ会話。** 会話、ツール実行、権限要求、履歴ナビゲーションに対応。歓迎アニメーション、リンク、右クリック、入力操作を改善しました。初回は Desktop で開き、既存の設定は保持します。
 - **動的な分割表示。** 会話一覧からペインを追加・閉じることができます。番号とホバー時の閉じる操作を維持し、固定の二・三・四分割の入口を置き換えました。
@@ -80,12 +89,15 @@
 - **統一したウィンドウ操作。** フォルダーメニューをカード下のやや右側に表示し、Terminal / Desktop の文字と重ならないようにしました。設定は移動・拡大せずフェードインします。閉じるボタンのホバーを赤色に統一し、更新履歴の初回表示で閉じるボタンにフォーカス枠が出る問題を修正しました。
 - **Windows コンソールの互換性対応。** Windows x64 パッケージに新しい Microsoft ConPTY を同梱し、古いシステムコンポーネントへの依存を減らしました。Windows 10 のマウスクリックとホイールの動作は実機での検証が必要です。
 
+- **見やすい会話一覧。** タイトルの左に文字と同じ大きさのツールアイコンを表示し、位置を統一しました。ブランチ、PR、CI は状態に応じた共通色を使い、ライト・ダーク両テーマに対応します。行の高さと操作は維持します。
+- **デスクトップのモデル情報とアイコン更新。** Codex の歓迎画面に現在のモデル ID を表示し、モデル変更に追従します。Claude Code のモデル名は利用可能な幅を使い、狭いペインでのみ省略します。Codex のツールアイコンはテーマに追従する単色マークになりました。
+
 </details>
 
 <details>
 <summary><b>🇰🇷 한국어</b></summary>
 
-### Coffee CLI v3.6.9 · 데스크톱 대화, 동적 분할 및 사용 통계
+### Coffee CLI v3.7.0 · 데스크톱 대화, 동적 분할 및 사용 통계
 
 - **Claude Code 및 Codex 데스크톱 대화.** 대화, 도구 실행, 권한 요청과 기록 탐색을 지원합니다. 시작 애니메이션, 링크, 우클릭 및 입력 동작을 개선했습니다. 처음에는 Desktop으로 열리며 기존 설정은 유지됩니다.
 - **동적 분할 보기.** 대화 목록에서 패널을 추가하거나 닫습니다. 번호와 마우스를 올렸을 때의 닫기 버튼을 유지하며 기존 고정 2·3·4분할 진입 방식을 대체합니다.
@@ -100,5 +112,8 @@
 - **대화 및 폴더 안정성.** 실행 전에 폴더를 확인하고 실제로 없어진 최근 경로를 제거해 데스크톱 대화의 반복 재연결을 방지합니다. 기록을 삭제하면 해당 탭과 분할 패널도 닫힙니다. 브랜치 등 상태 아이콘이 프로젝트 목록의 행 높이를 바꾸지 않습니다. 데스크톱 질문의 직접 입력 답변을 Enter로 제출할 수 있으며 입력기 확정 시 잘못 제출되지 않습니다.
 - **일관된 창 동작.** 폴더 메뉴를 카드 아래에서 약간 오른쪽으로 열어 Terminal / Desktop 글자를 가리지 않습니다. 설정 창은 확대나 이동 없이 페이드인합니다. 닫기 버튼의 마우스 올림 효과를 빨간색으로 통일하고 업데이트 내역을 처음 열 때 닫기 버튼에 포커스 테두리가 생기던 문제를 수정했습니다.
 - **Windows 콘솔 호환 처리.** Windows x64 설치 패키지에 새 Microsoft ConPTY 구성 요소를 포함해 오래된 시스템 구성 요소에 대한 의존도를 줄였습니다. Windows 10의 마우스 클릭과 휠 동작은 실제 Windows 10 기기에서 추가 확인이 필요합니다.
+
+- **더 명확한 대화 목록.** 제목 왼쪽에 글자와 같은 크기의 도구 아이콘을 표시하고 정렬을 통일했습니다. 브랜치, PR, CI 표시에 일관된 상태 색상을 적용하고 밝은 테마와 어두운 테마에 맞춰 조정합니다. 행 높이와 기존 동작은 유지합니다.
+- **데스크톱 모델 정보 및 아이콘 개선.** Codex 시작 화면에 현재 모델 ID를 표시하고 모델 변경을 반영합니다. Claude Code 모델 이름은 사용 가능한 너비를 활용하며 좁은 패널에서만 생략합니다. Codex 도구 아이콘은 테마에 따라 색상이 바뀌는 단색 표시로 갱신했습니다.
 
 </details>
