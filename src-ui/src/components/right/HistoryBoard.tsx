@@ -27,6 +27,7 @@ import { HistoryGitMark } from './HistoryGitMark';
 // flash. We pull the same data URIs here so HistoryBoard doesn't need a
 // separate file copy on disk.
 import CLAUDE_DATA_URL from '../../icons-inline/claude.svg?inline';
+import CODEX_SVG from '../../icons-inline/codex.svg?raw';
 import MIMOCODE_DATA_URL from '../../icons-inline/mimocode.png?inline';
 import HERMES_DATA_URL from '../../icons-inline/hermes.png?inline';
 import OPENCODE_DATA_URL from '../../icons-inline/opencode.png?inline';
@@ -50,14 +51,13 @@ import OPENCLAW_SVG from '../../icons-inline/openclaw.svg?raw';
 import CODEBUDDY_SVG from '../../icons-inline/codebuddy.svg?raw';
 import './HistoryBoard.css';
 
-// Tool icons — codex/qwen load via <img src=public/...>
+// Tool icons — qwen loads via <img src=public/...>
 // because HistoryBoard mounts once at app start and never re-mounts on tab
 // switch, so the one-time decode flash is invisible. Other imported assets
 // share the same bytes the Launchpad uses (no duplicate files).
 
 const TOOL_ICON_SRC: Record<string, string> = {
   claude:      CLAUDE_DATA_URL,
-  codex:       '/icons/tools/codex.svg',
   qwen:        '/icons/tools/qwen.svg',
   hermes:      HERMES_DATA_URL,
   opencode:    OPENCODE_DATA_URL,
@@ -70,8 +70,8 @@ const getToolIcon = (tool: string) => {
   // Pi is a fixed-color brand mark. Keep it inline so it shares the
   // synchronous rendering path used by the launchpad; other fixed-color
   // brand marks stay <img>.
-  if (tool === 'pi' || tool === 'grok' || tool === 'omp') {
-    const svg = tool === 'pi' ? PI_SVG : tool === 'omp' ? OMP_SVG : GROK_SVG;
+  if (tool === 'pi' || tool === 'grok' || tool === 'omp' || tool === 'codex') {
+    const svg = tool === 'codex' ? CODEX_SVG : tool === 'pi' ? PI_SVG : tool === 'omp' ? OMP_SVG : GROK_SVG;
     return (
       <span
         aria-hidden

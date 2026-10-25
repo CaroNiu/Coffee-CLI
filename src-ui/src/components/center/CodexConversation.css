@@ -21,6 +21,5 @@
 .codex-catalog-entry summary span { float:right; color:var(--text-3); }
 .codex-catalog-tool { display:flex; flex-direction:column; gap:4px; padding:8px 0 0 12px; }
 .codex-catalog-tool small { color:var(--text-3); line-height:1.5; }
-.codex-conversation .claude-empty-meta { max-width:100%; overflow-wrap:anywhere; }
 @keyframes codex-spin { to { transform:rotate(360deg); } }
 @media(prefers-reduced-motion:reduce) { .codex-spinner { animation:none; } }

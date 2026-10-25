@@ -92,9 +92,17 @@ try {
   await page.waitForFunction(()=>window.resolveStartup&&document.querySelector('.host .claude-empty-title'));
   assert.equal(await page.locator('.host:visible .codex-working').count(),0,'startup does not insert a Connecting row');
   assert.equal(await page.locator('.host:visible .claude-session-error').count(),0);
+  assert.equal(await page.locator('.host:visible .claude-empty-separator').count(),0,'startup does not show a separator before the model is known');
   assert.equal(await page.locator('.host:visible .conversation-navigation').count(),0,'empty conversations have no navigation');
   await page.evaluate(()=>window.resolveStartup());
   await page.waitForFunction(()=>window.currentState.ready);
+  assert.equal(await page.locator('.host:visible .claude-empty-model').textContent(),'gpt-test','welcome shows the actual session model ID');
+  await page.getByRole('button',{name:'Select Codex model',exact:true}).click();
+  await page.getByRole('button',{name:'Second model',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('.host .claude-empty-model')?.textContent==='second');
+  await page.getByRole('button',{name:'Select Codex model',exact:true}).click();
+  await page.getByRole('button',{name:'GPT Test',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('.host .claude-empty-model')?.textContent==='gpt-test');
   const input=page.locator('.gambit-textarea');
   const welcome=page.locator('.host:visible .claude-empty-title');await page.waitForFunction(()=>document.querySelector('.host .claude-empty-title')?.textContent==='Good morning, TEST-DESKTOP');
   const mascot=page.locator('.host').first().locator('.codex-welcome-icon');

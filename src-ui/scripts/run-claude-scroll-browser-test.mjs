@@ -290,6 +290,22 @@ try {
   assert.equal(await page.locator('.claude-session-error').count(),0,'connection failures do not become red conversation messages');
   assert.equal(await page.locator('.claude-reconnect').getAttribute('title'),'Startup unavailable');
   await page.evaluate(()=>window.setSession({ready:true,status:'idle',error:undefined}));
+  const resolvedModel = 'deepseek-flash[1m]';
+  await page.evaluate(resolvedModel=>window.setSession({model:'selected',models:[{value:'selected',resolvedModel}]}),resolvedModel);
+  await page.waitForFunction(model=>document.querySelector('.claude-empty-model')?.textContent===model,resolvedModel);
+  for (const width of [496,1100]) {
+    await page.setViewportSize({width,height:800});
+    assert.ok(await page.locator('.claude-empty-model').evaluate(el=>el.scrollWidth<=el.clientWidth),'the model fits when the conversation has enough room');
+  }
+  const longModel = 'example-model-with-a-long-identifier-that-fits-the-welcome-area';
+  await page.evaluate(model=>window.setSession({models:[{value:'selected',resolvedModel:model}]}),longModel);
+  await page.waitForFunction(model=>document.querySelector('.claude-empty-model')?.textContent===model,longModel);
+  assert.ok(await page.locator('.claude-empty-model').evaluate(el=>el.scrollWidth<=el.clientWidth),'wide conversations do not impose an artificial model width limit');
+  await page.setViewportSize({width:320,height:800});
+  assert.ok(await page.locator('.claude-scroll').evaluate(el=>el.scrollWidth<=el.clientWidth),'a long model does not overflow a narrow split pane');
+  assert.equal(await page.locator('.claude-empty-model').getAttribute('title'),longModel,'the full model remains available when space is limited');
+  await page.setViewportSize({width:1100,height:800});
+  await page.evaluate(resolvedModel=>window.setSession({models:[{value:'selected',resolvedModel}]}),resolvedModel);
   const welcome = page.locator('.claude-empty-icon'), mascot = welcome.locator('video');
   await page.waitForFunction(() => { const video = document.querySelector('.claude-empty-icon video'); return video?.readyState >= 2 && !video.paused; });
   assert.ok(await mascot.evaluate(video => video.muted && video.loop && video.playsInline), 'welcome mascot plays silently and loops inline');

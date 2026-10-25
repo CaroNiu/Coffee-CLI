@@ -12,7 +12,7 @@ import { controlClaude, loadClaudeHistory, respondClaude, retainClaudeSession, u
 import { object, list, text, number, resultText, type ClaudeMessage, type ClaudeRequest } from '../../lib/claude-protocol';
 import { useConversationVirtualizer } from './conversation-virtualizer';
 import { MarkdownContent } from './MarkdownContent';
-import { WelcomeGreeting } from './WelcomeGreeting';
+import { WelcomeGreeting, WelcomeSessionMeta } from './WelcomeGreeting';
 import { ConversationDirectory } from '../../lib/conversation-links';
 import { useConversationMenu } from '../../lib/use-conversation-menu';
 import { ConversationNavigation, MessageCopyButton, type ConversationNavigationItem } from './ConversationControls';
@@ -377,14 +377,7 @@ export function ClaudeConversation({ sessionId, cwd, resumeToken, isActive, isVi
         {empty && <div className="claude-empty">
           <ClaudeWelcomeIcon isActive={isVisible} />
           <WelcomeGreeting />
-          <div className="claude-empty-meta">
-            <span className="claude-empty-directory">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></svg>
-              <bdi dir="ltr">{cwd || '—'}</bdi>
-            </span>
-            <span className="claude-empty-separator" aria-hidden="true">·</span>
-            <span className="claude-empty-model" dir="ltr">{model?.resolvedModel || s.model}</span>
-          </div>
+          <WelcomeSessionMeta cwd={cwd} model={model?.resolvedModel || s.model} />
         </div>}
         {!s.messages.length && summary}
       </div>
