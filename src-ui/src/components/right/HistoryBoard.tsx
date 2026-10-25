@@ -95,7 +95,7 @@ const getToolIcon = (tool: string) => {
     );
   }
   const src = TOOL_ICON_SRC[tool];
-  if (!src) return <div style={{ width: 14, height: 14, flexShrink: 0, borderRadius: 'var(--radius-xs)', background: '#555' }}/>;
+  if (!src) return null;
   const extra = (tool === 'hermes' || tool === 'opencode' || tool === 'kilo') ? { borderRadius: 'var(--radius-xs)', objectFit: 'cover' as const }
     : tool === 'kimicode' ? { borderRadius: 'var(--radius-xs)', objectFit: 'contain' as const }
     : {};
@@ -462,6 +462,9 @@ export function HistoryBoard() {
           >
             <div className="history-card-content">
               <div className="history-card-title-row">
+                <span className="history-card-tool-icon" aria-hidden="true">
+                  {session.tool !== 'coffee-agent' && getToolIcon(session.tool)}
+                </span>
                 {isRenaming ? (
                   <input
                     className="history-card-rename-input"
