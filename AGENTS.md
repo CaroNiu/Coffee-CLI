@@ -25,7 +25,7 @@
 
 ### 更新日志（每次发布必做）
 
-- 更新 `install/release-notes-template.md` 的五种语言内容，所有标题版本必须与本次版本一致；`node src-ui/scripts/run-release-notes-test.mjs` 会检查内置日志与应用版本。仅修复的版本沿用上一功能版本的完整说明并合入本批修复，合并为本次版本的一份日志，不叠加旧版本章节。
+- 更新 `install/release-notes-template.md` 的五种语言内容，所有标题版本必须与本次版本一致；`node src-ui/scripts/run-release-notes-test.mjs` 会检查内置日志与应用版本。每次只简要记录本版本的新增、改进与修复，不沿用旧版完整说明，也不累加旧版本内容。
 - Release 草稿与客户端内置日志使用同一份模板。安装包全部上传并验证后再正式发布；授权发布版本时包含这一步。
 - 正式发布后，`.github/workflows/bump-version-json.yml` 自动将 Release 的版本号、发布时间和正文写入远程 JSON 的 `version`、`releaseDate`、`releaseNotes` 字段，再触发部署；正常发版不手改远程 JSON。
 - 发布完成须核对：Release 正文、八个安装包、远程 JSON 的版本与日志均已同步。首次安装或升级按已安装版本展示一次，旧版客户端不能提前展示新版日志。
