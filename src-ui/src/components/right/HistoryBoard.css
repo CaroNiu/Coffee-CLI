@@ -301,17 +301,21 @@
 
 /* ─── Card delete button + inline rename ─── */
 .history-git-mark {
+  --git-open:#3fb950; --git-merged:#a371f7; --git-closed:#f85149; --git-pending:#d29922;
   position:relative; display:inline-flex; align-items:center; justify-content:center;
-  flex:0 0 22px; height:22px; margin-left:6px; color:var(--text-2);
+  flex:0 0 22px; height:22px; margin-left:6px; color:var(--text-3);
+}
+[data-mode="light"] .history-git-mark {
+  --git-open:#1a7f37; --git-merged:#8250df; --git-closed:#cf222e; --git-pending:#9a6700;
 }
 .history-project-row > .history-git-mark { flex:0 0 22px; height:18px; }
-.history-git-mark.is-open { color:var(--success,#79c99e); }
-.history-git-mark.is-merged { color:#a78bdb; }
-.history-git-mark.is-closed { color:var(--danger,#df735f); }
+.history-git-mark.is-open { color:var(--git-open); }
+.history-git-mark.is-merged { color:var(--git-merged); }
+.history-git-mark.is-closed { color:var(--git-closed); }
 .history-git-ci { position:absolute; right:-1px; bottom:-1px; font:700 10px/10px var(--font); }
-.history-git-ci.is-success { color:var(--success,#79c99e); }
-.history-git-ci.is-failure { color:var(--danger,#df735f); }
-.history-git-ci.is-pending { color:#719cdb; }
+.history-git-ci.is-success { color:var(--git-open); }
+.history-git-ci.is-failure { color:var(--git-closed); }
+.history-git-ci.is-pending { color:var(--git-pending); }
 .history-card:hover .history-git-mark,.history-card:focus-within .history-git-mark { display:none; }
 .history-card-working-indicator {
   display: inline-flex;
