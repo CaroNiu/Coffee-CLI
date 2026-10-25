@@ -484,11 +484,15 @@ console.log('OK: Cline selection and toggling, retired pins, catalog consistency
 
 // Exercise the actual tool-card handler: manual and Agent launch share one action.
 const manualLaunches = [];
+const checkedLaunchFolders = [];
 const selectTool = evaluate(pinDeclarations.get('selectTool').initializer.getText(centerTree), {
   activeTerminalId: 'launchpad', dispatch: action => manualLaunches.push(action),
-  setLastCwdByTool() {}, pushRecentFolder() {}, claudeLaunchMode: 'conversation',
+  activeIdRef: { current: 'launchpad' },
+  commands: { async checkProjectDirectories(paths) { checkedLaunchFolders.push(...paths); return paths.map(path => ({ path, status: 'available' })); } },
+  pushRecentFolder() {}, claudeLaunchMode: 'conversation',
 });
-selectTool('claude', undefined, 'E:\\tmp');
+await selectTool('claude', undefined, 'E:\\tmp');
+assert.deepEqual(checkedLaunchFolders, ['E:\\tmp']);
 assert.equal(manualLaunches.length, 1);
 assert.equal(manualLaunches[0].type, 'LAUNCH_TERMINAL_TOOL');
 assert.equal(manualLaunches[0].id, 'launchpad');
