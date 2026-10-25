@@ -18,10 +18,10 @@ import { getTabOrder, supportsAgentStatus, useAppState, type ClaudeMode, type To
 import { isFrostShape } from '../../lib/personalization';
 import { isClaudeConversation, isCodexConversation } from '../../lib/chat-tools';
 
-// Dropdown shown when a tool card or its folder icon is clicked: the globally
+// Dropdown shown when a tool card is clicked: the globally
 // recent project folders (any tool that used one) + "Open folder…" last.
-// Clicking a recent launches THIS card's tool in that folder. Both entry
-// points share an anchor below the card. Portal-rendered with outside-click
+// Clicking a recent launches THIS card's tool in that folder, anchored
+// below the card. Portal-rendered with outside-click
 // / Esc to close — same pattern as the terminal context menu.
 function RecentFolderMenu({ x, y, recent, openLabel, onPick, onRemove, onOpenNew, onClose }: {
   x: number;
@@ -85,7 +85,7 @@ function RecentFolderMenu({ x, y, recent, openLabel, onPick, onRemove, onOpenNew
             <span className="folder-menu-name">{name}</span>
             {parent && <span className="folder-menu-path">{parent}</span>}
             <span
-              className="folder-menu-del"
+              className="folder-menu-del close-button"
               role="button"
               aria-label={`Remove ${name}`}
               onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onRemove(f); }}
@@ -1205,7 +1205,7 @@ export function CenterPanel() {
                 onPointerDown={event => onTabPointerDown(event, tabId)}>
                 <span className="tab-title">{page === 'agent' ? 'Coffee Agent' : t('agent.page.settings')}</span>
                 <div className="tab-actions tab-actions--close-only">
-                  <button type="button" className="tab-close-btn" aria-label={t(page === 'agent' ? 'agent.page.close_agent' : 'agent.page.close_settings')} onClick={event => { event.stopPropagation(); dispatch({ type: 'CLOSE_AGENT_PAGE', page }); }}>
+                  <button type="button" className="tab-close-btn close-button" aria-label={t(page === 'agent' ? 'agent.page.close_agent' : 'agent.page.close_settings')} onClick={event => { event.stopPropagation(); dispatch({ type: 'CLOSE_AGENT_PAGE', page }); }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m18 6-12 12M6 6l12 12" /></svg>
                   </button>
                 </div>
@@ -1255,7 +1255,7 @@ export function CenterPanel() {
                   </div>
                 )}
                 <button
-                   className="tab-close-btn"
+                   className="tab-close-btn close-button"
                    onClick={(e) => handleCloseTab(e, session.id)}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1291,7 +1291,7 @@ export function CenterPanel() {
             <span className="tab-title" style={{ flex: '0 1 auto', minWidth: 0, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{diffTabTitle}</span>
             <div className="tab-actions tab-actions--close-only">
               <button
-                className="tab-close-btn"
+                className="tab-close-btn close-button"
                 onClick={(e) => { e.stopPropagation(); dispatch({ type: 'CLEAR_DIFF' }); }}
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1368,7 +1368,7 @@ export function CenterPanel() {
                 </div>
               </>
             )}
-            {splitVisible && splitIds.includes(t.id) && <button className="pane-number-badge pane-number-badge--closable" aria-label={`${closeSplitLabel} ${splitIds.indexOf(t.id) + 1}`} onClick={event => { event.stopPropagation(); dispatch({ type: 'CLOSE_SESSION_SPLIT', id: t.id }); }}>
+            {splitVisible && splitIds.includes(t.id) && <button className="pane-number-badge pane-number-badge--closable close-button" aria-label={`${closeSplitLabel} ${splitIds.indexOf(t.id) + 1}`} onClick={event => { event.stopPropagation(); dispatch({ type: 'CLOSE_SESSION_SPLIT', id: t.id }); }}>
               <span className="pane-badge-num">{splitIds.indexOf(t.id) + 1}</span><span className="pane-badge-x" aria-hidden="true">×</span>
             </button>}
           </div>
@@ -1460,8 +1460,11 @@ export function CenterPanel() {
                                       )}
                                     </span>
                                   </div>
-                                  {tool.requiresCwd && <button type="button" className="launchpad-directory" disabled={disabled} aria-label={t('claude.launch.choose_directory')} onClick={event => { event.stopPropagation(); openToolFolderMenu(tool.key, event.currentTarget); }}>
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></svg>
+                                  {CONFIGURABLE_AGENT_TOOLS.has(tool.key) && <button type="button" className="launchpad-config" aria-label={`${tool.label} ${t('settings.title')}`} onClick={event => { event.stopPropagation(); setFolderMenu(null); setConfigModalTool({ key: tool.key as string, label: tool.label }); }}>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                      <circle cx="12" cy="12" r="3" />
+                                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                                    </svg>
                                   </button>}
                                   {tool.type === 'ai-cli' && <LaunchModeControl value={tool.key === 'claude' ? claudeLaunchMode : tool.key === 'codex' ? codexLaunchMode : 'terminal'} disabled={disabled} label={tool.key === 'codex' ? 'Codex' : undefined} onChange={tool.key === 'claude' ? changeClaudeLaunchMode : tool.key === 'codex' ? changeCodexLaunchMode : undefined} />}
                                 </div>
@@ -1528,7 +1531,7 @@ export function CenterPanel() {
                             <div className="remote-form-header">
                             <TerminalIcon />
                             <span>{t('remote.title')}</span>
-                            <button className="remote-form-close" onClick={() => setShowRemoteForm(false)}>
+                            <button className="remote-form-close close-button" onClick={() => setShowRemoteForm(false)}>
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                             </button>
                           </div>
@@ -1661,7 +1664,7 @@ export function CenterPanel() {
                               >
                                 <span className="remote-pill-proto">{item.protocol}</span>
                                 <span>{item.host}</span>
-                                <button className="remote-pill-close" onClick={(e) => deleteRemoteHistory(item.id, e)}>
+                                <button className="remote-pill-close close-button" onClick={(e) => deleteRemoteHistory(item.id, e)}>
                                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                                 </button>
                               </div>

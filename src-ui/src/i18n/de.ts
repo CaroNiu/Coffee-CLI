@@ -90,6 +90,7 @@ export const de = {
   'tool.remote': 'Remote-Terminal',
   'sentinel.protocol': 'Sentinel-Protokoll',
   'tool_config.command': 'Startbefehl',
+  'tool_config.presets': 'Startbefehle',
   'tool_config.extra_args': 'Zusätzliche Argumente',
   'tool_config.default_cwd': 'Startverzeichnis',
   'tool_config.history_path': 'Sitzungsverlaufsverzeichnis',

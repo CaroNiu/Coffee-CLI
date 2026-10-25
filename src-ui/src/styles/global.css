@@ -102,6 +102,11 @@ textarea,
     cursor: text !important;
 }
 
+.close-button:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+}
+
 /* ─── Scrollbars: completely hidden, app-wide ──────────
    We tried floating hairline bars 5+ times; WebView2 + xterm.js +
    nested Tauri viewports kept letting native Windows 11 scrollbars

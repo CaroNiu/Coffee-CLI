@@ -73,7 +73,7 @@ export function Changelog() {
       <div ref={dialog} className="settings-modal changelog-modal" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <header className="settings-header">
           <span id={titleId} className="settings-header-title">{t('changelog.title')} <span className="changelog-version">v{version}</span></span>
-          <button type="button" className="settings-close" aria-label="Close" onClick={() => setOpen(false)}>
+          <button type="button" className="settings-close close-button" aria-label="Close" onClick={() => setOpen(false)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
           </button>
         </header>

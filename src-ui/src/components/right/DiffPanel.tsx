@@ -389,7 +389,7 @@ export function DiffPanel({ path, repoRoot, rel, kind, fileSize, commitHash, onC
             </button>
             <button
               type="button"
-              className="diff-header-btn"
+              className="diff-header-btn close-button"
               onClick={onClose}
               aria-label={kind === 'file' ? 'Close file' : 'Close diff'}
             >

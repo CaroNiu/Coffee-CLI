@@ -90,6 +90,7 @@ export const zhTW = {
   'tool.remote': '遠端終端機',
   'sentinel.protocol': '哨兵協議',
   'tool_config.command': '啟動命令',
+  'tool_config.presets': '預設啟動命令',
   'tool_config.extra_args': '額外參數',
   'tool_config.default_cwd': '啟動目錄',
   'tool_config.history_path': '歷史對話目錄',

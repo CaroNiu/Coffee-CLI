@@ -90,6 +90,7 @@ export const ko = {
   'tool.remote': '원격 터미널',
   'sentinel.protocol': '센티넬 프로토콜',
   'tool_config.command': '실행 명령',
+  'tool_config.presets': '시작 명령 프리셋',
   'tool_config.extra_args': '추가 인수',
   'tool_config.default_cwd': '실행 디렉터리',
   'tool_config.history_path': '대화 기록 디렉터리',

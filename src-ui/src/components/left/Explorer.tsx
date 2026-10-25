@@ -838,7 +838,7 @@ export function Explorer() {
               ? `⁦${activeSession.folderPath}⁩`
               : '—'}
           </span>}
-          <button type="button" className="workspace-filter-toggle" aria-label={t(searchingWorkspace ? 'history.close_search' : 'explorer.filter_files')} onMouseDown={event => event.preventDefault()} onClick={() => setWorkspaceSearch(searchingWorkspace ? null : { folder: folderPath, query: '' })}>
+          <button type="button" className={`workspace-filter-toggle${searchingWorkspace ? ' close-button' : ''}`} aria-label={t(searchingWorkspace ? 'history.close_search' : 'explorer.filter_files')} onMouseDown={event => event.preventDefault()} onClick={() => setWorkspaceSearch(searchingWorkspace ? null : { folder: folderPath, query: '' })}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">{searchingWorkspace ? <path d="m6 6 12 12M6 18 18 6" /> : <><circle cx="10.5" cy="10.5" r="7.5" /><path d="m16 16 5 5" /></>}</svg>
           </button>
         </span>

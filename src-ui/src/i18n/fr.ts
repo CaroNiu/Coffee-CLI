@@ -90,6 +90,7 @@ export const fr = {
   'tool.remote': 'Terminal distant',
   'sentinel.protocol': 'Protocole Sentinelle',
   'tool_config.command': 'Commande de lancement',
+  'tool_config.presets': 'Commandes prédéfinies',
   'tool_config.extra_args': 'Arguments supplémentaires',
   'tool_config.default_cwd': 'Répertoire de lancement',
   'tool_config.history_path': 'Répertoire d\'historique des sessions',

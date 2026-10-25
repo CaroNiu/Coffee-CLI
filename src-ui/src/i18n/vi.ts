@@ -91,6 +91,7 @@ export const vi = {
   'tool.remote': 'Terminal từ xa',
   'sentinel.protocol': 'Giao thức lính gác',
   'tool_config.command': 'Lệnh khởi chạy',
+  'tool_config.presets': 'Lệnh khởi chạy mẫu',
   'tool_config.extra_args': 'Tham số bổ sung',
   'tool_config.default_cwd': 'Thư mục khởi chạy',
   'tool_config.history_path': 'Thư mục lịch sử hội thoại',

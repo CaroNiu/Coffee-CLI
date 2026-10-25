@@ -8,9 +8,6 @@
 .usage-range button { border-color:transparent; background:transparent; }
 .usage-range button[aria-pressed="true"] { color:var(--text-1); background:var(--bg-hover); }
 .usage-toolbar .usage-filter-trigger { width:auto; min-width:120px; max-width:240px; }
-.usage-filter-menu { overflow-y:auto; font:13px/1.5 var(--font-nav,var(--font)); }
-.usage-filter-menu .settings-font-opt { flex-shrink:0; font-family:inherit; }
-.usage-filter-menu .is-highlighted { background:var(--bg-hover); }
 .usage-refresh { margin-left:auto; }
 .usage-cards { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:14px; }
 .usage-card { border:1px solid var(--border); background:var(--bg-panel); border-radius:var(--shape-radius-panel,var(--radius-sm)); padding:18px; min-width:0; }

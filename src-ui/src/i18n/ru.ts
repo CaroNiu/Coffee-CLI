@@ -90,6 +90,7 @@ export const ru = {
   'tool.remote': 'Удалённый терминал',
   'sentinel.protocol': 'Протокол Страж',
   'tool_config.command': 'Команда запуска',
+  'tool_config.presets': 'Шаблоны команд запуска',
   'tool_config.extra_args': 'Доп. аргументы',
   'tool_config.default_cwd': 'Каталог запуска',
   'tool_config.history_path': 'Каталог истории диалогов',

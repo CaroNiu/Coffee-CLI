@@ -64,14 +64,14 @@ try {
   assert.deepEqual(await saved(page), ['D:/Valid', 'D:/Offline']); assert.deepEqual(errors, []); await page.close();
 
   ({ page, errors } = await prepare(['D:/Race', 'D:/Valid']));
-  await card(page, 'Codex').locator('.launchpad-directory').click(); await page.locator('.folder-menu').waitFor();
+  await card(page, 'Codex').locator('.launchpad-card-info').click(); await page.locator('.folder-menu').waitFor();
   await page.evaluate(() => { window.directoryStatuses['D:/Race'] = 'missing'; });
   await page.getByText('Race', { exact: true }).click(); await page.waitForFunction(() => window.pickCount === 1);
   assert.equal((await app(page)).tool, null, 'deleted after opening the menu: do not launch');
   assert.deepEqual(await saved(page), ['D:/Valid']); assert.deepEqual(errors, []); await page.close();
 
   ({ page, errors } = await prepare(['D:/Valid']));
-  await card(page, 'Claude').locator('.launchpad-directory').click(); await page.locator('.folder-menu').waitFor();
+  await card(page, 'Claude').locator('.launchpad-card-info').click(); await page.locator('.folder-menu').waitFor();
   await page.evaluate(() => { window.holdChecks = true; });
   await page.getByText('Valid', { exact: true }).click(); await page.waitForFunction(() => !!window.finishCheck);
   await app(page, { type: 'ADD_TERMINAL', session: { id: 'new-tab', tool: null } });
@@ -84,7 +84,7 @@ try {
   for (const tool of ['Claude', 'Codex']) for (const status of ['missing', 'unavailable']) {
     ({ page, errors } = await prepare(['D:/Valid'], {}, true));
     await page.evaluate(status => { window.startupFailure = `COFFEE_DIRECTORY:${status}:D:/Valid`; }, status);
-    await card(page, tool).locator('.launchpad-directory').click(); await page.getByText('Valid', { exact: true }).click();
+    await card(page, tool).locator('.launchpad-card-info').click(); await page.getByText('Valid', { exact: true }).click();
     await page.getByRole('alert').filter({ hasText: status === 'missing' ? 'project directory no longer exists' : 'project directory is unavailable' }).waitFor();
     assert.equal(await page.locator('.claude-reconnect').count(), status === 'unavailable' ? 1 : 0); assert.equal(await page.locator('.claude-empty').count(), 0);
     assert.equal(await page.evaluate(() => window.startCount), 1); assert.equal((await app(page)).folderPath, 'D:/Valid');

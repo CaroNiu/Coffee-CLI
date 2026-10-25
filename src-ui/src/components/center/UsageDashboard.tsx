@@ -1,53 +1,9 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ThemedSelect } from '../common/ThemedSelect';
 import { useT } from '../../i18n/useT';
 import { getUsageStatistics, readUsageSnapshot, writeUsageSnapshot, usageDays, usageRange, type UsageReport } from '../../lib/usage-stats';
 import '../common/SettingsModal.css';
 import './UsageDashboard.css';
-
-function UsageFilter({ label, value, options, onChange }: {
-  label: string; value: string; options: { value: string; label: string }[]; onChange: (value: string) => void;
-}) {
-  const [position, setPosition] = useState<{ left: number; top: number; width: number; maxHeight: number } | null>(null);
-  const [highlight, setHighlight] = useState(0);
-  const activeIndex = Math.min(highlight, options.length - 1);
-  const trigger = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null);
-  const id = useId(), open = position !== null;
-  const reposition = useCallback(() => {
-    const rect = trigger.current?.getBoundingClientRect(); if (!rect) return;
-    const width = Math.min(Math.max(rect.width, 180), window.innerWidth - 16);
-    const maxHeight = Math.min(320, window.innerHeight - 16), height = Math.min(options.length * 36 + 10, maxHeight);
-    setPosition({ left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)), top: rect.bottom + height + 4 > window.innerHeight - 8 ? Math.max(8, rect.top - height - 4) : rect.bottom + 4, width, maxHeight });
-  }, [options.length]);
-  const show = () => { setHighlight(Math.max(0, options.findIndex(option => option.value === value))); reposition(); };
-  const pick = (next: string) => { onChange(next); setPosition(null); };
-  useEffect(() => {
-    if (!open) return;
-    const update = (event: Event) => { if (!(event.target instanceof Node) || !menu.current?.contains(event.target)) reposition(); };
-    window.addEventListener('scroll', update, true); window.addEventListener('resize', update);
-    return () => { window.removeEventListener('scroll', update, true); window.removeEventListener('resize', update); };
-  }, [open, reposition]);
-  useEffect(() => {
-    if (open) document.getElementById(`${id}-${activeIndex}`)?.scrollIntoView({ block: 'nearest' });
-  }, [open, activeIndex, id]);
-  return <>
-    <button ref={trigger} type="button" className="settings-font-trigger usage-filter-trigger" role="combobox" aria-label={label} aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? id : undefined} aria-activedescendant={open ? `${id}-${activeIndex}` : undefined} onClick={() => open ? setPosition(null) : show()} onKeyDown={event => {
-      if (['ArrowDown', 'ArrowUp', 'Home', 'End', 'Enter', ' ', 'Escape'].includes(event.key)) { event.preventDefault(); event.stopPropagation(); }
-      if (event.key === 'Escape' || event.key === 'Tab') { setPosition(null); return; }
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-        if (!open) show(); else setHighlight((activeIndex + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length);
-      } else if (event.key === 'Home' || event.key === 'End') {
-        if (!open) reposition(); setHighlight(event.key === 'Home' ? 0 : options.length - 1);
-      } else if (event.key === 'Enter' || event.key === ' ') { if (open) pick(options[activeIndex].value); else show(); }
-    }}><span className="settings-font-current">{options.find(option => option.value === value)?.label ?? value}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg></button>
-    {position && createPortal(<>
-      <div className="settings-font-backdrop" onClick={() => setPosition(null)} />
-      <div ref={menu} id={id} role="listbox" aria-label={label} className="settings-font-menu usage-filter-menu" style={{ position: 'fixed', ...position }}>
-        {options.map((option, index) => <button key={option.value} id={`${id}-${index}`} type="button" role="option" tabIndex={-1} aria-selected={value === option.value} className={`settings-font-opt${value === option.value ? ' active' : ''}${activeIndex === index ? ' is-highlighted' : ''}`} onMouseEnter={() => setHighlight(index)} onMouseDown={event => event.preventDefault()} onClick={() => pick(option.value)}>{option.label}</button>)}
-      </div>
-    </>, document.body)}
-  </>;
-}
 
 function Trend({ values, label }: { values: number[]; label: string }) {
   const max = Math.max(...values, 1);
@@ -101,8 +57,8 @@ export function UsageDashboard() {
   ];
   return <section className="usage-dashboard" aria-label={t('usage.title')}>
     <div className="usage-toolbar"><div className="usage-range" role="group" aria-label={t('usage.range')}>{[1, 7, 30].map(value => <button type="button" key={value} aria-pressed={days === value} onClick={() => setDays(value)}>{t(value === 1 ? 'usage.today' : value === 7 ? 'usage.week' : 'usage.month')}</button>)}</div>
-      <UsageFilter label={t('usage.tool')} value={tool} onChange={setTool} options={[{ value: '', label: t('usage.all_tools') }, { value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex CLI' }]} />
-      <UsageFilter label={t('usage.project')} value={project} onChange={setProject} options={[{ value: '', label: t('usage.all_projects') }, ...projects.map(path => ({ value: path, label: path }))]} />
+      <ThemedSelect className="usage-filter-trigger" menuClassName="usage-filter-menu" label={t('usage.tool')} value={tool} onChange={setTool} options={[{ value: '', label: t('usage.all_tools') }, { value: 'claude', label: 'Claude Code' }, { value: 'codex', label: 'Codex CLI' }]} />
+      <ThemedSelect className="usage-filter-trigger" menuClassName="usage-filter-menu" label={t('usage.project')} value={project} onChange={setProject} options={[{ value: '', label: t('usage.all_projects') }, ...projects.map(path => ({ value: path, label: path }))]} />
       <button type="button" className="usage-refresh" disabled={busy} onClick={() => { void refresh(); }}>{t('usage.refresh')}</button>
     </div>
     <div className="usage-body" aria-busy={busy}>

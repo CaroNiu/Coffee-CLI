@@ -524,7 +524,7 @@ function AgentHelpModal({ onClose }: { onClose: () => void }) {
 
   return createPortal(<dialog ref={dialogRef} className="settings-modal agent-help-modal" aria-labelledby="agent-help-title" onClose={onClose} onMouseDown={event => { if (event.target === event.currentTarget) event.currentTarget.close(); }}>
     <div className="settings-content">
-    <div className="settings-header"><span className="settings-header-title" id="agent-help-title">{t('agent.help.title')}</span><button type="button" className="settings-close" aria-label={t('agent.help.close')} onClick={() => dialogRef.current?.close()}>×</button></div>
+    <div className="settings-header"><span className="settings-header-title" id="agent-help-title">{t('agent.help.title')}</span><button type="button" className="settings-close close-button" aria-label={t('agent.help.close')} onClick={() => dialogRef.current?.close()}>×</button></div>
     <div className="settings-body agent-help-content">
     <h3>{t('agent.help.workflow_heading')}</h3>
     <p>{t('agent.help.workflow_intro')}</p>

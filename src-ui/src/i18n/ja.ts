@@ -90,6 +90,7 @@ export const ja = {
   'tool.remote': 'リモートターミナル',
   'sentinel.protocol': 'センチネルプロトコル',
   'tool_config.command': '起動コマンド',
+  'tool_config.presets': '起動コマンドのプリセット',
   'tool_config.extra_args': '追加引数',
   'tool_config.default_cwd': '起動ディレクトリ',
   'tool_config.history_path': '会話履歴ディレクトリ',

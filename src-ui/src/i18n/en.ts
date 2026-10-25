@@ -89,6 +89,7 @@ export const en = {
   'tool.remote': 'Remote Terminal',
   'sentinel.protocol': 'Sentinel Protocol',
   'tool_config.command': 'Launch command',
+  'tool_config.presets': 'Command presets',
   'tool_config.extra_args': 'Extra arguments',
   'tool_config.default_cwd': 'Launch directory',
   'tool_config.history_path': 'Session history directory',

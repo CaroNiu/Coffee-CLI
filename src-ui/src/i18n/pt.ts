@@ -90,6 +90,7 @@ export const pt = {
   'tool.remote': 'Terminal remoto',
   'sentinel.protocol': 'Protocolo Sentinela',
   'tool_config.command': 'Comando de início',
+  'tool_config.presets': 'Comandos predefinidos',
   'tool_config.extra_args': 'Argumentos extras',
   'tool_config.default_cwd': 'Diretório de início',
   'tool_config.history_path': 'Diretório de histórico de sessões',

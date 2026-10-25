@@ -90,6 +90,7 @@ export const zhCN = {
   'tool.remote': '远程终端',
   'sentinel.protocol': '哨兵协议',
   'tool_config.command': '启动命令',
+  'tool_config.presets': '预设启动命令',
   'tool_config.extra_args': '额外参数',
   'tool_config.default_cwd': '启动目录',
   'tool_config.history_path': '历史对话目录',

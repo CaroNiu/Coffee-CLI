@@ -127,11 +127,6 @@
   pointer-events: auto;
 }
 
-.tab-close-btn:hover {
-  background-color: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-}
-
 /* ─── Tab Status Indicator (3×3 dot grid) ─── */
 
 @keyframes tab-status-wave {
@@ -300,13 +295,6 @@ body.session-split-dragging { cursor: grabbing; user-select: none; }
   pointer-events: auto;
   cursor: pointer;
   transition: background-color 120ms ease;
-}
-
-.pane-number-badge--closable:hover {
-  /* Claude-brand orange (#D97757). Same tone used for Claude's
-     executing-state dot in the tab strip — "about to do something
-     consequential" reads the same across the app. */
-  background: #d97757;
 }
 
 .pane-number-badge--closable:active {
@@ -609,10 +597,9 @@ body.session-split-dragging { cursor: grabbing; user-select: none; }
   min-width: 0;
 }
 
-.launchpad-directory { display:flex; align-items:center; justify-content:center; flex:0 0 36px; width:36px; height:36px; margin-left:auto; padding:6px; border:0; border-radius:var(--shape-radius-btn,5px); background:transparent; color:var(--text-2); }
-.launchpad-directory:hover { background:var(--bg-hover); }
-.launchpad-directory svg { display:block; flex-shrink:0; }
-.launchpad-directory:disabled { opacity:.45; }
+.launchpad-config { display:flex; align-items:center; justify-content:center; flex:0 0 36px; width:36px; height:36px; margin-left:auto; padding:6px; border:0; border-radius:var(--shape-radius-btn,5px); background:transparent; color:var(--text-2); }
+.launchpad-config:hover { background:var(--bg-hover); }
+.launchpad-config svg { display:block; flex-shrink:0; }
 .launchpad-mode-tabs { position:absolute; right:0; bottom:0; display:flex; height:18px; overflow:hidden; border-top-left-radius:var(--radius-md); }
 .launchpad-mode-tabs button { display:flex; align-items:center; justify-content:center; width:70px; height:18px; padding:0 8px; border:0; border-radius:0; background:var(--bg-hover); color:var(--text-2); font:12px/1 var(--font); white-space:nowrap; cursor:pointer; }
 .launchpad-mode-tabs button:first-child { padding-left:10px; padding-right:6px; }
@@ -620,9 +607,9 @@ body.session-split-dragging { cursor: grabbing; user-select: none; }
 .launchpad-mode-tabs button:hover { color:var(--text-1); }
 .launchpad-mode-tabs button.is-selected { background:var(--accent); color:var(--bg-app); }
 .launchpad-mode-tabs button:disabled { cursor:default; }
-.launchpad-mode-tabs button:focus-visible, .launchpad-directory:focus-visible { outline:1px solid var(--accent); outline-offset:-2px; }
+.launchpad-mode-tabs button:focus-visible, .launchpad-config:focus-visible { outline:1px solid var(--accent); outline-offset:-2px; }
 
-/* Recent-folders dropdown (opened from a tool card's folder icon).
+/* Recent-folders dropdown (opened from a tool card).
    Same opaque-bg recipe as .term-ctx-menu so it reads solid across every
    theme incl. glass (portal'd to <body>, which is under html[data-shape]). */
 .folder-menu {
@@ -685,14 +672,8 @@ body.session-split-dragging { cursor: grabbing; user-select: none; }
 .folder-menu-item:hover .folder-menu-del { opacity: 0.55; }
 .folder-menu-item:hover .folder-menu-del:hover {
   opacity: 1;
-  color: var(--red);
-  background: color-mix(in srgb, var(--red) 15%, transparent);
 }
 .folder-menu-item .folder-menu-del svg { opacity: 1; color: inherit; }
-
-/* (Per-tool launch settings now live on the Library cards, not on
-   the main launchpad — gear is a one-time setup affordance, not a
-   recurring action like the folder picker. See .library-gear-btn.) */
 
 /* Disabled state — tool not installed */
 .launchpad-card-disabled {
@@ -740,7 +721,7 @@ body.session-split-dragging { cursor: grabbing; user-select: none; }
   flex: 1;
   gap: 3px;
   min-width: 0;
-  /* Keep long tool names clear of the folder button on narrow cards. */
+  /* Keep long tool names clear of the settings button on narrow cards. */
   overflow: hidden;
 }
 
@@ -752,7 +733,7 @@ body.session-split-dragging { cursor: grabbing; user-select: none; }
 }
 
 /* Agent name: ellipsize when the card is squeezed instead of overflowing
-   onto the folder button. The terminal card's inline-flex name (with the
+   onto the settings button. The terminal card's inline-flex name (with the
    remote-link icon) only clips — flex items can't ellipsize — which is
    fine for its short CJK label. */
 .launchpad-card-info > span:first-child {
@@ -1012,11 +993,6 @@ body.session-split-dragging { cursor: grabbing; user-select: none; }
   justify-content: center;
   transition: background 0.15s, color 0.15s;
 }
-.tool-config-close:hover {
-  background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
-}
-
 .tool-config-body {
   padding: 20px;
   display: flex;
@@ -1063,6 +1039,13 @@ body.session-split-dragging { cursor: grabbing; user-select: none; }
   opacity: 0.5;
 }
 
+.tool-config-command { position:relative; }
+.tool-config-command.has-presets .tool-config-input { padding-right:40px; }
+.tool-command-presets.settings-font-trigger { position:absolute; top:1px; right:1px; bottom:1px; width:32px; padding:8px; border:0; border-radius:0 var(--radius-sm) var(--radius-sm) 0; background:transparent; justify-content:center; }
+.tool-command-presets.settings-font-trigger:hover:not(:disabled) { background:var(--bg-hover); }
+.tool-command-presets .settings-font-current { display:none; }
+.tool-command-presets:disabled { opacity:.5; cursor:not-allowed; }
+
 .tool-config-buttons {
   display: flex;
   gap: 8px;
@@ -1094,13 +1077,16 @@ body.session-split-dragging { cursor: grabbing; user-select: none; }
 }
 
 .tool-config-btn-primary {
-  background: var(--accent);
+  background: color-mix(in srgb, var(--accent) 70%, var(--text-1));
   color: var(--bg-app);
   border-color: transparent;
   font-weight: 600;
 }
 .tool-config-btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: color-mix(in srgb, var(--accent-hover) 45%, var(--text-1));
+}
+.tool-config-btn-primary:active:not(:disabled) {
+  background: var(--accent-active, var(--accent));
 }
 
 /* ─── Terminal Card Subtle Remote Hint ─── */
@@ -1201,8 +1187,6 @@ body.session-split-dragging { cursor: grabbing; user-select: none; }
 
 .remote-pill-close:hover {
   opacity: 1;
-  background: rgba(255, 85, 85, 0.2);
-  color: #ff5555;
 }
 
 
@@ -1248,11 +1232,6 @@ body.session-split-dragging { cursor: grabbing; user-select: none; }
   justify-content: center;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
-}
-
-.remote-form-close:hover {
-  background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
 }
 
 .remote-form-body {
